@@ -513,7 +513,7 @@ function Recorder.draw()
 
     local rally = rallyByIndex(S.index)
     local sw = love.graphics.getWidth()
-    local x, y, w = sw - 270, 8, 262
+    local x, y, w = sw - 330, 8, 322
 
     local exists = fileExists(replayPath(rally.id, S.mode))
     local lines = {

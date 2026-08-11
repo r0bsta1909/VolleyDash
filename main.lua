@@ -38,6 +38,9 @@ local defaults = {
 local config = {}
 for k, v in pairs(defaults) do config[k] = v end
 
+local World    = require("src.sim.world")
+local Viewport = require("src.render.viewport")
+
 -- ============================================================================
 -- TEMPORARY RECORDING SHIM (M0-03) -- remove after reference replays are captured.
 -- This is NOT the B-02 fixed-timestep implementation. Do not build on it.
@@ -51,6 +54,9 @@ for k, v in pairs(defaults) do config[k] = v end
 --   --replay=R-04       the same for a single rally
 --   --scene=R-11        run the scripted scene of that rally instead
 --   --scene-probe=R-11  parameter sweep for a scene, prints, records nothing
+--   --screenshot        grab one frame into the save directory, then quit.
+--                       Keeps the normal window, so the letterbox of M0-04 is
+--                       actually visible in the picture.
 -- Without a flag the game behaves exactly as before. The wrappers live at the
 -- bottom of this file, the patched call sites are marked with "RECORDING SHIM".
 -- Removal is part of M0-05.
@@ -82,8 +88,13 @@ for _, a in ipairs(arg or {}) do
     local probe = a:match("^%-%-scene%-probe=(.+)$")
     if probe then REC.probeId = probe end
     if a == "--write-manifest" then REC.writeManifest = true end
+    if a == "--screenshot" then REC.shot = 0 end
 end
 if REC.writeManifest then REC.active = true end
+-- Everything that produces reference data runs in the fixed 800x600 window.
+-- --screenshot deliberately does not, otherwise there is nothing to look at.
+REC.refMode = REC.active or REC.queue or REC.probeId
+if REC.shot then REC.active = true end
 if REC.queue or REC.probeId then REC.fixedDt = true end
 REC.active = REC.active or REC.fixedDt or REC.selftest
 REC.mode = REC.fixedDt and "fixed60" or "variable"
@@ -130,7 +141,7 @@ local namePool = {
 
 -- RECORDING SHIM (M0-03): fixed seed while recording, so the header is honest.
 -- Cosmetics only -- names, particles, camera shake. See docs/handoffs/CC-01_REPORT.md.
-if REC.active then math.randomseed(1) else math.randomseed(os.time()) end
+if REC.refMode then math.randomseed(1) else math.randomseed(os.time()) end
 local p1NameIdx = math.random(1, #namePool)
 local p2NameIdx = math.random(1, #namePool)
 local botNameIdx = math.random(1, #namePool)
@@ -311,8 +322,11 @@ local gameState = {
     ballSide = 1 
 }
 
-local WORLD = { width = 800, height = 600, groundY = config.blobGroundY }
-local scale = 1
+-- Logisches Spielfeld, konstant (M0-04, ADR-004, B-01). Breite und Hoehe
+-- kommen aus src/sim/world.lua und werden nie aus der Fenstergroesse
+-- abgeleitet. groundY bleibt veraenderlich, weil es aus der Config kommt --
+-- der Live-Tweaker darf es weiterhin verschieben (Trennung in M0-09).
+local WORLD = { width = World.WIDTH, height = World.HEIGHT, groundY = config.blobGroundY }
 local p1, p2, ball, net
 
 local assets = { bg = nil, blob = nil, ball = nil }
@@ -443,11 +457,12 @@ function love.load()
     loadConfig() 
     
     love.window.setTitle("Volley Dash")
-    if REC.active then
-        -- RECORDING SHIM (M0-03), trap 6 of the handoff: WORLD.width is a function
-        -- of the window width as long as B-01 is open. A fixed, non-resizable
-        -- 800x600 window gives scale == 1 and WORLD.width == 800, which is exactly
-        -- the geometry M0-04 will make permanent (ADR-004).
+    if REC.refMode then
+        -- RECORDING SHIM (M0-03). Since M0-04 the world no longer depends on
+        -- the window, so this is not load bearing any more. It stays because
+        -- the reference set has to be reproducible: same window, same header,
+        -- and the "window differs from the last recording" warning keeps
+        -- meaning something.
         love.window.setMode(800, 600, { resizable = false })
     else
         love.window.setMode(800, 600, { resizable = true, minwidth = 640, minheight = 480 })
@@ -477,7 +492,8 @@ function love.load()
     sounds.whistle = loadSound("whistle")
     sounds.whistle_end = loadSound("whistle_end")
 
-    updateWorldDimensions()
+    WORLD.groundY = config.blobGroundY or 500
+    love.graphics.setBackgroundColor(0, 0, 0)   -- Letterbox-Balken (M0-04)
 
     -- Blobs bekommen einen dashGrace Timer für den Dash-Save Shake!
     p1 = { x = WORLD.width * 0.25, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.15, 0.55, 0.95}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0, botSmash = false }
@@ -490,14 +506,9 @@ function love.load()
     love.audio.setVolume(config.volume)
 end
 
-function updateWorldDimensions()
-    local winW, winH = love.graphics.getDimensions()
-    scale = winH / 600
-    WORLD.width = winW / scale
-    WORLD.height = 600
-    WORLD.groundY = config.blobGroundY or 500
-    if net then net.x = WORLD.width / 2 - 5 end
-end
+-- updateWorldDimensions() ist mit M0-04 entfallen (B-01). Die Weltgroesse
+-- haengt nicht mehr am Fenster; die Fensteranpassung macht
+-- src/render/viewport.lua als reine Render-Transformation.
 
 function launchGame(vsBot)
     config.botActive = vsBot
@@ -528,7 +539,7 @@ function resetBall(server)
     -- RECORDING SHIM (M0-03): the only simulation-relevant math.random in the
     -- prototype (B-06). Fixed to 1.0 while recording, which is the target value
     -- from GDD P4 anyway. Noted in patches_active of every recorded file.
-    gameState.serveDelay = REC.active and 1.0 or (1.0 + math.random() * 0.5)
+    gameState.serveDelay = REC.refMode and 1.0 or (1.0 + math.random() * 0.5)
     
     ball.x = (server == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
     ball.y = WORLD.groundY - config.serveHeight 
@@ -572,7 +583,9 @@ end
 function love.update(dt)
     if gameState.state == "menu" or gameState.state == "gameover" then return end
     dt = math.min(dt, 0.05)
-    updateWorldDimensions()
+    -- Fruehere Stelle von updateWorldDimensions(). Uebrig bleibt nur der
+    -- Config-Wert; die Fenstergroesse hat hier nichts mehr zu suchen (B-01).
+    WORLD.groundY = config.blobGroundY or 500
 
     if camera.shakeTimer > 0 then camera.shakeTimer = camera.shakeTimer - dt end
     updateParticles(dt)
@@ -1008,8 +1021,7 @@ end
 -- RENDERING
 -- ============================================================================
 function love.draw()
-    love.graphics.push()
-    love.graphics.scale(scale, scale)
+    Viewport.apply()
 
     if camera.shakeTimer > 0 then
         love.graphics.translate((math.random() * 2 - 1) * camera.shakeMag, (math.random() * 2 - 1) * camera.shakeMag)
@@ -1061,8 +1073,8 @@ function love.draw()
         love.graphics.setFont(love.graphics.newFont(14))
         love.graphics.setColor(1, 1, 1, 0.4)
         love.graphics.printf("Use UP/DOWN to navigate. Use LEFT/RIGHT to change settings. Enter to select.", 0, WORLD.height - 30, WORLD.width, "center")
-        
-        love.graphics.pop()
+
+        Viewport.release()
         return
     end
 
@@ -1207,7 +1219,7 @@ function love.draw()
         end
     end
 
-    love.graphics.pop()
+    Viewport.release()
 end
 
 function drawBlob(p, isP1)
@@ -1509,6 +1521,23 @@ if REC.active then
     function love.update(dt)
         Recorder.update(dt)
 
+        if REC.shot then
+            -- One frame into the save directory, then out. Two spare frames so
+            -- the asynchronous capture is written before the process ends.
+            REC.shot = REC.shot + 1
+            if REC.shot == 5 then
+                launchGame(true)   -- the field is more interesting than the menu
+                resetBall(2)
+            elseif REC.shot == 30 then
+                love.graphics.captureScreenshot("viewport.png")
+                print("[shot] " .. love.filesystem.getSaveDirectory() .. "/viewport.png")
+            elseif REC.shot > 32 then
+                love.event.quit()
+            end
+            baseUpdate(dt)
+            return
+        end
+
         if REC.queue then
             replayStep()
             Recorder.frameDone()
@@ -1537,6 +1566,7 @@ if REC.active then
 
     function love.draw()
         baseDraw()
+        if REC.shot then return end   -- a screenshot shows the game, not the tooling
 
         love.graphics.push()
         love.graphics.origin()

@@ -29,6 +29,8 @@ Zwei Clients mit unterschiedlichem Seitenverhältnis spielen auf unterschiedlich
 
 **Fix:** `WORLD` wird Konstante (800×600). `scale` und Offsets kommen ausschließlich in die Render-Transformation (Letterbox/Pillarbox). `updateWorldDimensions()` verschwindet aus `love.update` komplett.
 
+**Erledigt in M0-04 (2026-08-11).** `src/sim/world.lua` hält die Konstanten, `src/render/viewport.lua` macht die Letterbox-Transformation, `updateWorldDimensions()` ist ersatzlos gelöscht. Übrig blieb in `love.update` nur `WORLD.groundY = config.blobGroundY`, weil das ein Config-Wert ist und kein Fensterwert (Trennung in M0-09). Nachweis: die elf `fixed60`-Referenzen wurden nach dem Umbau neu erzeugt und sind **Frame für Frame bitgleich** mit dem Satz davor.
+
 ### B-02 — Variabler Timestep · **kritisch**
 
 ```lua

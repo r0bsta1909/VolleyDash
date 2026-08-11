@@ -62,6 +62,19 @@ Die aufgezeichneten Eingaben werden durch die neue `sim.step()` gefahren. Für j
 
 **Konsequenz für M0-05:** Ein Vergleich `variable` ↔ `fixed60` ist als Abnahmekriterium wertlos — die Ordnung der Abweichung liegt drei Größenordnungen über der Toleranz. Verglichen wird ausschließlich `fixed60` (Prototyp) ↔ `fixed60` (neue Simulation). Der variable Satz bleibt als Beleg dafür, wie sich der Prototyp tatsächlich verhalten hat, und für den Blindtest D1.
 
+### Regressionslauf nach jedem Umbauschritt
+
+Bis M0-05 den Timestep ändert, ist die Messlatte **Bitgleichheit**, nicht Toleranz:
+
+```bash
+cp -r tests/replays/fixed60 /tmp/fixed60_before
+love . --replay-all && for s in R-01 R-06 R-08 R-11; do love . --scene=$s; done
+python tools/verify_replays.py            # muss "OK" melden
+# danach die frames-Bloecke beider Staende vergleichen -- sie muessen identisch sein
+```
+
+Der Aufzeichnungsmodus fährt ein festes 800 × 600-Fenster, in dem `scale == 1` gilt. Solange nur Geometrie und Struktur umgebaut werden und nicht die Physik, darf sich **kein einziger Wert** ändern. M0-04 wurde so abgenommen. Ab M0-05 gilt stattdessen die Toleranztabelle oben.
+
 **Was die Abweichung nicht bedeutet:** Sie sagt nichts über die Wahl von 1/60 aus. Ein chaotisches System driftet bei jeder Störung; entscheidend ist, ob sich das Ergebnis im Blindtest D1 anders **anfühlt**. Erst wenn D1 kippt, wird 1/120 mit doppelter Tickrate geprüft.
 
 ## 3. Ebene B — Regel-Unit-Tests
