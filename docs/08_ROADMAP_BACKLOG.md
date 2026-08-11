@@ -38,7 +38,7 @@ Gegenüber Fassung 1.0 um rund 15–20 h gestiegen: Open-Source-Repo-Aufbau (ADR
 | M0-04 | Weltgeometrie fixieren, `viewport.lua` mit Letterbox | 3 | **B-01** |
 | M0-05 | Fixer Timestep 1/60 + Akkumulator + Render-Interpolation | 4 | **B-02** |
 | M0-06 | `InputFrame` + `local_source` (Tastatur, Gamepad, Doppeltipp-Dash) | 4 | **B-03**, ADR-014, `13_INPUTFRAME_FORMAT` |
-| M0-07 | Bot auf `InputFrame`, Instanzierung, Inline-Kopie löschen | 3 | B-07, B-09 |
+| M0-07 | Bot aus `main.lua` nach `bot_source.lua` heben, auf `InputFrame`, Instanzierung | 3 | B-07, B-09 |
 | M0-08 | `sim/`-Extraktion: state, physics, rules, step; Reinheit herstellen | 6 | §3 `03_TECH` |
 | M0-09 | `Ruleset`/`Prefs`-Trennung, Presets, kanonischer Hash | 3 | **B-04** |
 | M0-10 | Regelkorrekturen: 2-Punkte-Vorsprung, fixe Aufschlagverzögerung, Rallye-Timeout | 2 | B-05, B-06, P5 |

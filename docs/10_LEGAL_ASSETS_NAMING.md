@@ -63,17 +63,21 @@ GPLv2 ist eine Copyleft-Lizenz: Wer abgeleiteten Code verbreitet, muss das Gesam
 
 ## 4. Eigene Assets
 
-| Asset | Status im Prototyp | Anforderung |
-|-------|--------------------|-------------|
-| `blob.png` | vorhanden, Herkunft unklar | **Herkunft klären.** Wenn nicht selbst erstellt: neu zeichnen. Ein Blob ist ein Halbkreis mit Auge — 20 Minuten Arbeit |
-| `ball.png` | vorhanden, Herkunft unklar | dito |
-| `bg.jpg` / `bg.png` | vorhanden, Herkunft unklar | dito. Bei Stockfoto: Lizenz dokumentieren |
-| Sounds (Sprung, Dash, Wand, Pfiff) | vorhanden, Herkunft unklar | Herkunft klären. Ersatz: freesound.org (CC0-Filter) oder selbst aufgenommen |
+**Stand 2026-08-11 (CC-01):** Die Herkunft ist geklärt — **alle elf Assetdateien stammen von
+Roberto**. Risiko R-05 ist damit erledigt, die Bedingung aus `CLAUDE.md` §11 für den ersten
+Push ist erfüllt. Vollständige Liste mit Hashes in `ASSET_INVENTORY.md`.
+
+| Asset | Status | Anforderung |
+|-------|--------|-------------|
+| `blob.png` | eigene Erstellung, im Repo | in `assets/CREDITS.md` eintragen (M1-09) |
+| `ball.png` | eigene Erstellung, im Repo | dito |
+| `bg.jpg` | eigene Erstellung, im Repo | dito. Zusätzlich: PNG mit falscher Endung, 2752×1536, 4,9 MB — verkleinern und umbenennen (M1-09) |
+| Sounds (Sprung, Dash, Wand, Pfiff) | eigene Erstellung, im Repo | in `assets/CREDITS.md` eintragen (M1-09) |
 | Fonts | LÖVE-Standardfont | Bei eigenem Font: nur OFL-lizenzierte verwenden |
 
-**⚠️ Blockierend vor dem ersten öffentlichen Push (ADR-011):** Eine `assets/CREDITS.md` anlegen, die für jedes Asset Herkunft und Lizenz nennt. Fehlt der Nachweis, wird das Asset ersetzt — **vor** dem Push, nicht danach. Eine gelöschte Datei bleibt in der Git-Historie; ein nachträglicher History-Rewrite auf einem geforkten Repo ist praktisch nicht durchführbar.
+**Vor dem ersten öffentlichen Push (ADR-011):** Eine `assets/CREDITS.md` anlegen, die für jedes Asset Herkunft und Lizenz nennt — hier durchgehend „Roberto, zlib". Der Nachweis liegt vor; blockierend ist nur noch das Anlegen der Datei. Eine gelöschte Datei bleibt in der Git-Historie; ein nachträglicher History-Rewrite auf einem geforkten Repo ist praktisch nicht durchführbar.
 
-**Der elegante Weg:** Der Prototyp funktioniert bereits vollständig **ohne** externe Assets — der Zeichencode enthält Fallbacks für Blob und Ball (prozedurale Halbkreise, Augen mit Ballverfolgung). Der prozedurale Look ist charakteristisch und lizenzfrei. Es spricht viel dafür, ihn zum Standard zu machen und Bild-Assets nur optional zu unterstützen.
+**Der prozedurale Fallback bleibt trotzdem interessant:** Der Prototyp funktioniert vollständig **ohne** externe Assets — der Zeichencode enthält Fallbacks für Blob und Ball (prozedurale Halbkreise, Augen mit Ballverfolgung), nachgewiesen in `ASSET_INVENTORY.md` §3. Das ist jetzt kein Lizenzargument mehr, sondern eines für Startzeit und Downloadgröße (M1-09).
 
 ## 5. Veröffentlichungsmodell — Entscheidung Q-04
 

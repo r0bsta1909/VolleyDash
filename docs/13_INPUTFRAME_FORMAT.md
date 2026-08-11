@@ -52,7 +52,7 @@ Genau vier, und **pro Tick genau eine je Spieler**:
 |---|---|---|
 | lokale Tastatur | `local_keyboard` | Tastenbelegung aus `Prefs` |
 | lokales Gamepad | `local_gamepad` | Achsen/Buttons, Deadzone in `Prefs` |
-| Bot | `bot` | `bot.lua`, aus Spielzustand und `Ruleset` |
+| Bot | `bot` | `bot_source.lua` (ab M0-07), aus Spielzustand und `Ruleset` |
 | Netzwerk | `network` | empfangenes Input-Paket des Gegners |
 
 Wechselt die Quelle eines Spielers (Reconnect, Bot-Übernahme bei Disconnect), geschieht das
@@ -138,8 +138,8 @@ elseif right then vx = +speed
 else vx = 0 end
 ```
 
-Der Bot kann strukturell nie beide Bits setzen: `Bot.updateAI` (`main.lua:375–377`) und
-`Bot.update` (`bot.lua:82–87`) setzen `left` und `right` in einem `if/elseif`. Für Quellen
+Der Bot kann strukturell nie beide Bits setzen: `Bot.updateAI` (`main.lua:375–377`) setzt
+`left` und `right` in einem `if/elseif`. Für Quellen
 `bot` und `network` ist der Fall also nur über einen manipulierten Frame erreichbar; die
 Regel gilt trotzdem für alle vier Quellen einheitlich.
 
@@ -178,7 +178,7 @@ dem, was der Prototyp tatsächlich verbraucht:
 | `dash` | Flanke aus `handleDoubleTap` | Flanke aus `handleDoubleTap` | `botInputs.dashDir ~= nil` |
 
 Aufgezeichnet wird beim Bot ausdrücklich der **Output** (`botInputs`), nicht der Zustand des
-Bots. Damit sind die Zufallsanteile des Bots (`main.lua:331`, `bot.lua:44`) in der
+Bots. Damit sind die Zufallsanteile des Bots (`main.lua:331`) in der
 Aufzeichnung eingefroren und für die Wiedergabe unschädlich.
 
 Im Modus `fixed60` teilen sich mehrere Simulationsschritte eines Frames denselben

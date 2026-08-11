@@ -1,7 +1,7 @@
 # VOLLEY DASH — Projekt-Dokumentation
 
 **Stand:** 2026-08-11 · **Doc-Set-Version:** 1.0
-**Ausgangslage:** LÖVE2D-Prototyp (`main.lua`, `bot.lua`), lokal 1v1 + Bot lauffähig.
+**Ausgangslage:** LÖVE2D-Prototyp (`main.lua`), lokal 1v1 + Bot lauffähig.
 **Zielbild:** Standalone-Builds für Windows & macOS, zuverlässiger LAN-Betrieb, integrierter Turniermodus.
 
 ---

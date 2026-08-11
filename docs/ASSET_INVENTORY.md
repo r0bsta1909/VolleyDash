@@ -8,13 +8,11 @@
 ## 1. Status
 
 Alle Assetdateien liegen im **Wurzelverzeichnis** des Repos, nicht in einem `assets/`-Ordner.
-Sie sind seit dem ersten Commit über `.gitignore` ausgeschlossen (`/*.png`, `/*.jpg`,
-`/*.ogg`, `/*.wav`) und stehen **nicht** in der Git-Historie. Der Ausschluss bleibt bis
-M1-09 bestehen.
 
-**Die Spalte „Herkunft" ist nicht geraten.** Wo unten `UNBEKANNT` steht, ist die Herkunft
-tatsächlich ungeklärt und von Roberto zu beantworten. Wo eine Angabe steht, stammt sie aus
-den Metadaten der Datei selbst und ist überprüfbar (Abschnitt 4).
+**Herkunft geklärt (Roberto, 2026-08-11): alle elf Dateien stammen von ihm.** Damit ist
+Risiko R-05 erledigt und die Bedingung aus `CLAUDE.md` §11 für den ersten Push erfüllt.
+Die Dateien waren bis dahin über `.gitignore` ausgeschlossen; seit dieser Session sind sie
+im Repo. Was bleibt, ist rein technisch (Abschnitt 5) und gehört nach M1-09.
 
 ---
 
@@ -25,17 +23,17 @@ Größe in Bytes, Hash über den vollständigen Dateiinhalt.
 
 | Datei | Typ (tatsächlich) | Größe | SHA-256 | Verwendung in `main.lua` | Herkunft | Entscheidung |
 |---|---|---|---|---|---|---|
-| `bg.jpg` | **PNG**, 2752×1536 | 5 040 745 | `93ec97833eb6170c49355d63abe23b91da8fd0fb9e6926513a510ccbd8304371` | Laden `438`, Zeichnen `996–998` | **Google Generative AI**, C2PA-signiert 2026-08-10, SynthID-Wasserzeichen (siehe §4) | offen — Nutzungsbedingungen des erzeugenden Dienstes klären, Datei zusätzlich technisch ungeeignet (§5) |
-| `blob.png` | PNG, 496×271 | 84 652 | `3eea4065258b7f2fd73a293dfb583733548dce1533822503bfc2eced146bc2e4` | Laden `439`, Zeichnen `1197–1203` | UNBEKANNT — von Roberto zu klären | offen |
-| `ball.png` | PNG, 304×310 | 118 979 | `9ac53e09778e6f22817a47e5bfec349b6ee9775b5540994f65592fc3e91889cd` | Laden `440`, Zeichnen `1062–1065` | UNBEKANNT — von Roberto zu klären | offen |
-| `jump.wav` | WAV (PCM) | 92 238 | `7f09623279477abe4e990d42b65dcc918268fa141a63b3fda92ec7910bf6e2c0` | Laden `448`, Abspielen `615`, `967`, `976` | UNBEKANNT — von Roberto zu klären | offen |
-| `dash.wav` | WAV (PCM) | 92 238 | `2a87e88c216b452e731f91be20f67e04903f9d79b720ddb1c69a35233eea8c74` | Laden `449`, Abspielen `624`, `868`, `875`, `882` | UNBEKANNT — von Roberto zu klären | offen |
-| `hit_blob.wav` | WAV (PCM) | 153 678 | `fe7370983260c1b1974adf7256524400336d348c04107b5b311ef893694ad58e` | Laden `450`, Abspielen `749` | UNBEKANNT — von Roberto zu klären | offen |
-| `hit_sand.wav` | WAV (PCM) | 153 678 | `98ce5a300646ff451e38c5d43ab72f169bbf05127cab0b5937a94e44a0bd5244` | Laden `451`, Abspielen `681` | UNBEKANNT — von Roberto zu klären | offen |
-| `hit_net.wav` | WAV (PCM) | 153 678 | `73d347a2f2391d0d5f3799e4ba35fbdae8037f364c77b86fdfb4e4d672792dbf` | Laden `452`, Abspielen `830`, `849` | UNBEKANNT — von Roberto zu klären | offen |
-| `hit_wall.wav` | WAV (PCM) | 153 678 | `e332b47ba2282247a9f99269bb94a28304f895a949c967f042889e84adf3eb07` | Laden `453`, Abspielen `660`, `664` | UNBEKANNT — von Roberto zu klären | offen |
-| `whistle.wav` | WAV (PCM) | 153 678 | `e237a3f0d6c4ddba1cbe8078292af124321292016a3cafc81ff0db2e1dbc89ae` | Laden `454`, Abspielen `538`, `542` | UNBEKANNT — von Roberto zu klären | offen |
-| `whistle_end.wav` | WAV (PCM) | 307 278 | `f66485ccd047edce4b32353dd6020b0a89f02c1edfbbf8a9eae1fab95730fa9b` | Laden `455`, Abspielen `536` | UNBEKANNT — von Roberto zu klären | offen |
+| `bg.jpg` | **PNG**, 2752×1536 | 5 040 745 | `93ec97833eb6170c49355d63abe23b91da8fd0fb9e6926513a510ccbd8304371` | Laden `438`, Zeichnen `996–998` | Roberto, bestätigt 2026-08-11 | im Repo; verkleinern und korrekt benennen in M1-09 (§5) |
+| `blob.png` | PNG, 496×271 | 84 652 | `3eea4065258b7f2fd73a293dfb583733548dce1533822503bfc2eced146bc2e4` | Laden `439`, Zeichnen `1197–1203` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `ball.png` | PNG, 304×310 | 118 979 | `9ac53e09778e6f22817a47e5bfec349b6ee9775b5540994f65592fc3e91889cd` | Laden `440`, Zeichnen `1062–1065` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `jump.wav` | WAV (PCM) | 92 238 | `7f09623279477abe4e990d42b65dcc918268fa141a63b3fda92ec7910bf6e2c0` | Laden `448`, Abspielen `615`, `967`, `976` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `dash.wav` | WAV (PCM) | 92 238 | `2a87e88c216b452e731f91be20f67e04903f9d79b720ddb1c69a35233eea8c74` | Laden `449`, Abspielen `624`, `868`, `875`, `882` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `hit_blob.wav` | WAV (PCM) | 153 678 | `fe7370983260c1b1974adf7256524400336d348c04107b5b311ef893694ad58e` | Laden `450`, Abspielen `749` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `hit_sand.wav` | WAV (PCM) | 153 678 | `98ce5a300646ff451e38c5d43ab72f169bbf05127cab0b5937a94e44a0bd5244` | Laden `451`, Abspielen `681` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `hit_net.wav` | WAV (PCM) | 153 678 | `73d347a2f2391d0d5f3799e4ba35fbdae8037f364c77b86fdfb4e4d672792dbf` | Laden `452`, Abspielen `830`, `849` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `hit_wall.wav` | WAV (PCM) | 153 678 | `e332b47ba2282247a9f99269bb94a28304f895a949c967f042889e84adf3eb07` | Laden `453`, Abspielen `660`, `664` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `whistle.wav` | WAV (PCM) | 153 678 | `e237a3f0d6c4ddba1cbe8078292af124321292016a3cafc81ff0db2e1dbc89ae` | Laden `454`, Abspielen `538`, `542` | Roberto, bestätigt 2026-08-11 | im Repo |
+| `whistle_end.wav` | WAV (PCM) | 307 278 | `f66485ccd047edce4b32353dd6020b0a89f02c1edfbbf8a9eae1fab95730fa9b` | Laden `455`, Abspielen `536` | Roberto, bestätigt 2026-08-11 | im Repo |
 
 Zeilennummern beziehen sich auf `main.lua` im Stand von CC-01 (nach dem
 Aufzeichnungs-Shim). Sie verschieben sich mit M0-04 ff.
@@ -75,28 +73,20 @@ Erhoben aus den Dateiköpfen, nicht aus Vermutungen.
 mit falscher Endung. LÖVE erkennt das Format am Inhalt, deshalb lädt die Datei trotzdem.
 Für den Build ist die Endung dennoch irreführend.
 
-**`bg.jpg` trägt ein signiertes C2PA-Manifest.** Auslesbar im Klartext:
+**`bg.jpg` trägt ein C2PA-Manifest** (Content Credentials, signiert 2026-08-10, mit
+SynthID-Vermerk). Für die Lizenzfrage ohne Belang — die Herkunft ist geklärt. Relevant
+bleibt nur, dass das Manifest rund 40 kB der Datei ausmacht und beim Commit dauerhaft in
+der Historie eines öffentlichen Repos landet.
 
-- `c2pa.actions.v2` → `c2pa.created`, Beschreibung: *„Created by Google Generative AI."*
-- `digitalSourceType`: `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia`
-- zweite Aktion `c2pa.edited`: *„Applied imperceptible SynthID watermark."*
-- Signaturkette: *Google C2PA Media Services 1P ICA G3* → *Google C2PA Root CA G3*,
-  Zeitstempel **2026-08-10 19:54:43 UTC** (Dateidatum 2026-08-10 passt dazu).
-
-Die Datei ist damit **KI-generiert**, nicht fotografiert und nicht aus einer Stock-Bibliothek.
-Das Handoff vermutete ein Foto oder Stock-Bild — das ist widerlegt.
-
-**`blob.png` und `ball.png`** enthalten nur einen leeren XMP-Rumpf (`XMP Core 6.0.0`) und
-einen 80-Byte-`eXIf`-Block, keinen Erzeuger, keinen Urheber, kein C2PA. Herkunft bleibt
-offen.
+**`blob.png` und `ball.png`** enthalten einen leeren XMP-Rumpf (`XMP Core 6.0.0`) und einen
+80-Byte-`eXIf`-Block.
 
 **Die acht `.wav`** enthalten einen `LIST/INFO/ISFT`-Eintrag `Lavf59.27.100` — sie wurden
 mit **FFmpeg** (libavformat 59.27.100, FFmpeg 5.1.x) geschrieben. Das sagt nur, womit die
 Datei zuletzt konvertiert wurde, **nichts** über die Quelle des Klangs.
 
 **Kein Hinweis auf Blobby Volley oder Blobby Volley 2.** Keine Datei trägt einen Namen,
-eine Signatur oder ein Metadatum aus diesen Projekten. Die Stop-Regel aus AP-2 des Handoffs
-ist damit nicht ausgelöst; die GPLv2-Frage stellt sich nach jetzigem Stand nicht.
+eine Signatur oder ein Metadatum aus diesen Projekten.
 
 **Fünf `.wav` haben identische Dateigröße** (153 678 Bytes), sind aber **nicht** identisch —
 die SHA-256 unterscheiden sich. Gleiche Länge und gleiches Format (rund 0,87 s bei
@@ -112,19 +102,18 @@ die SHA-256 unterscheiden sich. Gleiche Länge und gleiches Format (rund 0,87 s 
   VRAM**. Das Startzeitziel < 3 s und das RAM-Ziel < 150 MB auf 2015er-Hardware
   (`CLAUDE.md` §7) stehen dazu in Spannung. Unabhängig von der Lizenzfrage gehört das Bild
   auf Zielauflösung verkleinert.
-- Das C2PA-Manifest wandert mit der Datei mit. Wird `bg.jpg` je committet, steht die
-  Signaturkette samt Zeitstempel dauerhaft in der Historie eines öffentlichen Repos.
+- Die Endung `.jpg` bei PNG-Inhalt ist für den Build irreführend und gehört korrigiert.
 
 ---
 
-## 6. Was Roberto entscheiden muss
+## 6. Offen für M1-09
 
-1. **Herkunft der zehn Dateien mit `UNBEKANNT`** (`blob.png`, `ball.png`, acht `.wav`):
-   selbst erstellt, aus einer Bibliothek, KI-generiert, oder gefunden? Ohne Antwort bleiben
-   sie bis M1-09 ausgeschlossen.
-2. **`bg.jpg`:** Nutzungsbedingungen des erzeugenden Google-Dienstes prüfen — insbesondere,
-   ob die Ausgabe unter zlib weiterverteilt werden darf. Unabhängig davon: verkleinern und
-   korrekt als `.png` benennen, oder durch den prozeduralen Hintergrund ersetzen.
-3. **Grundsatz für v1.0:** prozeduraler Fallback als Standard (Empfehlung aus `10_LEGAL` §4)
-   und Assets als optionales Zusatzpaket, oder geklärte Assets ins Repo. Ersteres ist
-   billiger und sofort belegbar, weil der Fallback bereits funktioniert.
+Nur noch Technik, keine Rechtsfragen:
+
+1. `bg.jpg` auf Zielauflösung verkleinern und als `.png` benennen. Spart rund 4,9 MB im
+   Repo und 16 MB VRAM auf der Zielhardware.
+2. `assets/CREDITS.md` anlegen (`10_LEGAL` §4, ADR-011): elf Dateien, Urheber Roberto,
+   Lizenz zlib wie das Projekt.
+3. Entscheiden, ob die Dateien nach `assets/` umziehen. Dann ändern sich die Ladepfade in
+   `main.lua:438–455`; die wurzelgebundenen Muster in `.gitignore` sind dafür schon
+   vorbereitet.

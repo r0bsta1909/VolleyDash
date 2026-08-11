@@ -21,13 +21,3 @@ tests/replays/.last_window
 tests/replays/*/R-00.json
 desync.log
 .claude/settings.local.json
-
-# TEMPORÄR bis M1-09: Assetherkunft ungeklärt (R-05, ADR-011).
-# Der Prototyp hat bereits vollständige nil-Guards (main.lua 390-403, 947, 1013, 1148,
-# playSound 375). Ohne diese Dateien startet das Spiel und ist spielbar --
-# der prozedurale Fallback aus 10_LEGAL §4 existiert de facto schon.
-# Wurzelgebundene Muster, damit ein späterer assets/-Ordner nicht miterfasst wird.
-/*.png
-/*.jpg
-/*.ogg
-/*.wav

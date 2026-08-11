@@ -1,6 +1,10 @@
 # 02 — Code-Audit: Prototyp `main.lua` / `bot.lua`
 
-**Version:** 1.0 · **Stand:** 2026-08-11 · **Basis:** `main.lua` (1182 Zeilen), `bot.lua` (~130 Zeilen)
+**Version:** 1.1 · **Stand:** 2026-08-11 · **Basis:** `main.lua` (1182 Zeilen), `bot.lua` (~130 Zeilen)
+
+> **Nachtrag CC-01 (2026-08-11):** `bot.lua` wurde nie geladen — in `main.lua` gibt es kein
+> `require`. Die Datei ist in M0-03 gelöscht worden, siehe B-07. Sie bleibt über den Tag
+> `prototype-baseline` in der Historie erreichbar.
 
 ---
 
@@ -75,9 +79,11 @@ Ein zufälliges Zeitfenster vor jedem Aufschlag ist im Turnier eine unnötige Va
 
 ### B-07 — Bot-Code doppelt vorhanden · **mittel**
 
-`bot.lua` existiert als Modul (Schwierigkeiten als Strings `easy/medium/hard/god`), aber `main.lua` enthält eine **zweite, abweichende Kopie** (Schwierigkeiten als Zahlen `1/2/3`, zusätzliche Aufschlaglogik, andere Dash-Bedingung, Anpassung des Zielpunkts beim dritten Ballkontakt). Die inline-Version ist die aktuellere. Zwei Wahrheiten für dieselbe Sache — klassischer Drift-Kandidat.
+`bot.lua` existierte als Modul (Schwierigkeiten als Strings `easy/medium/hard/god`), aber `main.lua` enthält eine **zweite, abweichende Kopie** (Schwierigkeiten als Zahlen `1/2/3`, zusätzliche Aufschlaglogik, andere Dash-Bedingung, Anpassung des Zielpunkts beim dritten Ballkontakt). Die inline-Version ist die aktuellere. Zwei Wahrheiten für dieselbe Sache — klassischer Drift-Kandidat.
 
-**Fix:** `bot.lua` wird die einzige Quelle, übernimmt die inline-Logik, arbeitet gegen die Input-Abstraktion aus B-03. Inline-Kopie ersatzlos löschen.
+**Befund CC-01:** `bot.lua` wurde vom Prototyp **gar nicht geladen** (kein `require` in `main.lua`). Es waren nicht zwei konkurrierende Wahrheiten, sondern eine aktive Inline-Kopie und eine verwaiste Datei. Die verwaiste Datei ist in M0-03 gelöscht.
+
+**Fix:** M0-07 hebt die Inline-Logik nach `src/input/bot_source.lua` (`03_TECH` §2) und lässt sie gegen die Input-Abstraktion aus B-03 arbeiten. Die Inline-Kopie verschwindet dabei ersatzlos.
 
 ### B-08 — `love.graphics.newFont()` im Draw-Aufruf · **mittel, Performance**
 
