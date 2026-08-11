@@ -64,13 +64,25 @@ Die aufgezeichneten Eingaben werden durch die neue `sim.step()` gefahren. Für j
 
 ### Regressionslauf nach jedem Umbauschritt
 
-Bis M0-05 den Timestep ändert, ist die Messlatte **Bitgleichheit**, nicht Toleranz:
+**Seit M0-13 ist das ein Test, keine Handarbeit:**
 
 ```bash
-cp -r tests/replays/fixed60 /tmp/fixed60_before
+lua tests/run_headless.lua      # Ebene A und B, ohne LÖVE
+love . --test                   # dasselbe aus dem Spiel heraus
+love . --test-no-love           # zusätzlich: beweist die love-Freiheit
+```
+
+`tests/replay_test.lua` fährt die aufgezeichneten `InputFrames` durch
+`Step.tick` und vergleicht Tick für Tick gegen die Referenz — Ball auf 0,5 px,
+Phase, Punktestand und Berührungszähler exakt. Belegt: eine Änderung der
+Schwerkraft um 0,01 % lässt fünf der elf Rallyes durchfallen.
+
+Der frühere Weg (Referenzen neu erzeugen und die Dateien vergleichen) bleibt
+für Änderungen am Werkzeug selbst nützlich:
+
+```bash
 love . --replay-all && for s in R-01 R-06 R-08 R-11; do love . --scene=$s; done
-python tools/verify_replays.py            # muss "OK" melden
-# danach die frames-Bloecke beider Staende vergleichen -- sie muessen identisch sein
+python tools/verify_replays.py            # prüft, dass jede Rallye ihr Phänomen enthält
 ```
 
 Der Aufzeichnungsmodus fährt ein festes 800 × 600-Fenster, in dem `scale == 1` gilt. Solange nur Geometrie und Struktur umgebaut werden und nicht die Arithmetik, darf sich **kein einziger Wert** ändern. **M0-04 und M0-05 wurden so abgenommen.**
@@ -101,14 +113,14 @@ Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
 
 | ID | Fall | Erwartung |
 |----|------|-----------|
-| T-R-01 | Aufschläger gewinnt Ballwechsel | +1 Punkt, behält Aufschlag |
-| T-R-02 | Nicht-Aufschläger gewinnt Ballwechsel | 0 Punkte, Aufschlagwechsel |
-| T-R-03 | Ball berührt eigenen Boden | Fehler, Punkt/Aufschlag an Gegner |
-| T-R-04 | 4. Berührung in Folge | Fehler |
-| T-R-05 | 3. Berührung ist gültig | kein Fehler |
-| T-R-06 | Ball wechselt Seite | Zähler auf 0 |
-| T-R-07 | Wandberührung | zählt **nicht** als Berührung |
-| T-R-08 | Netzberührung | zählt **nicht** als Berührung (GDD P1) |
+| T-R-01 | Aufschläger gewinnt Ballwechsel | +1 Punkt, behält Aufschlag — **umgesetzt M0-13** |
+| T-R-02 | Nicht-Aufschläger gewinnt Ballwechsel | 0 Punkte, Aufschlagwechsel — **umgesetzt M0-13** |
+| T-R-03 | Ball berührt eigenen Boden | Fehler, Punkt/Aufschlag an Gegner — **umgesetzt M0-13** |
+| T-R-04 | 4. Berührung in Folge | Fehler — **umgesetzt M0-13** |
+| T-R-05 | 3. Berührung ist gültig | kein Fehler — **umgesetzt M0-13** |
+| T-R-06 | Ball wechselt Seite | Zähler auf 0 — **umgesetzt M0-13** |
+| T-R-07 | Wandberührung | zählt **nicht** als Berührung — **umgesetzt M0-13** |
+| T-R-08 | Netzberührung | zählt **nicht** als Berührung (GDD P1) — **umgesetzt M0-13** |
 | T-R-09 | 15:13 | Satz beendet — **umgesetzt M0-10** |
 | T-R-10 | 15:14 | Satz **nicht** beendet (Blocker B-05) — **umgesetzt M0-10** |
 | T-R-11 | 16:14 | Satz beendet — **umgesetzt M0-10** |

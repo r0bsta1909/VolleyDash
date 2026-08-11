@@ -170,4 +170,134 @@ case("rallyTimeout = 0 schaltet die Regel ab (Preset prototype)", function()
     assertEq(state.match.servingPlayer, 1, "kein Aufschlagwechsel")
 end)
 
+-- ---------------------------------------------------------------------------
+-- T-R-01 bis T-R-08: Punktevergabe und Beruehrungszaehler (M0-13)
+--
+-- Diese Faelle laufen durch die ganze Simulation, nicht nur durch Rules:
+-- der Zaehler haengt an der Kollision, und genau dieses Zusammenspiel soll
+-- geprueft werden.
+-- ---------------------------------------------------------------------------
+
+-- Ball frei in der Luft, Blobs auf ihren Aufschlagpositionen, Phase play.
+local function inPlay(rs, ballX, ballY, vx, vy)
+    local state = State.new(rs)
+    state.match.phase = "play"
+    state.match.inProgress = true
+    state.ball.x, state.ball.y = ballX, ballY
+    state.ball.vx, state.ball.vy = vx or 0, vy or 0
+    state.rally.ballSide = (ballX < World.WIDTH / 2) and 1 or 2
+    return state
+end
+
+-- Laeuft bis zu `limit` Ticks und sammelt alle Ereignisse ein.
+local function run(state, rs, limit, inputs)
+    local seen = {}
+    local events = {}
+    for _ = 1, limit do
+        Step.tick(state, inputs and inputs[1] or 0, inputs and inputs[2] or 0, rs, events)
+        for _, e in ipairs(events) do seen[#seen + 1] = e end
+    end
+    return seen
+end
+
+local function sawEvent(events, kind)
+    for _, e in ipairs(events) do
+        if e.type == kind then return e end
+    end
+    return nil
+end
+
+case("T-R-01: Aufschlaeger gewinnt den Ballwechsel -- Punkt, Aufschlag bleibt", function()
+    local rs = Ruleset.new("classic")
+    local state = inPlay(rs, 700, 400, 0, 200)   -- Ball faellt auf P2s Seite, neben dem Blob
+    state.match.servingPlayer = 1
+
+    local events = run(state, rs, 120)
+    assertTrue(sawEvent(events, "point") ~= nil, "Punkt vergeben")
+    assertEq(state.match.score[1], 1, "Punkt fuer den Aufschlaeger")
+    assertEq(state.match.score[2], 0, "kein Punkt fuer den Gegner")
+    assertEq(state.match.servingPlayer, 1, "Aufschlag bleibt")
+end)
+
+case("T-R-02: Nicht-Aufschlaeger gewinnt -- kein Punkt, Aufschlagwechsel", function()
+    local rs = Ruleset.new("classic")
+    local state = inPlay(rs, 100, 400, 0, 200)   -- Ball faellt auf P1s Seite, neben dem Blob
+    state.match.servingPlayer = 1
+
+    local events = run(state, rs, 120)
+    assertTrue(sawEvent(events, "side_out") ~= nil, "Seitenaus")
+    assertEq(state.match.score[1], 0, "kein Punkt")
+    assertEq(state.match.score[2], 0, "auch nicht fuer den Gewinner")
+    assertEq(state.match.servingPlayer, 2, "Aufschlagwechsel")
+end)
+
+case("T-R-03: Ball auf dem eigenen Boden ist ein Fehler", function()
+    local rs = Ruleset.new("classic")
+    local state = inPlay(rs, 100, 400, 0, 200)
+    state.match.servingPlayer = 2   -- P2 schlaegt auf, P1 laesst fallen
+
+    local events = run(state, rs, 120)
+    assertTrue(sawEvent(events, "ground_hit") ~= nil, "Bodenkontakt")
+    assertEq(state.match.score[2], 1, "Punkt fuer die Gegenseite")
+    assertEq(state.match.servingPlayer, 2, "Aufschlaeger behaelt ihn")
+end)
+
+case("T-R-04/T-R-05: die dritte Beruehrung ist gueltig, die vierte ist ein Fehler", function()
+    local rs = Ruleset.new("classic")
+    -- Ball direkt ueber dem stehenden Blob: er springt auf dem Kopf und wird
+    -- dabei jedes Mal neu gezaehlt.
+    local state = inPlay(rs, World.SERVE_X[1], 300, 0, 0)
+
+    local counts = {}
+    local faultAt = nil
+    local events = {}
+    for tick = 1, 600 do
+        Step.tick(state, 0, 0, rs, events)
+        for _, e in ipairs(events) do
+            if e.type == "blob_hit" then counts[#counts + 1] = state.rally.touchCount end
+            if e.type == "fault" and not faultAt then faultAt = state.rally.touchCount end
+        end
+        if faultAt then break end
+    end
+
+    assertTrue(#counts >= 4, "mindestens vier Beruehrungen, waren " .. #counts)
+    assertEq(counts[1], 1, "erste Beruehrung")
+    assertEq(counts[3], 3, "dritte Beruehrung zaehlt weiter")
+    assertTrue(faultAt ~= nil, "Fehler ausgeloest")
+    assertEq(faultAt, 4, "erst die vierte Beruehrung ist der Fehler")
+end)
+
+case("T-R-06: Seitenwechsel des Balls setzt den Zaehler zurueck", function()
+    local rs = Ruleset.new("classic")
+    local state = inPlay(rs, 380, 200, 600, 0)
+    state.rally.touchCount, state.rally.lastTouchPlayer = 2, 1
+    state.rally.ballSide = 1
+
+    run(state, rs, 5)
+    assertTrue(state.ball.x > World.WIDTH / 2, "Ball hat die Mitte ueberquert")
+    assertEq(state.rally.ballSide, 2, "Seite gewechselt")
+    assertEq(state.rally.touchCount, 0, "Zaehler zurueckgesetzt")
+    assertEq(state.rally.lastTouchPlayer, 0, "kein letzter Beruehrer mehr")
+end)
+
+case("T-R-07: eine Wandberuehrung zaehlt nicht als Beruehrung", function()
+    local rs = Ruleset.new("classic")
+    local state = inPlay(rs, 60, 200, -600, 0)
+
+    local events = run(state, rs, 20)
+    assertTrue(sawEvent(events, "wall_hit") ~= nil, "Wandkontakt")
+    assertEq(state.rally.touchCount, 0, "Zaehler unveraendert")
+    assertEq(state.rally.lastTouchPlayer, 0, "kein Beruehrer")
+end)
+
+case("T-R-08: eine Netzberuehrung zaehlt nicht als Beruehrung (GDD P1)", function()
+    local rs = Ruleset.new("classic")
+    -- Ball faellt genau auf die Netzkante bei (400, 345).
+    local state = inPlay(rs, 400, 200, 0, 200)
+
+    local events = run(state, rs, 60)
+    assertTrue(sawEvent(events, "net_hit") ~= nil, "Netzkontakt")
+    assertEq(state.rally.touchCount, 0, "Zaehler unveraendert")
+end)
+
 return T

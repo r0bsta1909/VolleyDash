@@ -17,6 +17,7 @@
 --   --write-manifest    Manifest neu schreiben und beenden
 --   --screenshot[=seite] ein Bild in den Save-Ordner, dann beenden
 --   --test              Testsuiten laufen lassen und beenden
+--   --test-no-love      dasselbe ohne die Bibliothek im Namensraum
 -- ============================================================================
 
 local World   = require("src.sim.world")
@@ -34,6 +35,7 @@ function M.parse(args)
         if a == "--record-selftest" then flags.selftest = true end
         if a == "--write-manifest" then flags.manifest = true end
         if a == "--test" then flags.test = true end
+        if a == "--test-no-love" then flags.test, flags.testNoLove = true, true end
         if a == "--screenshot" then flags.shot = 0 end
         if a == "--replay-all" then
             flags.queue = { "R-01", "R-02", "R-03", "R-04", "R-05", "R-06",
@@ -66,7 +68,12 @@ function M.active() return flags.active == true end
 -- danach nichts mehr tun soll.
 function M.runTests()
     if not flags.test then return false end
-    local _, failed = require("tests.run_headless").run()
+    local Runner = require("tests.run_headless")
+
+    -- --test-no-love beweist die Reinheit: der Lauf sieht die Bibliothek
+    -- nicht und scheitert, sobald ein Modul sie doch anfasst.
+    local runner = flags.testNoLove and Runner.runWithoutLove or Runner.run
+    local _, failed = runner()
     love.event.quit(failed > 0 and 1 or 0)
     return true
 end
