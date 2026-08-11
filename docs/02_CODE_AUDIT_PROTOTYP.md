@@ -56,6 +56,8 @@ Die Simulation fragt direkt die Hardware. Damit kann sie nicht von einem Netzwer
 
 **Fix:** Input-Abstraktion. Ein `InputFrame` pro Spieler pro Tick (`{left, right, jump, smash, dash}` als Bitmaske), erzeugt von genau einer von vier Quellen: lokale Tastatur, Gamepad, Bot, Netzwerk. Die Simulation kennt nur `InputFrame`.
 
+**Erledigt in M0-06 (2026-08-11).** `src/input/frame.lua` (Bitmaske, love-frei) und `src/input/local_source.lua` (Tastatur, Gamepad, Doppeltipp-Erkennung in Ticks). `love.keyboard` kommt in der Simulation nicht mehr vor; Sprung und Dash sind Flanken aus dem `InputFrame` statt Tastenereignisse. Der Bot schreibt seinen Output bis M0-07 zusätzlich als `InputFrame` mit. Nachweis: 17 Unit-Tests (`love . --test`) und elf `fixed60`-Referenzen weiterhin bitgleich.
+
 ### B-04 — Config ist global, veränderlich und vermischt zwei Dinge · **hoch**
 
 `config` enthält gleichzeitig **Simulationsparameter** (`gravity`, `ballRadius`, `netHeight`, `activeSpike`) und **lokale Präferenzen** (`volume`, `botLevel`). Der Live-Tweaker ändert Simulationsparameter zur Laufzeit. Im Netzwerkspiel würde ein Spieler damit still die Physik seines Clients verändern.

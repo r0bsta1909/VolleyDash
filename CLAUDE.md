@@ -196,7 +196,7 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Zweck | Befehl |
 |---|---|
 | Spiel starten | `/d/love2d/LOVE/love.exe .` |
-| Headless-Tests (Ebene A + B) | _noch nicht vorhanden — M0-13_ |
+| Headless-Tests (Ebene A + B) | `/d/love2d/LOVE/love.exe . --test` (erst Ebene B, Ausbau in M0-13) |
 | Referenz-Rallye aufzeichnen | `/d/love2d/LOVE/love.exe . --record` (F9/F10/F11, Anleitung: `docs/handoffs/CC-01_AUFZEICHNUNGSANLEITUNG.md`) |
 | `fixed60`-Satz erzeugen | `/d/love2d/LOVE/love.exe . --replay-all`, danach `--scene=R-01`, `--scene=R-06`, `--scene=R-08`, `--scene=R-11` |
 | Referenzen prüfen | `python tools/verify_replays.py` (muss „OK" melden) |

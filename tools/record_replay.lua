@@ -36,9 +36,6 @@ local RALLIES = {
 local REPLAY_DIR = "tests/replays"
 local WINDOW_STAMP = REPLAY_DIR .. "/.last_window"
 
--- InputFrame bits, canonical per 13_INPUTFRAME_FORMAT.md / ADR-014.
-local BIT_LEFT, BIT_RIGHT, BIT_JUMP, BIT_SMASH, BIT_DASH = 1, 2, 4, 8, 16
-
 local S = {
     ready       = false,
     mode        = "variable",
@@ -50,8 +47,6 @@ local S = {
     tick        = 0,
     prev        = nil,   -- state snapshot taken after the previous step,
                          -- i.e. before this frame's key events
-    pendingDash = { false, false },
-    botInputs   = nil,
     message     = nil,
     messageTime = 0,
     windowWarn  = nil,
@@ -194,44 +189,8 @@ end
 -- Input capture
 -- ---------------------------------------------------------------------------
 
--- Called from handleDoubleTap in main.lua whenever a dash actually fires.
--- The dash bit is a derived impulse, not a key state (ADR-014).
-function Recorder.noteDash(playerNum)
-    S.pendingDash[playerNum] = true
-end
-
--- Called with the return value of Bot.updateAI. The recording keeps the bot
--- OUTPUT, never the bot state -- that is what freezes the bot's jitter.
-function Recorder.noteBotInputs(inputs)
-    S.botInputs = inputs
-end
-
-local function keyboardFrame(playerNum)
-    local down = love.keyboard.isDown
-    local frame = 0
-    if playerNum == 1 then
-        if down("a") then frame = frame + BIT_LEFT end
-        if down("d") then frame = frame + BIT_RIGHT end
-        if down("w") then frame = frame + BIT_JUMP end
-        if down("s") then frame = frame + BIT_SMASH end
-    else
-        if down("h") then frame = frame + BIT_LEFT end
-        if down("k") then frame = frame + BIT_RIGHT end
-        if down("u") then frame = frame + BIT_JUMP end
-        if down("j") then frame = frame + BIT_SMASH end
-    end
-    return frame
-end
-
-local function botFrame(inputs)
-    local frame = 0
-    if inputs.left  then frame = frame + BIT_LEFT  end
-    if inputs.right then frame = frame + BIT_RIGHT end
-    if inputs.jump  then frame = frame + BIT_JUMP  end
-    if inputs.smash then frame = frame + BIT_SMASH end
-    if inputs.dashDir then frame = frame + BIT_DASH end
-    return frame
-end
+-- Die InputFrames baut main.lua (src/input/*). Der Recorder schreibt sie nur
+-- noch mit -- seit M0-06 gibt es hier keine Tastaturabfrage mehr.
 
 -- ---------------------------------------------------------------------------
 -- State snapshot
@@ -264,7 +223,6 @@ function Recorder.start()
     S.tick      = 0
     S.recording = true
     S.prev      = snapshot()
-    S.pendingDash = { false, false }
 
     local w, h = love.graphics.getDimensions()
     S.header.window = { w, h }
@@ -292,30 +250,15 @@ end
 
 -- One simulation step has just run. `dt` is the step the prototype used.
 function Recorder.step(dt)
-    if not (S.ready and S.recording) then
-        S.botInputs = nil
-        return
-    end
+    if not (S.ready and S.recording) then return end
 
     local phase = S.refs.gameState.state
     if phase ~= "play" and phase ~= "serve" then
-        -- menu or gameover: the prototype's update returned early, nothing moved
-        S.botInputs = nil
+        -- menu or gameover: the update returned early, nothing moved
         return
     end
 
-    local p1Frame = keyboardFrame(1)
-    local p2Frame
-    if S.refs.config.botActive and S.botInputs then
-        p2Frame = botFrame(S.botInputs)
-    else
-        p2Frame = keyboardFrame(2)
-    end
-    if S.pendingDash[1] then p1Frame = p1Frame + BIT_DASH end
-    if S.pendingDash[2] then p2Frame = p2Frame + BIT_DASH end
-    S.pendingDash[1] = false
-    S.pendingDash[2] = false
-    S.botInputs = nil
+    local p1Frame, p2Frame = S.refs.inputs[1], S.refs.inputs[2]
 
     local st = S.prev
     S.frames[#S.frames + 1] = string.format(
@@ -332,13 +275,6 @@ function Recorder.step(dt)
 
     S.tick = S.tick + 1
     S.prev = snapshot()
-end
-
--- Called once per rendered frame, after all simulation steps of that frame.
-function Recorder.frameDone()
-    S.pendingDash[1] = false
-    S.pendingDash[2] = false
-    S.botInputs = nil
 end
 
 -- ---------------------------------------------------------------------------

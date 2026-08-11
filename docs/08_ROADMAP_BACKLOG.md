@@ -44,7 +44,7 @@ Gegenüber Fassung 1.0 um rund 15–20 h gestiegen: Open-Source-Repo-Aufbau (ADR
 | M0-10 | Regelkorrekturen: 2-Punkte-Vorsprung, fixe Aufschlagverzögerung, Rallye-Timeout | 2 | B-05, B-06, P5 |
 | M0-11 | Tastenbelegung konfigurierbar + persistent | 2 | GDD §7 |
 | M0-12 | Szenen-Stack, `main.lua` unter 100 Zeilen, UI nach `ui/` | 3 | — |
-| M0-13 | Headless-Testrunner + Regel-Unit-Tests | 3 | Testplan §3 |
+| M0-13 | Headless-Testrunner ohne LÖVE ausbauen + Regel-Unit-Tests | 3 | Testplan §3 |
 
 ### M1 — Build-Pipeline + Open-Source-Repo (17–21 h)
 

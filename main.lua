@@ -38,8 +38,10 @@ local defaults = {
 local config = {}
 for k, v in pairs(defaults) do config[k] = v end
 
-local World    = require("src.sim.world")
-local Viewport = require("src.render.viewport")
+local World       = require("src.sim.world")
+local Viewport    = require("src.render.viewport")
+local Frame       = require("src.input.frame")
+local LocalSource = require("src.input.local_source")
 
 -- ============================================================================
 -- TEMPORARY REFERENCE TOOLING (M0-03) -- goes away with M0-13, when the
@@ -57,6 +59,7 @@ local Viewport = require("src.render.viewport")
 --   --replay=R-04       the same for a single rally
 --   --scene=R-11        run the scripted scene of that rally instead
 --   --scene-probe=R-11  parameter sweep for a scene, prints, records nothing
+--   --test              run the headless test suites and quit
 --   --screenshot        grab one frame into the save directory, then quit.
 --                       Keeps the normal window, so the letterbox of M0-04 is
 --                       actually visible in the picture.
@@ -87,6 +90,15 @@ for _, a in ipairs(arg or {}) do
     if probe then REC.probeId = probe end
     if a == "--write-manifest" then REC.writeManifest = true end
     if a == "--screenshot" then REC.shot = 0 end
+    if a == "--test" then REC.test = true end
+end
+
+-- Tests laufen ohne Fenster, ohne Aufzeichnung, ohne Spiel. love.load bricht
+-- danach ab (M0-06; der eigenstaendige Runner kommt in M0-13).
+if REC.test then
+    local ok, failed = require("tests.run_headless").run()
+    love.event.quit(failed > 0 and 1 or 0)
+    return
 end
 REC.active = REC.active or REC.selftest or REC.writeManifest or REC.queue ~= nil or REC.probeId ~= nil
 
@@ -330,6 +342,44 @@ local WORLD = { width = World.WIDTH, height = World.HEIGHT, groundY = config.blo
 local p1, p2, ball, net
 
 -- ============================================================================
+-- EINGABE (M0-06, B-03)
+--
+-- Die Simulation liest keine Hardware mehr. Pro Tick steht je Spieler genau
+-- ein InputFrame bereit, erzeugt von genau einer Quelle (ADR-014). sources
+-- wird in love.load gefuellt; das Aufzeichnungswerkzeug haengt sich dort ein,
+-- indem es eine Quelle austauscht -- mehr braucht die Wiedergabe nicht.
+-- ============================================================================
+local sources    = { nil, nil }
+local inputs     = { 0, 0 }
+local prevInputs = { 0, 0 }
+
+local function dashWindowTicks()
+    return math.max(1, math.floor(config.dashWindow * World.TICK_RATE + 0.5))
+end
+
+local function gatherInputs()
+    local window = dashWindowTicks()
+    prevInputs[1] = inputs[1]
+    inputs[1] = sources[1] and sources[1]:poll(window) or 0
+
+    prevInputs[2] = inputs[2]
+    if config.botActive then
+        -- Der Bot schreibt inputs[2] im Tick selbst (bis M0-07 steckt er noch
+        -- in dieser Datei). Die Tastatur von P2 wird dann nicht gefragt.
+        return
+    end
+    inputs[2] = sources[2] and sources[2]:poll(window) or 0
+end
+
+local function resetInputSources()
+    for i = 1, 2 do
+        local src = sources[i]
+        if src and src.reset then src:reset() end
+        inputs[i], prevInputs[i] = 0, 0
+    end
+end
+
+-- ============================================================================
 -- RENDER-INTERPOLATION (M0-05, B-02)
 --
 -- Die Simulation laeuft mit festen 1/60 s, gezeichnet wird mit der Bildrate des
@@ -379,7 +429,6 @@ end
 
 local assets = { bg = nil, blob = nil, ball = nil }
 local sounds = {}
-local lastTaps = {} 
 
 -- ============================================================================
 -- BOT KI MODUL
@@ -549,8 +598,13 @@ function love.load()
     net = { x = WORLD.width / 2 - 5, y = WORLD.groundY - config.netHeight, w = 10, h = config.netHeight }
     ball = { x = WORLD.width * 0.25, y = WORLD.groundY - config.serveHeight, vx = 0, vy = 0, radius = config.ballRadius, rotation = 0, color = {1, 1, 1} }
     
-    if not assets.ball then ball.color = {0.98, 0.85, 0.12} end 
-    
+    if not assets.ball then ball.color = {0.98, 0.85, 0.12} end
+
+    -- Eine Quelle je Spieler (M0-06, ADR-014). Das Aufzeichnungswerkzeug
+    -- tauscht sie bei Bedarf gegen eine Wiedergabe-Quelle aus.
+    sources[1] = LocalSource.new(1)
+    sources[2] = LocalSource.new(2)
+
     love.audio.setVolume(config.volume)
 end
 
@@ -633,6 +687,43 @@ end
 -- LOGIK
 -- ============================================================================
 
+-- Sprung und Dash sind Ereignisse. Die Quelle liefert Zustaende, die
+-- Simulation leitet die Flanken ab (ADR-014). Frueher stand beides in
+-- love.keypressed und lief damit ausserhalb des Ticks, in Echtzeit gemessen.
+local function applyInputImpulses(p, idx)
+    local bits, prev = inputs[idx], prevInputs[idx]
+    local dir = Frame.moveDir(bits)
+    local dashed = false
+
+    if Frame.has(bits, Frame.DASH) and p.cooldownTimer <= 0 then
+        dashed = true
+        p.cooldownTimer = config.dashCooldown
+        p.dashGrace = 0.5
+        playSound(sounds.dash)
+        if dir == 0 then
+            -- Aufwaerts-Dash: kein Richtungsbit gesetzt
+            p.vy = config.jumpForce * config.dashUp
+            p.isGrounded = false
+            spawnDust(p.x, p.y, 10, 40, 100)
+        else
+            p.dashTimer = 0.2
+            p.dashSpeed = dir * config.moveSpeed * config.dashSide
+            spawnDust(p.x, p.y, 15, 60, 150)
+        end
+    end
+
+    -- Ein ausgefuehrter Aufwaerts-Dash verbraucht den Sprungtipp; im Prototyp
+    -- sprang der Blob beim zweiten Tipp nicht zusaetzlich. Wurde der Dash
+    -- dagegen vom Cooldown geschluckt, bleibt der Sprung.
+    local upDashed = dashed and dir == 0
+    if Frame.pressed(bits, prev, Frame.JUMP) and p.isGrounded and not upDashed then
+        p.vy = config.jumpForce
+        p.isGrounded = false
+        spawnDust(p.x, p.y, 8, 40, 100)
+        playSound(sounds.jump)
+    end
+end
+
 -- Ein Simulationsschritt. `dt` ist immer World.TICK_DT -- die Funktion wird
 -- ausschliesslich aus dem Akkumulator unten und aus dem Wiedergabe-Treiber
 -- aufgerufen, nie mit dem dt aus love.update (M0-05, B-02).
@@ -641,6 +732,9 @@ end
 -- wirkungslos und ersatzlos entfallen.
 local function simulateTick(dt)
     if gameState.state == "menu" or gameState.state == "gameover" then return end
+
+    applyInputImpulses(p1, 1)
+    if not config.botActive then applyInputImpulses(p2, 2) end
     -- Fruehere Stelle von updateWorldDimensions(). Uebrig bleibt nur der
     -- Config-Wert; die Fenstergroesse hat hier nichts mehr zu suchen (B-01).
     WORLD.groundY = config.blobGroundY or 500
@@ -676,7 +770,7 @@ local function simulateTick(dt)
     else
         p1.tiltAngle = p1.tiltAngle * 0.8 
         local p1Speed = p1.isGrounded and config.moveSpeed or (config.moveSpeed * config.airControl)
-        p1.vx = love.keyboard.isDown("a") and -p1Speed or (love.keyboard.isDown("d") and p1Speed or 0)
+        p1.vx = Frame.moveDir(inputs[1]) * p1Speed
     end
     updateBlob(p1, dt, 0, net.x)
 
@@ -686,7 +780,14 @@ local function simulateTick(dt)
     
     if config.botActive then
         local botInputs = Bot.updateAI(p2, ball, dt, config, WORLD, gameState)
-        if Recorder then Recorder.noteBotInputs(botInputs) end -- RECORDING SHIM (M0-03)
+        -- Bis M0-07 den Bot nach src/input/bot_source.lua hebt, verbraucht der
+        -- Bot-Zweig seine Tabelle direkt. Der InputFrame wird trotzdem
+        -- gefuehrt, damit Aufzeichnung und Netz nur ein Format kennen.
+        inputs[2] = Frame.encode({
+            left = botInputs.left, right = botInputs.right,
+            jump = botInputs.jump, smash = botInputs.smash,
+            dash = botInputs.dashDir ~= nil,
+        })
         p2.botSmash = botInputs.smash
         
         if p2.cooldownTimer > 0 then p2.cooldownTimer = p2.cooldownTimer - dt end
@@ -726,7 +827,7 @@ local function simulateTick(dt)
             p2.tiltAngle = (p2.dashSpeed > 0) and 0.6 or -0.6
         else
             p2.tiltAngle = p2.tiltAngle * 0.8
-            p2.vx = love.keyboard.isDown("h") and -p2Speed or (love.keyboard.isDown("k") and p2Speed or 0)
+            p2.vx = Frame.moveDir(inputs[2]) * p2Speed
         end
     end
     updateBlob(p2, dt, net.x + net.w, WORLD.width)
@@ -797,6 +898,7 @@ function love.update(dt)
 
     while accumulator >= World.TICK_DT do
         accumulator = accumulator - World.TICK_DT
+        gatherInputs()
         captureRenderState()
         simulateTick(World.TICK_DT)
         if onPostTick then onPostTick() end
@@ -892,10 +994,11 @@ function checkBlobBallCollision(p, playerNum)
                 ball.vx = ball.vx + totalImpulse * nx
                 ball.vy = ball.vy + totalImpulse * ny
 
-                local isSpiking = false
-                if playerNum == 1 and love.keyboard.isDown("s") then isSpiking = true end
-                if playerNum == 2 then
-                    if config.botActive then isSpiking = p.botSmash else isSpiking = love.keyboard.isDown("j") end
+                local isSpiking
+                if playerNum == 2 and config.botActive then
+                    isSpiking = p.botSmash
+                else
+                    isSpiking = Frame.has(inputs[playerNum], Frame.SMASH)
                 end
 
                 if config.activeSpike and isSpiking and not p.isGrounded then
@@ -975,41 +1078,9 @@ end
 -- ============================================================================
 -- INPUT EVENTS (MENÜ + SPIEL)
 -- ============================================================================
-local function handleDoubleTap(key, playerNum, p, dashDirLeft, dashDirRight, dashUp)
-    local now = love.timer.getTime()
-    if p.cooldownTimer <= 0 then
-        if lastTaps[playerNum .. key] and (now - lastTaps[playerNum .. key]) < config.dashWindow then
-            if key == dashUp then
-                p.vy = config.jumpForce * config.dashUp
-                p.isGrounded = false
-                p.cooldownTimer = config.dashCooldown
-                p.dashGrace = 0.5 -- Startet das Dash-Save Fenster
-                spawnDust(p.x, p.y, 10, 40, 100)
-                playSound(sounds.dash)
-            elseif key == dashDirLeft then
-                p.dashTimer = 0.2
-                p.dashSpeed = -config.moveSpeed * config.dashSide
-                p.cooldownTimer = config.dashCooldown
-                p.dashGrace = 0.5 
-                spawnDust(p.x, p.y, 15, 60, 150)
-                playSound(sounds.dash)
-            elseif key == dashDirRight then
-                p.dashTimer = 0.2
-                p.dashSpeed = config.moveSpeed * config.dashSide
-                p.cooldownTimer = config.dashCooldown
-                p.dashGrace = 0.5 
-                spawnDust(p.x, p.y, 15, 60, 150)
-                playSound(sounds.dash)
-            end
-            if Recorder then Recorder.noteDash(playerNum) end -- RECORDING SHIM (M0-03)
-            lastTaps[playerNum .. key] = 0
-            return true
-        else
-            lastTaps[playerNum .. key] = now
-        end
-    end
-    return false
-end
+-- handleDoubleTap ist mit M0-06 entfallen. Die Doppeltipp-Erkennung sitzt
+-- jetzt in src/input/local_source.lua, zaehlt in Ticks statt in Sekunden und
+-- liefert das dash-Bit; die Wirkung steht in applyInputImpulses.
 
 function love.keypressed(key)
     if key == "f11" or (key == "return" and love.keyboard.isDown("lalt", "ralt")) then
@@ -1083,23 +1154,8 @@ function love.keypressed(key)
     if key == "tab" or key == "f1" then tweakMenu.active = true end
     if key == "r" and gameState.state == "gameover" then resetBall(1) end
 
-    if key == "w" then
-        if not handleDoubleTap(key, 1, p1, "a", "d", "w") and p1.isGrounded then 
-            p1.vy = config.jumpForce; p1.isGrounded = false; playSound(sounds.jump)
-            spawnDust(p1.x, p1.y, 8, 40, 100)
-        end
-    end
-    if key == "a" or key == "d" then handleDoubleTap(key, 1, p1, "a", "d", "w") end
-
-    if not config.botActive then
-        if key == "u" then
-            if not handleDoubleTap(key, 2, p2, "h", "k", "u") and p2.isGrounded then 
-                p2.vy = config.jumpForce; p2.isGrounded = false; playSound(sounds.jump)
-                spawnDust(p2.x, p2.y, 8, 40, 100)
-            end
-        end
-        if key == "h" or key == "k" then handleDoubleTap(key, 2, p2, "h", "k", "u") end
-    end
+    -- Bewegung, Sprung, Smash und Dash laufen seit M0-06 nicht mehr ueber
+    -- Tastenereignisse, sondern ueber den InputFrame des jeweiligen Ticks.
 end
 
 -- ============================================================================
@@ -1391,13 +1447,13 @@ if REC.active then
     -- second time. Only the input source changes -- love.update, the
     -- collision code and every constant stay untouched.
     -- ------------------------------------------------------------------
-    local injected = {}
-    local botBits = 0
-    local prevP1Bits = 0
+    -- Die Wiedergabe ist seit M0-06 eine Quelle wie jede andere: sie liefert
+    -- pro Tick ein Byte. Kein Umbiegen von love.keyboard, keine
+    -- nachgestellten Tastenereignisse.
+    local replayBits = { 0, 0 }
+    local replaySource = { poll = function() return replayBits[1] end }
     local run = nil
     local beginNext
-
-    local function has(bits, mask) return math.floor(bits / mask) % 2 == 1 end
 
     local function applyInit(init)
         ball.x, ball.y, ball.vx, ball.vy = init.ball[1], init.ball[2], init.ball[3], init.ball[4]
@@ -1418,31 +1474,14 @@ if REC.active then
         gameState.ballSide = (ball.x < WORLD.width / 2) and 1 or 2
         gameState.rallies, gameState.gameInProgress = 0, true
         config.botActive = true   -- P2 is driven through the Bot hook below
-        for k in pairs(lastTaps) do lastTaps[k] = nil end
+        resetInputSources()
         camera.shakeTimer = 0
-        prevP1Bits = 0
     end
 
-    -- P1 jump and dash are events in the prototype (love.keypressed), while the
-    -- recording holds jump as a level. The rising edge is replayed as a key
-    -- press, the dash bit through the prototype's own double tap handler, so
-    -- dashCooldown and the dash code path are the original ones.
+    -- Der naechste Tick bekommt diese Bytes. P1 ueber die Quelle, P2 ueber den
+    -- Bot-Haken -- der Bot-Zweig verbraucht seine Tabelle noch direkt (M0-07).
     local function feed(bits1, bits2)
-        injected.a, injected.d = has(bits1, 1), has(bits1, 2)
-        injected.w, injected.s = has(bits1, 4), has(bits1, 8)
-        botBits = bits2
-
-        if injected.w and not has(prevP1Bits, 4) then
-            baseKeypressed("w")
-            lastTaps["1w"] = nil   -- never let two replayed jumps become an up dash
-        end
-        if has(bits1, 16) then
-            local dir = injected.d and "d" or (injected.a and "a" or "w")
-            handleDoubleTap(dir, 1, p1, "a", "d", "w")
-            handleDoubleTap(dir, 1, p1, "a", "d", "w")
-            lastTaps["1" .. dir] = nil
-        end
-        prevP1Bits = bits1
+        replayBits[1], replayBits[2] = bits1, bits2
     end
 
     beginNext = function()
@@ -1488,6 +1527,7 @@ if REC.active then
     -- Der Nachzug von captureRenderState haelt die Anzeige bei alpha = 0
     -- deckungsgleich mit dem simulierten Zustand.
     local function toolTick()
+        gatherInputs()
         simulateTick(World.TICK_DT)
         captureRenderState()
     end
@@ -1556,7 +1596,7 @@ if REC.active then
                 local b1, b2 = scene.inputs(scene, tick)
                 feed(b1, b2)
                 local wasAir, blobVx = not p1.isGrounded, p1.vx
-                local smashHeld = injected.s
+                local smashHeld = Frame.has(b1, Frame.SMASH)
                 local before = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
                 toolTick()
 
@@ -1586,7 +1626,7 @@ if REC.active then
         baseLoad()
         Recorder.attach({
             world = WORLD, gameState = gameState, config = config, defaults = defaults,
-            p1 = p1, p2 = p2, ball = ball, net = net,
+            p1 = p1, p2 = p2, ball = ball, net = net, inputs = inputs,
         })
         if REC.selftest then
             -- Ohne VSync laeuft der Selbsttest mit weit ueber 60 Bildern je
@@ -1613,15 +1653,11 @@ if REC.active then
         end
 
         if REC.queue or REC.probeId then
-            -- The two hooks that turn the prototype into a replay consumer.
-            -- Nothing else is redirected; the hardware is simply not asked.
-            love.keyboard.isDown = function(...)
-                for i = 1, select("#", ...) do
-                    if injected[select(i, ...)] then return true end
-                end
-                return false
-            end
-            Bot.updateAI = function() return Replay.botInputs(botBits) end
+            -- Zwei Haken machen aus dem Spiel einen Wiedergabe-Konsumenten:
+            -- P1 bekommt eine Quelle, der Bot liefert die aufgezeichneten Bits
+            -- statt selbst zu denken. Sonst wird nichts umgebogen.
+            sources[1] = replaySource
+            Bot.updateAI = function() return Replay.botInputs(replayBits[2]) end
             love.window.setVSync(0)
 
             if REC.probeId then
@@ -1655,14 +1691,12 @@ if REC.active then
 
         if REC.queue then
             replayStep()
-            Recorder.frameDone()
             return
         end
 
         -- Normalfall: der echte Akkumulator laeuft, die Aufzeichnung haengt
         -- ueber onPostTick an jedem Tick.
         baseUpdate(dt)
-        Recorder.frameDone()
         if REC.selftestFrames then REC.selftestFrames = REC.selftestFrames + 1 end
 
         if REC.selftest and Recorder.tickCount() >= 300 then

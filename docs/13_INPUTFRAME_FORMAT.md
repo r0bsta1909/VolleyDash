@@ -94,15 +94,28 @@ Unit-Test in M0-06**. Mindestfälle:
 | Fall | Erwartung |
 |---|---|
 | zwei Tipps innerhalb `dashWindow` | genau ein `dash`-Bit, im Tick des zweiten Tipps |
+| zwei Tipps genau am Fensterrand | noch ein `dash`-Bit |
 | zwei Tipps außerhalb `dashWindow` | kein `dash`-Bit |
 | drei Tipps innerhalb `dashWindow` | genau ein `dash`-Bit, kein zweiter aus Tipp 2→3 |
-| Doppeltipp während `dashCooldown > 0` | kein `dash`-Bit |
+| vier Tipps | zwei `dash`-Bits — Paare, keine Kette |
 | Doppeltipp zweier **verschiedener** Richtungen | kein `dash`-Bit |
+| gehaltene Taste über viele Ticks | kein `dash`-Bit |
 
-Im Prototyp misst `handleDoubleTap` (`main.lua:857–890`) über `love.timer.getTime()`, also
-in **Echtzeit**. Ab M0-06 zählt die Erkennung in **Ticks** (`dashWindow` × 60 = 12 Ticks),
-sonst hängt sie an der Bildwiederholrate. Das ist eine bewusste, in M0-06 zu prüfende
-Verhaltensänderung.
+**Nicht Sache der Quelle:** `dashCooldown`. Fassung 1.0 dieses Dokuments führte hier den
+Fall „Doppeltipp während `dashCooldown > 0` → kein `dash`-Bit". Das widerspricht ADR-014,
+wonach die Quelle „Dash jetzt" meldet und die **Simulation** gegen `dashCooldown` auswertet.
+Sonst bräuchte die Quelle Simulationszustand — beim Netzwerk unmöglich. Korrigiert in M0-06:
+Der Fall gehört in den Simulationstest („`dash`-Bit gesetzt, aber keine Wirkung"), nicht in
+den Quellentest.
+
+**Umgesetzt in M0-06.** Die Erkennung sitzt in `src/input/local_source.lua` als reine
+Zustandsmaschine (`TapDetector`) und zählt in **Ticks** (`dashWindow` × 60 = 12), nicht mehr
+in Sekunden. Test: `tests/input_frame_test.lua`, Start mit `love . --test`.
+
+**Nebenwirkung der Bitmaske, bewusst in Kauf genommen:** Ein Doppeltipp auf die Sprungtaste
+bei gleichzeitig gehaltener Richtung ergibt einen **Seitwärts**-Dash, weil die Richtung aus
+den Richtungsbits kommt. Der Prototyp löste dort einen Aufwärts-Dash aus. Die Alternative
+wäre ein eigenes Richtungsfeld gewesen — in ADR-014 ausdrücklich verworfen.
 
 ---
 
@@ -163,38 +176,41 @@ dieselbe Physik erzeugen, und es entspricht dem Original.
 
 ---
 
-## 7. Abbildung im Prototyp (nur M0-03)
+## 7. Abbildung im Code
 
-Der Prototyp **hat kein `InputFrame`** — er liest die Hardware mitten in der Simulation
-(B-03). `tools/record_replay.lua` erzeugt das Format deshalb während der Aufzeichnung aus
-dem, was der Prototyp tatsächlich verbraucht:
+Seit M0-06 erzeugt `src/input/local_source.lua` das Format; die Aufzeichnung schreibt nur
+noch mit, was ohnehin durch die Simulation läuft. Vor M0-06 las der Prototyp die Hardware
+mitten in der Simulation (B-03) und das Werkzeug baute das Format nachträglich nach.
 
 | Bit | Spieler 1 | Spieler 2 (lokal) | Spieler 2 (Bot) |
 |---|---|---|---|
+
 | `left` | `isDown("a")` | `isDown("h")` | `botInputs.left` |
 | `right` | `isDown("d")` | `isDown("k")` | `botInputs.right` |
 | `jump` | `isDown("w")` | `isDown("u")` | `botInputs.jump` |
 | `smash` | `isDown("s")` | `isDown("j")` | `botInputs.smash` |
-| `dash` | Flanke aus `handleDoubleTap` | Flanke aus `handleDoubleTap` | `botInputs.dashDir ~= nil` |
+| `dash` | `TapDetector` | `TapDetector` | `botInputs.dashDir ~= nil` |
+
+Dazu parallel das Gamepad: linker Stick bzw. D-Pad auf `left`/`right`, Knopf A auf `jump`,
+Knopf X auf `smash`, Doppeltipp auf die Richtung ergibt wie bei der Tastatur den Dash.
+Achsen werden in der Quelle über eine Schwelle diskretisiert (§6).
 
 Aufgezeichnet wird beim Bot ausdrücklich der **Output** (`botInputs`), nicht der Zustand des
 Bots. Damit sind die Zufallsanteile des Bots (`main.lua:331`) in der
 Aufzeichnung eingefroren und für die Wiedergabe unschädlich.
 
-Im Modus `fixed60` teilen sich mehrere Simulationsschritte eines Frames denselben
-Tastaturzustand — genau wie in der Zielarchitektur, die Eingaben einmal pro Frame abholt und
-mehrfach durch `sim.step()` fährt.
+Die Quelle wird **einmal je Tick** abgefragt, nicht je Frame. Holt ein Frame zwei Ticks
+nach, bekommt jeder seinen eigenen `InputFrame` — die Doppeltipp-Erkennung zählt dadurch in
+echten Ticks.
 
 **Bekannte Ungenauigkeiten**, hier festgehalten, damit eine spätere Abweichung nicht als
 Physikfehler fehlgedeutet wird:
 
-1. Der Prototyp löst Sprung und Dash in `love.keypressed` aus, also ereignisgesteuert,
-   während die Aufzeichnung `jump` als Pegel festhält. Ein Tastendruck, der zwischen zwei
-   Ticks beginnt und endet, kann vom Pegel verfehlt werden. Er verlangt einen Anschlag
-   unter 16 ms und ist damit praktisch ausgeschlossen; der `dash`-Bit umgeht das ohnehin
-   über das Flankenflag. **Gemessen:** `love.keyboard.hasKeyRepeat()` ist in LÖVE 11.5.0
-   `false`, eine gehaltene Sprungtaste löst also keine Wiederholung aus. Der Pegel bleibt
-   damit eindeutig.
+1. **Erledigt mit M0-06.** Bis dahin lösten Sprung und Dash in `love.keypressed` aus, also
+   ereignisgesteuert und außerhalb des Ticks, während die Aufzeichnung `jump` als Pegel
+   festhielt. Jetzt leitet die Simulation die Flanke aus dem Pegel ab. Ein Anschlag unter
+   16 ms kann vom Pegel weiterhin verfehlt werden — das ist der Preis der Tickrate und gilt
+   für jede Quelle gleichermaßen.
 2. Der Zustand im Replay-Frame ist der Zustand **vor** dem zugehörigen Schritt und **vor**
    den Tastenereignissen dieses Frames (`"state_convention": "pre_step"`). Nur so enthält
    er den Dash-Impuls nicht doppelt, den der Prototyp bereits in `love.keypressed` anwendet.
@@ -205,11 +221,22 @@ Physikfehler fehlgedeutet wird:
 
 ---
 
-## 8. Offene Punkte für M0-06
+## 8. Stand und offene Punkte
 
-1. Doppeltipp-Erkennung von Echtzeit auf Ticks umstellen (§4), mit Unit-Test.
-2. Tastenbelegung aus `Prefs` statt hartcodiert (`M0-11`, GDD §7).
-3. Gamepad-Schwelle festlegen und in `Prefs` aufnehmen.
-4. Ob der `jump`-Pegel in der Zielarchitektur eine Flankenerkennung in der Simulation
-   bekommt oder die Quelle wie beim Dash einen Impuls setzt. Empfehlung: Flanke in der
-   Simulation, weil nur sie weiß, ob der Blob am Boden steht.
+**Erledigt in M0-06:**
+
+1. Doppeltipp-Erkennung zählt in Ticks (§4), mit Unit-Test (`tests/input_frame_test.lua`).
+2. Der `jump`-Pegel bekommt seine Flankenerkennung in der Simulation, nicht in der Quelle —
+   nur die Simulation weiß, ob der Blob am Boden steht. Der Dash bleibt die dokumentierte
+   Ausnahme.
+3. Gamepad-Anbindung steht (linker Stick/D-Pad, A, X). **Ungetestet mangels Gerät.**
+
+**Offen:**
+
+1. Tastenbelegung aus `Prefs` statt hartcodiert in `LocalSource.DEFAULT_KEYS`
+   (M0-11, GDD §7). Die Gamepad-Schwelle `AXIS_DEADZONE = 0.5` gehört in denselben Schritt.
+2. Gamepad an echter Hardware prüfen, sobald eines zur Hand ist. Bis dahin gilt der Pfad
+   als unbelegt — er ist so gebaut, dass er ohne Gerät schlicht `0` liefert.
+3. Der Bot erzeugt seinen `InputFrame` noch nicht selbst; er schreibt ihn parallel mit
+   (M0-07, `src/input/bot_source.lua`).
+4. Netzwerkquelle (M2-01).
