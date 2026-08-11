@@ -74,6 +74,7 @@ Push ist erfüllt. Vollständige Liste mit Hashes in `ASSET_INVENTORY.md`.
 | `bg.jpg` | eigene Erstellung, im Repo | dito. Zusätzlich: PNG mit falscher Endung, 2752×1536, 4,9 MB — verkleinern und umbenennen (M1-09) |
 | Sounds (Sprung, Dash, Wand, Pfiff) | eigene Erstellung, im Repo | in `assets/CREDITS.md` eintragen (M1-09) |
 | Fonts | LÖVE-Standardfont | Bei eigenem Font: nur OFL-lizenzierte verwenden |
+| **Musik** (`music/`) | **noch keine Datei im Repo** | Herkunft vor dem ersten Commit klären. Eigene Produktion oder ausdrücklich CC0 mit Nachweis in `assets/CREDITS.md`. Eine gelöschte Datei bleibt in der Historie — das ist der ganze Punkt |
 
 **Vor dem ersten öffentlichen Push (ADR-011):** Eine `assets/CREDITS.md` anlegen, die für jedes Asset Herkunft und Lizenz nennt — hier durchgehend „Roberto, zlib". Der Nachweis liegt vor; blockierend ist nur noch das Anlegen der Datei. Eine gelöschte Datei bleibt in der Git-Historie; ein nachträglicher History-Rewrite auf einem geforkten Repo ist praktisch nicht durchführbar.
 

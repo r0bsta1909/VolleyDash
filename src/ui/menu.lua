@@ -12,6 +12,7 @@ local World    = require("src.sim.world")
 local Assets   = require("src.app.assets")
 local Prefs    = require("src.app.prefs")
 local Bindings = require("src.input.bindings")
+local Music    = require("src.app.music")
 
 local Menu = {}
 Menu.__index = Menu
@@ -196,6 +197,24 @@ function Menu:buildPages()
                         love.audio.setVolume(prefs.volume); self:save()
                     end,
                 },
+                {
+                    name = "Music Volume",
+                    getValue = function()
+                        if Music.count("menu") + Music.count("match") == 0 then
+                            return "keine Titel"
+                        end
+                        return math.floor(prefs.musicVolume * 100) .. "%"
+                    end,
+                    onLeft = function()
+                        prefs.musicVolume = math.max(0.0, prefs.musicVolume - 0.05)
+                        Music.setVolume(prefs.musicVolume); self:save()
+                    end,
+                    onRight = function()
+                        prefs.musicVolume = math.min(1.0, prefs.musicVolume + 0.05)
+                        Music.setVolume(prefs.musicVolume); self:save()
+                    end,
+                },
+                { name = "Naechster Titel", action = function() Music.skip() end },
                 { name = "Open Live Tweaker", action = function() ctx.onTweaker() end },
                 { name = "Controls", target = "controls" },
                 { name = "Display [WIP]", target = "settings" },

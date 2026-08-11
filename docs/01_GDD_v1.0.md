@@ -173,6 +173,24 @@ Bleibt wie im Prototyp — die visuelle Sprache (Partikel, Kamera-Shake, Blob-Ne
 
 Unverändert (Sprung, Dash, Wandtreffer, Pfiff). **Ergänzung:** Der Beamer-Client braucht eine eigene Lautstärkeeinstellung, sonst übertönt der Beamer die Spieler oder umgekehrt.
 
+### 9.1 Hintergrundmusik (ergänzt in M0-02)
+
+Nicht Teil des ursprünglichen Umfangs, auf Wunsch nachgezogen. Bewusst klein gehalten:
+
+| Punkt | Festlegung |
+|---|---|
+| Listen | `music/menu/` beim Programmstart und im Menü, `music/match/` im Match, lose Dateien in `music/` gelten für beides |
+| Reihenfolge | Shuffle; die neue Runde beginnt nie mit dem Titel, der die alte beendet hat |
+| Wechsel | automatisch beim Auslaufen eines Titels, manuell über `Settings → Nächster Titel` |
+| ESC | pausiert die Matchmusik zusammen mit dem Spiel und setzt sie beim Zurückkehren fort |
+| Lautstärke | eigener Wert `musicVolume` in den Prefs, getrennt von den Effekten |
+| Laden | gestreamt, nicht dekodiert im Speicher (RAM-Ziel 150 MB) |
+| Ohne Dateien | keine Musik, keine Fehlermeldung — das Spiel bleibt vollständig spielbar |
+
+**Im Aufzeichnungsmodus bleibt die Musik aus.** Die Mischreihenfolge zieht aus demselben `math.random` wie der Bot; eine Referenzaufnahme darf von so etwas nicht abhängen.
+
+**Offen:** Das Repository enthält keine Musikdateien. Herkunft und Downloadgröße sind vor dem ersten Titel zu klären (`10_LEGAL` §4, Charter §5).
+
 ## 10. Änderungshistorie
 
 | Version | Datum | Änderung |

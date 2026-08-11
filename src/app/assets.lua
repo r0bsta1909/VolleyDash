@@ -5,8 +5,8 @@
 -- Zeichenschicht nimmt ihren prozeduralen Zweig -- das Spiel bleibt spielbar
 -- (`10_LEGAL` §4, `ASSET_INVENTORY` §3).
 --
--- Schriften werden einmal geladen und nicht mehr pro Frame erzeugt (B-08).
--- Der Sound-Pool aus F-04 fehlt noch; das ist M0-02.
+-- Schriften werden einmal geladen und nicht mehr pro Frame erzeugt (B-08),
+-- Klaenge liegen in einem Pool fester Groesse (F-04).
 -- ============================================================================
 
 local Assets = {}
@@ -14,6 +14,13 @@ local Assets = {}
 Assets.images = {}
 Assets.sounds = {}
 Assets.fonts = {}
+
+-- Vier Stimmen je Klang. Der Prototyp klonte bei jedem Abspielen eine neue
+-- Quelle; bei einer Folge von Wandtreffern war das messbarer Allokationsdruck
+-- (F-04). Vier reichen: mehr gleichzeitige Wandtreffer gibt es nicht, und wer
+-- die fuenfte ausloest, ueberschreibt die aelteste.
+Assets.POOL_VOICES = 4
+local pool = {}
 
 local FONT_SIZES = { 12, 13, 14, 16, 24, 32, 48 }
 
@@ -40,7 +47,13 @@ function Assets.load()
 
     for _, name in ipairs({ "jump", "dash", "hit_blob", "hit_sand",
                             "hit_net", "hit_wall", "whistle", "whistle_end" }) do
-        Assets.sounds[name] = loadSound(name)
+        local sound = loadSound(name)
+        Assets.sounds[name] = sound
+        if sound then
+            local voices = { sound }
+            for _ = 2, Assets.POOL_VOICES do voices[#voices + 1] = sound:clone() end
+            pool[name] = { voices = voices, next = 1 }
+        end
     end
 
     for _, size in ipairs(FONT_SIZES) do
@@ -58,14 +71,18 @@ function Assets.setFont(size)
     love.graphics.setFont(Assets.font(size))
 end
 
--- Klaenge werden pro Abspielen geklont, damit sich Wandtreffer ueberlagern
--- koennen. Der Pool dagegen ist F-04 und gehoert nach M0-02.
+-- Reihum durch den Pool. Keine Allokation zur Laufzeit, und bis zu vier
+-- Stimmen desselben Klangs koennen sich ueberlagern.
 function Assets.play(name, volume)
-    local sound = Assets.sounds[name]
-    if not sound then return end
-    local clone = sound:clone()
-    clone:setVolume(volume or 0.25)
-    clone:play()
+    local entry = pool[name]
+    if not entry then return end
+
+    local source = entry.voices[entry.next]
+    entry.next = (entry.next % #entry.voices) + 1
+
+    source:stop()
+    source:setVolume(volume or 0.25)
+    source:play()
 end
 
 return Assets

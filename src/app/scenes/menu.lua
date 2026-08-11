@@ -6,7 +6,8 @@
 -- mehr, also steht die Simulation -- das ist die Pause.
 -- ============================================================================
 
-local Menu = require("src.ui.menu")
+local Menu  = require("src.ui.menu")
+local Music = require("src.app.music")
 
 local MenuScene = {}
 MenuScene.__index = MenuScene
@@ -28,6 +29,17 @@ function MenuScene.new(app)
         onBindings = function() app.refreshBindings() end,
     })
     return self
+end
+
+-- Waehrend eines Matches ist ESC eine Pause -- dann schweigt auch die Musik.
+-- Ohne laufendes Match ist das Menue der Normalzustand und die Menueliste
+-- laeuft weiter.
+function MenuScene:enter()
+    if self.app.matchRunning() then Music.pause() else Music.play("menu") end
+end
+
+function MenuScene:leave()
+    if self.app.matchRunning() then Music.resume() end
 end
 
 function MenuScene:draw()

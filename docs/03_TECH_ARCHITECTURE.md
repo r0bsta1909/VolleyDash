@@ -72,8 +72,11 @@ volley-dash/
 │   │   └── tweaker.lua       # Live-Tweaker, nur offline/host
 │   │
 │   ├── app/
+│   │   ├── app.lua           # Programmzustand, Szenenwechsel (Ergänzung M0-12)
 │   │   ├── scene.lua         # Szenen-Stack
 │   │   ├── scenes/           # menu, local_game, net_game, lobby, tournament, spectator, beamer
+│   │   ├── assets.lua        # Bilder, Klänge (Pool), Schriften
+│   │   ├── music.lua         # Shuffle-Playlist, gestreamt (Ergänzung M0-02)
 │   │   └── prefs.lua         # lokale Präferenzen, persistent
 │   │
 │   └── lib/

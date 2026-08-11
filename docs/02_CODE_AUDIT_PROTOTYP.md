@@ -126,7 +126,7 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 | F-01 | `saveConfig()` schreibt ein selbstgebautes `key=value`-Format ohne Versionsfeld | **Erledigt M0-09.** `Prefs.VERSION = 1` steht in der Datei; passt sie nicht, gelten die Voreinstellungen |
 | F-02 | `loadConfig()` liest jeden Key aus der Datei, auch unbekannte | **Erledigt M0-09.** Whitelist `Prefs.FIELDS`; unbekannte Schlüssel, falsche Typen und Werte außerhalb der Grenzen werden verworfen |
 | F-03 | `math.randomseed(os.time())` auf Modulebene | Bei zwei gleichzeitig gestarteten Clients identische Seeds. Für Kosmetik egal, für Simulation relevant → getrennte RNG-Ströme |
-| F-04 | `playSound` klont bei jedem Aufruf die Source | Bei vielen Wandtreffern in Folge Allokationsdruck. Source-Pool mit fester Größe |
+| F-04 | `playSound` klont bei jedem Aufruf die Source | **Erledigt M0-02.** Vier Stimmen je Klang, reihum vergeben. Keine Allokation zur Laufzeit, Überlagerung bleibt möglich |
 | F-05 | Globale Funktionen (`launchGame`, `drawBlob`, `updateBlob`, `resetBall`) | **Erledigt M0-12.** Alles liegt in Modulen; `main.lua` hat 64 Zeilen und definiert nur noch die LÖVE-Rückrufe |
 | F-06 | `gameState` mischt Match-Zustand, Rundenzustand und UI-Zustand | **Erledigt M0-08/M0-12.** `state.match` und `state.rally` in `src/sim/state.lua`; der UI-Zustand liegt in den Szenen und im Menü |
 | F-07 | Kein `conf.lua` erkennbar | **Erledigt M0-01.** Version gepinnt (ADR-001), Identity `volleydash`, Fenster 1280 × 960 (4:3 wie das Feld), `physics`/`video`/`touch`/`mouse`/`thread` abgeschaltet |

@@ -42,6 +42,9 @@ function love.load()
 end
 
 function love.update(dt)
+    -- Musik laeuft ueber Szenengrenzen hinweg und haengt deshalb nicht am
+    -- Stapel.
+    require("src.app.music").update()
     Scene.update(dt)
 end
 

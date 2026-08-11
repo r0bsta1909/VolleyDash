@@ -21,6 +21,7 @@ Prefs.FILE = "volleydash_prefs.sav"
 -- Whitelist. Was hier nicht steht, wird beim Laden verworfen (F-02).
 Prefs.FIELDS = {
     volume    = { type = "number",  min = 0, max = 1 },
+    musicVolume = { type = "number", min = 0, max = 1 },
     botActive = { type = "boolean" },
     botLevel  = { type = "number",  min = 1, max = 3 },
     preset    = { type = "string" },   -- zuletzt gewaehltes Ruleset-Preset
@@ -29,6 +30,7 @@ Prefs.FIELDS = {
 
 Prefs.DEFAULTS = {
     volume    = 0.25,
+    musicVolume = 0.4,
     botActive = true,
     botLevel  = 3,
     preset    = "classic",

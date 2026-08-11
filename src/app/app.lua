@@ -15,6 +15,7 @@ local Bindings = require("src.input.bindings")
 local Assets   = require("src.app.assets")
 local Scene    = require("src.app.scene")
 local Menu     = require("src.ui.menu")
+local Music    = require("src.app.music")
 
 local App = {}
 
@@ -49,6 +50,12 @@ function App.boot(deterministic)
     love.audio.setVolume(App.prefs.volume)
     Menu.rollNames()
 
+    -- Musik laeuft nicht mit, wenn Referenzdaten entstehen: die Mischung
+    -- zieht aus demselben math.random wie der Bot.
+    Music.load(deterministic)
+    Music.setVolume(App.prefs.musicVolume)
+    Music.play("menu")
+
     LocalGame = require("src.app.scenes.local_game")
     MenuScene = require("src.app.scenes.menu")
 
@@ -78,6 +85,7 @@ end
 
 function App.startMatch(vsBot)
     App.game:launch(vsBot)
+    Music.play("match")
     App.closeMenu()
 end
 
