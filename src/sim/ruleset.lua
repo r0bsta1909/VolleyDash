@@ -44,9 +44,12 @@ Ruleset.FIELDS = {
     dashUp         = { type = "number", min = 1.0,   max = 3.0,  step = 0.05 },
     dashWindow     = { type = "number", min = 0.05,  max = 0.50, step = 0.02 },
     targetScore    = { type = "number", min = 5,     max = 25,   step = 1 },
+    deuceCap       = { type = "number", min = 5,     max = 40,   step = 1 },
+    rallyTimeout   = { type = "number", min = 0,     max = 120,  step = 5 },
     speedScaling   = { type = "boolean" },
     activeSpike    = { type = "boolean" },
     allowDash      = { type = "boolean" },
+    twoPointLead   = { type = "boolean" },
 }
 
 -- ---------------------------------------------------------------------------
@@ -83,9 +86,15 @@ local PROTOTYPE = {
     dashUp         = 1.3,
     dashWindow     = 0.20,
     targetScore    = 15,
+    -- Der Prototyp kannte weder Zwei-Punkte-Vorsprung noch Rallye-Timeout.
+    -- Das Preset bildet ihn ab, damit die Referenzen reproduzierbar bleiben
+    -- (B-05, GDD P5 -- korrigiert wird das im Preset `classic`).
+    deuceCap       = 21,
+    rallyTimeout   = 0,
     speedScaling   = false,
     activeSpike    = true,
     allowDash      = true,
+    twoPointLead   = false,
 }
 
 local function copy(t)
@@ -104,6 +113,9 @@ do
     classic.allowDash    = false   -- 01_GDD §3.1: nicht im Original
     classic.activeSpike  = false   -- dito
     classic.speedScaling = false
+    classic.twoPointLead = true    -- 01_GDD §3.1: 15 Punkte UND 2 Vorsprung (B-05)
+    classic.deuceCap     = 21      -- Hard-Cap gegen Endlos-Deuce (E-09)
+    classic.rallyTimeout = 30      -- 01_GDD P5, Sekunden
     Ruleset.PRESETS.classic = classic
 end
 
@@ -173,6 +185,12 @@ function Ruleset.validate(rs)
         errors[#errors + 1] = string.format(
             "netHeight = %s ist unerreichbar: Sprung + Radien reichen nur %.1f px hoch",
             tostring(rs.netHeight), reach)
+    end
+
+    if rs.twoPointLead and rs.deuceCap < rs.targetScore then
+        errors[#errors + 1] = string.format(
+            "deuceCap = %s liegt unter targetScore = %s",
+            tostring(rs.deuceCap), tostring(rs.targetScore))
     end
 
     -- Der Ball muss zwischen Netzkante und Boden passen, sonst klemmt er

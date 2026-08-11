@@ -68,6 +68,7 @@ function State.new(ruleset)
             lastTouchPlayer = 0,
             ballSide = 1,
             rallies = 0,
+            timer = 0,          -- Spielzeit dieses Ballwechsels, fuer P5
             serveTimer = 0,
             serveDelay = 1.0,
             faultTimer = 0,

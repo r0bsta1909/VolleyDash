@@ -31,7 +31,7 @@ Das ist die Referenz. Abweichungen sind Bugs, keine Geschmacksfragen.
 | Regel | Wert | Quelle / Anmerkung |
 |-------|------|--------------------|
 | Punktesystem | Side-out (Rally-Punkt **nur** für den Aufschläger) | <cite index="53-1">Punkte können nur vom aufschlagenden Spieler erzielt werden; wer nicht aufschlägt, gewinnt bei einem Fehler des Gegners lediglich das Aufschlagrecht.</cite> |
-| Satzgewinn | **15 Punkte UND 2 Punkte Vorsprung** | <cite index="53-1">Das Spiel endet, wenn ein Spieler 15 oder mehr Punkte erreicht und zusätzlich zwei Punkte Vorsprung hat.</cite> ⚠️ Prototyp verletzt das (Blocker B-05) |
+| Satzgewinn | **15 Punkte UND 2 Punkte Vorsprung**, Deckel bei 21 (E-09) — umgesetzt M0-10 | <cite index="53-1">Das Spiel endet, wenn ein Spieler 15 oder mehr Punkte erreicht und zusätzlich zwei Punkte Vorsprung hat.</cite> ⚠️ Prototyp verletzt das (Blocker B-05) |
 | Fehler 1 | Ball berührt eigenen Boden | <cite index="53-1">Der Ball berührt den Boden im eigenen Feld.</cite> |
 | Fehler 2 | Mehr als 3 Berührungen in Folge (Aufschlag zählt mit) | <cite index="53-1">Ein Spieler berührt den Ball mehr als dreimal hintereinander; der Aufschlag zählt dabei als Berührung.</cite> |
 | Mehrfachberührung | **Erlaubt** bis 3 — der Blob darf sich selbst zuspielen | <cite index="53-1">Da pro Feldseite nur ein Spieler steht, darf dieser den Ball mehrfach hintereinander berühren — anders als im echten Volleyball.</cite> |
@@ -52,8 +52,8 @@ Diese Punkte müssen einmal entschieden und dann eingefroren werden, weil sie da
 | P1 | Zählt eine Netzberührung als Berührung? | Nein | Sonst werden Netzroller zu unbeabsichtigten Fehlern |
 | P2 | Wird der Berührungszähler beim Seitenwechsel des Balls zurückgesetzt? | Ja, sobald der Ballmittelpunkt die Netzachse überquert | Entspricht Prototypverhalten, ist beobachtbar |
 | P3 | Was passiert bei Ball auf Netzoberkante? | Ball prallt nach der zuletzt gültigen horizontalen Richtung ab, kein Zufall | Anti-Zufalls-Doktrin: kein Coin-Flip in einer Turnier-Rallye |
-| P4 | Aufschlagverzögerung | Fixe 1,0 s (nicht zufällig!) | Prototyp nutzt `1.0 + random()*0.5`. Im Turnier ist ein zufälliges Timingfenster unfair. Blocker B-06 |
-| P5 | Time-out ohne Ballkontakt | Nach 30 s Rallye ohne Punkt: Punkt an den Nicht-Aufschläger (Aufschlagwechsel) | Verhindert Endlos-Rallyes zwischen zwei defensiven Spielern; Turnierzeitplanung |
+| P4 | Aufschlagverzögerung | Fixe 1,0 s (nicht zufällig!) — umgesetzt M0-08 | Prototyp nutzt `1.0 + random()*0.5`. Im Turnier ist ein zufälliges Timingfenster unfair. Blocker B-06 |
+| P5 | Time-out ohne Ballkontakt | Nach 30 s Rallye ohne Punkt: Punkt an den Nicht-Aufschläger (Aufschlagwechsel) — umgesetzt M0-10 als `rallyTimeout` | Verhindert Endlos-Rallyes zwischen zwei defensiven Spielern; Turnierzeitplanung |
 | P6 | Max. Ballgeschwindigkeit | Hart gedeckelt (Prototyp: 1400 px/s) | Verhindert Tunneling durch das Netz bei fixem Timestep |
 
 ### 3.3 Feldgeometrie (fixiert, ADR-004)

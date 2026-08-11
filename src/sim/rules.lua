@@ -5,9 +5,10 @@
 -- Kosmetik entsteht ausschliesslich ueber `events`; die Renderschicht
 -- uebersetzt sie in Staub, Wackeln und Klang.
 --
--- Die Regelfehler B-05 (Zwei-Punkte-Vorsprung) und P5 (Rallye-Timeout) stehen
--- hier noch so drin, wie der Prototyp sie hatte. Sie werden in M0-10
--- korrigiert -- nicht heimlich beim Umbau.
+-- B-05 (Zwei-Punkte-Vorsprung) und P5 (Rallye-Timeout) sind mit M0-10
+-- korrigiert. Beide haengen am Ruleset: `classic` spielt nach dem GDD,
+-- `prototype` bildet weiter den Prototyp ab, damit die Referenz-Rallyes
+-- reproduzierbar bleiben.
 -- ============================================================================
 
 local World = require("src.sim.world")
@@ -71,6 +72,7 @@ function Rules.resetBall(state, ruleset, server, events)
     state.ball.rotation = 0
 
     state.rally.rallies = 0
+    state.rally.timer = 0
     state.rally.lastTouchPlayer = 0
     state.rally.touchCount = 0
     state.rally.ballSide = server
@@ -88,16 +90,28 @@ function Rules.resetBall(state, ruleset, server, events)
     emit(events, { type = "rally_reset", server = server })
 end
 
+-- Ist der Satz gewonnen? Getrennt, damit der Test die Regel direkt pruefen
+-- kann (T-R-09 bis T-R-12).
+function Rules.isSetWon(ruleset, mine, theirs)
+    local target = ruleset.targetScore or 15
+    if not ruleset.twoPointLead then
+        -- Verhalten des Prototyps: 15 reichen, egal wie knapp (B-05).
+        return mine >= target
+    end
+    -- 01_GDD §3.1: 15 Punkte UND zwei Punkte Vorsprung. Der Deckel beendet
+    -- ein Endlos-Deuce, damit ein Bracket nicht an einem 28:26 kippt (E-09).
+    if mine >= target and (mine - theirs) >= 2 then return true end
+    local cap = ruleset.deuceCap or 0
+    return cap > 0 and mine >= cap
+end
+
 -- Punkt oder Aufschlagwechsel. Nur der Aufschlaeger punktet.
---
--- Der Satz endet hier bei 15 ohne Zwei-Punkte-Vorsprung. Das ist B-05 und
--- bleibt bis M0-10 unveraendert stehen.
 function Rules.awardPointTo(state, ruleset, winningPlayer, events)
     if state.match.servingPlayer == winningPlayer then
         state.match.score[winningPlayer] = state.match.score[winningPlayer] + 1
 
-        local target = ruleset.targetScore or 15
-        if state.match.score[1] >= target or state.match.score[2] >= target then
+        local other = winningPlayer == 1 and 2 or 1
+        if Rules.isSetWon(ruleset, state.match.score[winningPlayer], state.match.score[other]) then
             state.match.phase = "gameover"
             emit(events, { type = "match_over", winner = winningPlayer })
             return
@@ -119,6 +133,19 @@ function Rules.updateBallSide(state)
     state.rally.lastTouchPlayer = 0
     state.blobs[1].touchCooldown = 0
     state.blobs[2].touchCooldown = 0
+end
+
+-- Endlos-Rallye: nach `rallyTimeout` Sekunden im Spiel bekommt der
+-- Nicht-Aufschlaeger den Ballwechsel, also den Aufschlag (GDD P5). Verhindert,
+-- dass zwei defensive Spieler den Zeitplan sprengen. 0 schaltet die Regel ab.
+function Rules.checkRallyTimeout(state, ruleset, events)
+    local limit = ruleset.rallyTimeout or 0
+    if limit <= 0 or state.match.phase ~= "play" then return end
+    if state.rally.timer < limit then return end
+
+    local receiver = state.match.servingPlayer == 1 and 2 or 1
+    emit(events, { type = "rally_timeout", to = receiver })
+    Rules.awardPointTo(state, ruleset, receiver, events)
 end
 
 -- Ball im Sand: Punkt fuer die Gegenseite.

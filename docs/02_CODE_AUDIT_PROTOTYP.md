@@ -77,6 +77,8 @@ Bei 15:14 ist das Spiel vorbei. Das Original verlangt 15 **und** zwei Punkte Vor
 
 **Fix:** `score >= targetScore and (score - other) >= 2`. Zusätzlich Deuce-Deckel (z. B. Hard-Cap bei 21) für die Turnierzeitplanung — sonst kippt ein Bracket an einem einzigen 28:26.
 
+**Erledigt in M0-10 (2026-08-11).** `Rules.isSetWon` in `src/sim/rules.lua`, gesteuert über `twoPointLead` und `deuceCap` im Ruleset. Das Preset `classic` spielt nach dem GDD (15 und zwei Punkte Vorsprung, Deckel 21), das Preset `prototype` behält bewusst das alte Verhalten, damit die Referenz-Rallyes reproduzierbar bleiben. Tests T-R-09 bis T-R-12 in `tests/rules_test.lua`.
+
 ### B-06 — Zufällige Aufschlagverzögerung · **mittel**
 
 ```lua

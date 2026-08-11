@@ -51,10 +51,13 @@ case("prototype behaelt die Zahlen des Prototyps (02_CODE_AUDIT 4)", function()
     assertTrue(rs.allowDash, "allowDash")
 end)
 
-case("classic und prototype unterscheiden sich nur in den Schaltern", function()
+case("classic und prototype haben dieselbe Physik", function()
+    -- Unterschiede sind ausschliesslich Regelschalter, keine Physikwerte:
+    -- Dash, Smash, Speed-Scaling, Zwei-Punkte-Vorsprung, Rallye-Timeout.
+    local ruleKeys = { rallyTimeout = true }
     local a, b = Ruleset.new("classic"), Ruleset.new("prototype")
     for key, field in pairs(Ruleset.FIELDS) do
-        if field.type == "number" then
+        if field.type == "number" and not ruleKeys[key] then
             assertEq(a[key], b[key], "Zahl " .. key .. " darf sich nicht unterscheiden")
         end
     end

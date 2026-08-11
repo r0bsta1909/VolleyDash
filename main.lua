@@ -575,6 +575,10 @@ local function processEvents(events)
             spawnDust(e.x, e.y, 25, 80, 200)
         elseif kind == "point" or kind == "side_out" then
             playSound(sounds.whistle)
+        elseif kind == "rally_timeout" then
+            -- Der Pfiff kommt gleich darauf ueber side_out; hier nur der Hinweis
+            -- fuer spaetere Anzeigen (GDD P5).
+            addShake(4, 0.2)
         elseif kind == "match_over" then
             playSound(sounds.whistle_end)
         elseif kind == "rally_reset" then

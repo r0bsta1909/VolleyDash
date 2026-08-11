@@ -119,6 +119,7 @@ function Step.tick(state, in1, in2, ruleset, events)
         ruleset, groundY, events)
 
     if state.match.phase == "play" then
+        state.rally.timer = state.rally.timer + dt
         Physics.integrateBall(state, dt, ruleset, events)
     end
 
@@ -128,6 +129,7 @@ function Step.tick(state, in1, in2, ruleset, events)
 
     Physics.capSpeed(state, ruleset)
     Rules.checkGround(state, ruleset, events)
+    Rules.checkRallyTimeout(state, ruleset, events)
 
     return events
 end

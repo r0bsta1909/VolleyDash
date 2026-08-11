@@ -109,11 +109,11 @@ Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
 | T-R-06 | Ball wechselt Seite | Zähler auf 0 |
 | T-R-07 | Wandberührung | zählt **nicht** als Berührung |
 | T-R-08 | Netzberührung | zählt **nicht** als Berührung (GDD P1) |
-| T-R-09 | 15:13 | Satz beendet |
-| T-R-10 | 15:14 | Satz **nicht** beendet (Blocker B-05) |
-| T-R-11 | 16:14 | Satz beendet |
-| T-R-12 | 20:20 → 21:20 bei `deuceCap=21` | Satz beendet (E-09) |
-| T-R-13 | Rallye 30 s ohne Punkt | Punkt an Nicht-Aufschläger (GDD P5) |
+| T-R-09 | 15:13 | Satz beendet — **umgesetzt M0-10** |
+| T-R-10 | 15:14 | Satz **nicht** beendet (Blocker B-05) — **umgesetzt M0-10** |
+| T-R-11 | 16:14 | Satz beendet — **umgesetzt M0-10** |
+| T-R-12 | 20:20 → 21:20 bei `deuceCap=21` | Satz beendet (E-09) — **umgesetzt M0-10** |
+| T-R-13 | Rallye 30 s ohne Punkt | Punkt an Nicht-Aufschläger (GDD P5) — **umgesetzt M0-10** |
 | T-R-14 | Ruleset-Hash bei identischem Ruleset, andere Schlüsselreihenfolge | identischer Hash (kanonische Serialisierung) — **umgesetzt M0-09**, `tests/ruleset_test.lua` |
 | T-R-15 | Ruleset mit `ballRadius=80`, `netHeight=350` | Validierung lehnt ab (F-10) — **umgesetzt M0-09** |
 
