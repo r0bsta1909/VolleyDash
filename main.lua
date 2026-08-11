@@ -39,6 +39,39 @@ local config = {}
 for k, v in pairs(defaults) do config[k] = v end
 
 -- ============================================================================
+-- TEMPORARY RECORDING SHIM (M0-03) -- remove after reference replays are captured.
+-- This is NOT the B-02 fixed-timestep implementation. Do not build on it.
+--
+-- Everything below is inert unless one of the command line flags is given:
+--   --fixed-dt          simulate with a constant 1/60 s step (implies --record)
+--   --record            recording mode with the prototype's variable step
+--   --record-selftest   automated smoke test of the recorder, then quit
+-- Without a flag the game behaves exactly as before. The wrappers live at the
+-- bottom of this file, the patched call sites are marked with "RECORDING SHIM".
+-- Removal is part of M0-05.
+-- ============================================================================
+local REC = {
+    fixedDt     = false,
+    selftest    = false,
+    active      = false,
+    step        = 1 / 60,
+    accumulator = 0,
+    maxFrameDt  = 0.25,
+}
+
+for _, a in ipairs(arg or {}) do
+    if a == "--fixed-dt" then REC.fixedDt = true end
+    if a == "--record" then REC.active = true end
+    if a == "--record-selftest" then REC.selftest = true end
+end
+REC.active = REC.active or REC.fixedDt or REC.selftest
+REC.mode = REC.fixedDt and "fixed60" or "variable"
+
+local Recorder = nil
+if REC.active then Recorder = require("tools.record_replay") end
+-- ============================================================================
+
+-- ============================================================================
 -- SAVE / LOAD SYSTEM
 -- ============================================================================
 love.filesystem.setIdentity("volleydash")
@@ -72,7 +105,9 @@ local namePool = {
     "GigaBlob", "Wobble", "Squish", "LanKing", "Pudding", "SmashBro", "NoobSlayer"
 }
 
-math.randomseed(os.time())
+-- RECORDING SHIM (M0-03): fixed seed while recording, so the header is honest.
+-- Cosmetics only -- names, particles, camera shake. See docs/handoffs/CC-01_REPORT.md.
+if REC.active then math.randomseed(1) else math.randomseed(os.time()) end
 local p1NameIdx = math.random(1, #namePool)
 local p2NameIdx = math.random(1, #namePool)
 local botNameIdx = math.random(1, #namePool)
@@ -385,8 +420,16 @@ function love.load()
     loadConfig() 
     
     love.window.setTitle("Volley Dash")
-    love.window.setMode(800, 600, { resizable = true, minwidth = 640, minheight = 480 })
-    love.window.maximize()
+    if REC.active then
+        -- RECORDING SHIM (M0-03), trap 6 of the handoff: WORLD.width is a function
+        -- of the window width as long as B-01 is open. A fixed, non-resizable
+        -- 800x600 window gives scale == 1 and WORLD.width == 800, which is exactly
+        -- the geometry M0-04 will make permanent (ADR-004).
+        love.window.setMode(800, 600, { resizable = false })
+    else
+        love.window.setMode(800, 600, { resizable = true, minwidth = 640, minheight = 480 })
+        love.window.maximize()
+    end
 
     local function loadImage(name)
         if love.filesystem.getInfo(name) then return love.graphics.newImage(name) end
@@ -459,7 +502,10 @@ function resetBall(server)
     gameState.faultTimer = 0
     
     gameState.serveTimer = 0
-    gameState.serveDelay = 1.0 + math.random() * 0.5 
+    -- RECORDING SHIM (M0-03): the only simulation-relevant math.random in the
+    -- prototype (B-06). Fixed to 1.0 while recording, which is the target value
+    -- from GDD P4 anyway. Noted in patches_active of every recorded file.
+    gameState.serveDelay = REC.active and 1.0 or (1.0 + math.random() * 0.5)
     
     ball.x = (server == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
     ball.y = WORLD.groundY - config.serveHeight 
@@ -546,6 +592,7 @@ function love.update(dt)
     
     if config.botActive then
         local botInputs = Bot.updateAI(p2, ball, dt, config, WORLD, gameState)
+        if Recorder then Recorder.noteBotInputs(botInputs) end -- RECORDING SHIM (M0-03)
         p2.botSmash = botInputs.smash
         
         if p2.cooldownTimer > 0 then p2.cooldownTimer = p2.cooldownTimer - dt end
@@ -833,7 +880,8 @@ local function handleDoubleTap(key, playerNum, p, dashDirLeft, dashDirRight, das
                 spawnDust(p.x, p.y, 15, 60, 150)
                 playSound(sounds.dash)
             end
-            lastTaps[playerNum .. key] = 0 
+            if Recorder then Recorder.noteDash(playerNum) end -- RECORDING SHIM (M0-03)
+            lastTaps[playerNum .. key] = 0
             return true
         else
             lastTaps[playerNum .. key] = now
@@ -1180,4 +1228,88 @@ function drawBlob(p, isP1)
         love.graphics.circle("fill", pupilX - 1.5, pupilY - 1.5, 1.5)
     end
     love.graphics.pop()
+end
+
+-- ============================================================================
+-- TEMPORARY RECORDING SHIM (M0-03) -- remove after reference replays are captured.
+-- This is NOT the B-02 fixed-timestep implementation. Do not build on it.
+--
+-- The block wraps love.load / love.update / love.draw / love.keypressed instead
+-- of editing them, so the recorded behaviour is provably the behaviour of the
+-- unwrapped functions. In fixed60 mode the accumulator calls the ORIGINAL
+-- love.update with a constant 1/60 and leaves the remainder for the next frame,
+-- so the real-time relation is kept. Nothing inside love.update is rewritten.
+-- ============================================================================
+if REC.active then
+    local patches = { "serveDelay=1.0", "randomseed=1", "window=800x600 fixed" }
+
+    Recorder.setup({ mode = REC.mode, step = REC.step, patches = patches })
+
+    local baseLoad       = love.load
+    local baseUpdate     = love.update
+    local baseDraw       = love.draw
+    local baseKeypressed = love.keypressed
+
+    function love.load()
+        baseLoad()
+        Recorder.attach({
+            world = WORLD, gameState = gameState, config = config, defaults = defaults,
+            p1 = p1, p2 = p2, ball = ball, net = net,
+        })
+        if REC.selftest then
+            print("[selftest] love " .. table.concat({ love.getVersion() }, ".", 1, 3))
+            print("[selftest] hasKeyRepeat = " .. tostring(love.keyboard.hasKeyRepeat()))
+            print("[selftest] window " .. table.concat({ love.graphics.getDimensions() }, "x"))
+            print("[selftest] WORLD " .. WORLD.width .. "x" .. WORLD.height)
+            launchGame(true)
+            resetBall(2)          -- let the bot serve, otherwise nothing moves
+            while Recorder.currentId() ~= "R-00" do Recorder.nextRally() end
+            Recorder.start()
+        end
+    end
+
+    function love.update(dt)
+        Recorder.update(dt)
+
+        if REC.fixedDt then
+            REC.accumulator = REC.accumulator + math.min(dt, REC.maxFrameDt)
+            while REC.accumulator >= REC.step do
+                REC.accumulator = REC.accumulator - REC.step
+                baseUpdate(REC.step)
+                Recorder.step(REC.step)
+            end
+        else
+            baseUpdate(dt)
+            Recorder.step(dt)
+        end
+        Recorder.frameDone()
+
+        if REC.selftest and Recorder.tickCount() >= 300 then
+            Recorder.stop()
+            print("[selftest] stopped after " .. Recorder.tickCount() .. " ticks")
+            love.event.quit()
+        end
+    end
+
+    function love.draw()
+        baseDraw()
+
+        love.graphics.push()
+        love.graphics.origin()
+        love.graphics.setFont(love.graphics.newFont(13))
+        love.graphics.setColor(1, 0.85, 0.2, 1)
+        love.graphics.print(REC.fixedDt and "FIXED 1/60" or "REC MODE (variable dt)", 12, 8)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.pop()
+
+        Recorder.draw()
+    end
+
+    function love.keypressed(key)
+        -- F9/F10/F11 and, while recording, TAB/F1 belong to the recorder.
+        -- F11 is the prototype's fullscreen toggle; changing the window size
+        -- during a recording would poison the reference (trap 6).
+        if Recorder.keypressed(key) then return end
+        baseKeypressed(key)
+    end
 end
