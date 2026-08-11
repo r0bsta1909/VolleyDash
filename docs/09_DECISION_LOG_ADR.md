@@ -242,6 +242,38 @@ Format: Kontext → Entscheidung → Begründung → Konsequenzen → Verworfene
 
 ---
 
+## ADR-014 — Kanonisches `InputFrame`-Format
+
+**Status:** angenommen · 2026-08-11 · **festgeschrieben in CC-01 (M0-03), AP-3**
+
+**Kontext:** B-03 verlangt, dass die Simulation ausschließlich `InputFrame` konsumiert. Vor der Referenzaufzeichnung des Prototyps muss feststehen, wie dieses Format aussieht — sonst zeichnet M0-03 Rohtasten auf, und der Regressionstest der Ebene A prüft danach die Übersetzungsschicht Tastatur→InputFrame statt der Physik. Das Format wird zusätzlich von `04_NETCODE_SPEC` (Übertragung), `05_TOURNAMENT_SPEC` (Bot-Übernahme) und `07_TEST_PLAN` §2 (Wiedergabe) benutzt.
+
+**Entscheidung:** Ein `InputFrame` ist **ein vorzeichenloses Byte pro Spieler pro Tick** mit der Bitmaske `left=1, right=2, jump=4, smash=8, dash=16`; Bits 5–7 sind reserviert und müssen 0 sein. Details in `13_INPUTFRAME_FORMAT.md`.
+
+**Begründung:**
+- Ein Byte ist die kleinste Darstellung, die alle fünf Signale trägt, ist über `love.data.pack("<B", …)` plattformunabhängig und braucht bei 60 Hz nur 120 B/s je Richtung für beide Spieler.
+- Bits 0–3 sind **Zustände** (lag im Tick an), die Flankenerkennung liegt in der Simulation. Nur so kann die Simulation entscheiden, ob ein Sprung zulässig ist — die Quelle weiß nicht, ob der Blob am Boden steht.
+- Bit 4 (`dash`) ist die bewusste Ausnahme: ein **abgeleiteter Impuls**. Die Doppeltipp-Erkennung sitzt in der Eingabequelle, nicht in der Simulation. Sonst müsste die Simulation Tipp-Historien pro Spieler führen, der Bot müsste Tastendrücke simulieren, und das Netzwerk müsste Tastenfolgen statt Absichten übertragen.
+- Die Richtung des Dash kommt aus den gleichzeitig gesetzten Richtungsbits, nicht aus einem eigenen Feld. Das spart Zustand und macht widersprüchliche Frames unmöglich.
+- **Bei gleichzeitig `left` und `right` gewinnt `left`.** Das ist das gemessene Verhalten des Prototyps (`main.lua:539` und `main.lua:588`, `and/or`-Kette mit Linksauswertung), nicht eine Setzung. Die Referenz-Rallyes halten das jetzige Verhalten fest; eine Änderung an dieser Stelle würde die Aufzeichnung entwerten.
+
+**Konsequenzen:**
+- Der Regressionstest der Ebene A prüft die Physik, **nicht** die Doppeltipp-Erkennung. Die braucht einen eigenen Unit-Test in M0-06; die Mindestfälle stehen in `13_INPUTFRAME_FORMAT.md` §4.
+- Analoge Gamepad-Achsen werden in der Quelle über eine Schwelle aus `Prefs` diskretisiert. Die Simulation kennt keine halben Eingaben.
+- Die Doppeltipp-Erkennung des Prototyps misst in Echtzeit (`love.timer.getTime()`), ab M0-06 zählt sie in Ticks. Das ist eine bewusste Verhaltensänderung und in M0-06 gegen R-09 zu prüfen.
+- Empfänger verwerfen Frames mit gesetzten reservierten Bits, statt sie zu maskieren. Damit fällt ein Protokollversionsfehler sofort auf.
+
+**Verworfen:**
+- *Struktur mit Klarnamen statt Bitmaske:* teurer im Netzwerk und im Replay, und ohne kanonische Feldreihenfolge nicht stabil hashbar.
+- *Rohtasten übertragen und die Doppeltipp-Erkennung in der Simulation:* macht den Bot zum Tastatur-Simulator und die Simulation zustandsbehaftet über Ticks hinweg.
+- *Eigenes Richtungsfeld für den Dash:* erzeugt widersprüchliche Kombinationen (Dash nach links bei gedrücktem Rechts), die validiert werden müssten.
+- *„Beide Richtungen ergibt Stillstand":* Vorschlag aus dem Handoff CC-01, entspricht aber nicht dem Prototyp. Abgelehnt zugunsten des gemessenen Verhaltens.
+- *16-Bit-Frame mit Reserve:* verdoppelt die Netzlast für Bits, für die es keinen Anwendungsfall gibt. Drei reservierte Bits reichen bis v1.0.
+
+**Revisionsauslöser:** Wenn ein Modus aus M6 (2v2, Mutatoren) mehr als drei zusätzliche Signale braucht, wird auf 16 Bit erweitert — dann mit Protokollversionssprung, nicht durch Umdeutung der reservierten Bits.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

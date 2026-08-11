@@ -37,7 +37,7 @@ Gegenüber Fassung 1.0 um rund 15–20 h gestiegen: Open-Source-Repo-Aufbau (ADR
 | M0-03 | `record_replay.lua` + 12 Referenz-Rallyes aufzeichnen | 3 | Testplan §2 |
 | M0-04 | Weltgeometrie fixieren, `viewport.lua` mit Letterbox | 3 | **B-01** |
 | M0-05 | Fixer Timestep 1/60 + Akkumulator + Render-Interpolation | 4 | **B-02** |
-| M0-06 | `InputFrame` + `local_source` (Tastatur, Gamepad, Doppeltipp-Dash) | 4 | **B-03** |
+| M0-06 | `InputFrame` + `local_source` (Tastatur, Gamepad, Doppeltipp-Dash) | 4 | **B-03**, ADR-014, `13_INPUTFRAME_FORMAT` |
 | M0-07 | Bot auf `InputFrame`, Instanzierung, Inline-Kopie löschen | 3 | B-07, B-09 |
 | M0-08 | `sim/`-Extraktion: state, physics, rules, step; Reinheit herstellen | 6 | §3 `03_TECH` |
 | M0-09 | `Ruleset`/`Prefs`-Trennung, Presets, kanonischer Hash | 3 | **B-04** |
@@ -146,9 +146,11 @@ Falls die Motivation ein sichtbares Ergebnis braucht, bevor 30 h Refactoring inv
 
 | Wochenende | Inhalt | Ergebnis |
 |------------|--------|----------|
-| 1 | M0-04, M0-05, M0-06, M0-08 (die vier Blocker) | Läuft wie vorher, ist aber netzwerkfähig |
+| 1 | **M0-03 zuerst**, dann M0-04, M0-05, M0-06, M0-08 (die vier Blocker) | Läuft wie vorher, ist aber netzwerkfähig — und der Beweis dafür liegt vor |
 | 2 | M1 komplett | ZIPs für Win + Mac, verteilbar |
 | 3 | M2-01 bis M2-05 | Zwei Rechner finden sich und spielen (roh, ohne Lobby-Komfort) |
+
+**M0-03 steht bewusst vor den Blockern.** Die Referenz-Rallyes lassen sich nur gegen den unveränderten Prototyp aufzeichnen; M0-04 fixiert die Weltgeometrie, M0-05 den Timestep. Danach existiert das Verhalten, das abgesichert werden soll, nicht mehr. Fassung 1.0 dieses Dokuments hat M0-03 hier ausgelassen — das war ein Fehler und ist in CC-01 (2026-08-11) korrigiert.
 
 Der Rest von M0 (Ruleset-Trennung, Tastenbelegung, Regelkorrekturen) lässt sich danach nachziehen — er ist wichtig, aber nicht blockierend für das erste Netzwerkspiel.
 
