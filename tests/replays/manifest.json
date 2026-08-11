@@ -1,18 +1,18 @@
 {
   "format_version": 1,
-  "updated_at": "2026-08-11T14:19:27Z",
+  "updated_at": "2026-08-11T17:54:40Z",
   "rallies": [
-    { "rally_id": "R-01", "description": "Aufschlag P1, direkter Punkt", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-02", "description": "Lange Rallye >= 15 Ballwechsel", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-03", "description": "Wandabpraller links und rechts", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-04", "description": "Ball auf Netzoberkante", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-05", "description": "Ball an Netzseite", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-06", "description": "Blob-Ball-Kontakt aktiv (bewegter Blob)", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-07", "description": "Blob-Ball-Kontakt passiv (stehender Blob)", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-08", "description": "Smash aus dem Sprung", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-09", "description": "Dash mit Rettung", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-10", "description": "Drei Beruehrungen bis zum Fehler", "variable": "missing", "fixed60": "missing" },
-    { "rally_id": "R-11", "description": "Ballgeschwindigkeit am Maximum", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-01", "description": "Aufschlag P1, direkter Punkt", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "scripted:R-01" },
+    { "rally_id": "R-02", "description": "Lange Rallye >= 15 Ballwechsel", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-02.json" },
+    { "rally_id": "R-03", "description": "Wandabpraller links und rechts", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-03.json" },
+    { "rally_id": "R-04", "description": "Ball auf Netzoberkante", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-04.json" },
+    { "rally_id": "R-05", "description": "Ball an Netzseite", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-05.json" },
+    { "rally_id": "R-06", "description": "Blob-Ball-Kontakt aktiv (bewegter Blob)", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "scripted:R-06" },
+    { "rally_id": "R-07", "description": "Blob-Ball-Kontakt passiv (stehender Blob)", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-07.json" },
+    { "rally_id": "R-08", "description": "Smash aus dem Sprung", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "scripted:R-08" },
+    { "rally_id": "R-09", "description": "Dash mit Rettung", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-09.json" },
+    { "rally_id": "R-10", "description": "Drei Beruehrungen bis zum Fehler", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "replay:variable/R-10.json" },
+    { "rally_id": "R-11", "description": "Ballgeschwindigkeit am Maximum", "variable": "recorded", "fixed60": "recorded", "variable_driver": "human", "fixed60_driver": "scripted:R-11" },
     { "rally_id": "R-12", "description": "Deuce-Situation 14:14 -> 16:14", "variable": "blocked", "fixed60": "blocked", "blocked_reason": "Prototyp beendet den Satz bei 15 (B-05), kein Referenzverhalten" }
   ]
 }
