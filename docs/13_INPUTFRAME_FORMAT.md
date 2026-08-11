@@ -77,7 +77,14 @@ Simulation:
 - Das Netzwerk überträgt das fertige Bit, nicht die Tastenfolge.
 
 Die Richtung des Dash ergibt sich aus den gleichzeitig gesetzten Bits `left`/`right`,
-nicht aus einem eigenen Feld.
+nicht aus einem eigenen Feld:
+
+| `dash` + … | Bedeutung |
+|---|---|
+| `left` | Seitwärts-Dash nach links |
+| `right` | Seitwärts-Dash nach rechts |
+| weder noch | Aufwärts-Dash (im Prototyp der Doppeltipp auf `w` bzw. `u`) |
+| beide | ungültig, gilt als Seitwärts-Dash nach links (§5) |
 
 **Konsequenz für den Test, ausdrücklich festgehalten:** Der Regressionstest der Ebene A
 (`07_TEST_PLAN` §2) prüft damit die **Physik**, nicht die Doppeltipp-Erkennung. Die
@@ -178,13 +185,23 @@ Im Modus `fixed60` teilen sich mehrere Simulationsschritte eines Frames denselbe
 Tastaturzustand — genau wie in der Zielarchitektur, die Eingaben einmal pro Frame abholt und
 mehrfach durch `sim.step()` fährt.
 
-**Bekannte Ungenauigkeit:** Der Prototyp löst Sprung und Dash in `love.keypressed` aus, also
-ereignisgesteuert, während die Aufzeichnung `jump` als Pegel festhält. Bei einem
-Tastendruck, der zwischen zwei Ticks beginnt und endet, kann der Pegel den Sprung verfehlen.
-Der `dash`-Bit umgeht das über das Flankenflag. Für `jump` ist der Fall bei 60 Hz
-praktisch ausgeschlossen (er verlangt einen Tastendruck unter 16 ms), wird aber hier
-festgehalten, damit eine spätere Abweichung in R-01 oder R-09 nicht als Physikfehler
-fehlgedeutet wird.
+**Bekannte Ungenauigkeiten**, hier festgehalten, damit eine spätere Abweichung nicht als
+Physikfehler fehlgedeutet wird:
+
+1. Der Prototyp löst Sprung und Dash in `love.keypressed` aus, also ereignisgesteuert,
+   während die Aufzeichnung `jump` als Pegel festhält. Ein Tastendruck, der zwischen zwei
+   Ticks beginnt und endet, kann vom Pegel verfehlt werden. Er verlangt einen Anschlag
+   unter 16 ms und ist damit praktisch ausgeschlossen; der `dash`-Bit umgeht das ohnehin
+   über das Flankenflag. **Gemessen:** `love.keyboard.hasKeyRepeat()` ist in LÖVE 11.5.0
+   `false`, eine gehaltene Sprungtaste löst also keine Wiederholung aus. Der Pegel bleibt
+   damit eindeutig.
+2. Der Zustand im Replay-Frame ist der Zustand **vor** dem zugehörigen Schritt und **vor**
+   den Tastenereignissen dieses Frames (`"state_convention": "pre_step"`). Nur so enthält
+   er den Dash-Impuls nicht doppelt, den der Prototyp bereits in `love.keypressed` anwendet.
+3. Der Bot setzt `dashDir` unabhängig von `left`/`right`. Liegt sein Ziel innerhalb der
+   Toleranz von 8 px, kann ein Dash-Bit ohne Richtungsbit entstehen und die Wiedergabe
+   liest ihn als Aufwärts-Dash. Der Fall ist selten; für R-09 wird deshalb der Dash von
+   **Spieler 1** aufgezeichnet, nicht der des Bots.
 
 ---
 

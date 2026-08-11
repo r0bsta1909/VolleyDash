@@ -196,7 +196,12 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Zweck | Befehl |
 |---|---|
 | Spiel starten | `/d/love2d/LOVE/love.exe .` |
-| Spiel starten, fixer Timestep | _noch nicht vorhanden — M0-03 AP-4_ |
+| Spiel starten, fixer Timestep | `/d/love2d/LOVE/love.exe . --fixed-dt` |
 | Headless-Tests (Ebene A + B) | _noch nicht vorhanden — M0-13_ |
-| Referenz-Rallye aufzeichnen | _noch nicht vorhanden — M0-03_ |
+| Referenz-Rallye aufzeichnen | `/d/love2d/LOVE/love.exe . --record` (F9/F10/F11, Anleitung: `docs/handoffs/CC-01_AUFZEICHNUNGSANLEITUNG.md`) |
+| Aufzeichnung selbst testen | `/d/love2d/LOVE/love.exe . --record-selftest [--fixed-dt]` |
 | Build Windows | _noch nicht vorhanden — M1-02_ |
+
+Die drei Aufzeichnungs-Flags sind **temporär** (M0-03) und verschwinden mit dem Shim in M0-05.
+Alle drei müssen aus dem Repo-Wurzelverzeichnis gestartet werden, sonst findet das Werkzeug
+`tests/replays/` nicht.
