@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git init:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(sha256sum:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(luajit:*)",
+      "Bash(lua:*)"
+    ],
+    "ask": [
+      "Bash(git remote:*)",
+      "Bash(gh:*)",
+      "Bash(npm:*)",
+      "Bash(pip:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(rm -rf:*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/id_rsa*)"
+    ]
+  }
+}
