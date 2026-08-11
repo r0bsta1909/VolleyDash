@@ -15,6 +15,10 @@ desktop.ini
 
 # Laufzeit- und Testartefakte
 tests/replays/tmp/
+tests/replays/.last_window
+# R-00 ist die Probeaufzeichnung des Werkzeugs, kein Referenzwert.
+# Reproduzierbar mit: love . --record-selftest [--fixed-dt]
+tests/replays/*/R-00.json
 desync.log
 .claude/settings.local.json
 

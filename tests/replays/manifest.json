@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "updated_at": "2026-08-11T14:19:27Z",
+  "rallies": [
+    { "rally_id": "R-01", "description": "Aufschlag P1, direkter Punkt", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-02", "description": "Lange Rallye >= 15 Ballwechsel", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-03", "description": "Wandabpraller links und rechts", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-04", "description": "Ball auf Netzoberkante", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-05", "description": "Ball an Netzseite", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-06", "description": "Blob-Ball-Kontakt aktiv (bewegter Blob)", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-07", "description": "Blob-Ball-Kontakt passiv (stehender Blob)", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-08", "description": "Smash aus dem Sprung", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-09", "description": "Dash mit Rettung", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-10", "description": "Drei Beruehrungen bis zum Fehler", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-11", "description": "Ballgeschwindigkeit am Maximum", "variable": "missing", "fixed60": "missing" },
+    { "rally_id": "R-12", "description": "Deuce-Situation 14:14 -> 16:14", "variable": "blocked", "fixed60": "blocked", "blocked_reason": "Prototyp beendet den Satz bei 15 (B-05), kein Referenzverhalten" }
+  ]
+}
