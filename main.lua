@@ -42,6 +42,7 @@ local World       = require("src.sim.world")
 local Viewport    = require("src.render.viewport")
 local Frame       = require("src.input.frame")
 local LocalSource = require("src.input.local_source")
+local BotSource   = require("src.input.bot_source")
 
 -- ============================================================================
 -- TEMPORARY REFERENCE TOOLING (M0-03) -- goes away with M0-13, when the
@@ -359,16 +360,22 @@ end
 
 local function gatherInputs()
     local window = dashWindowTicks()
-    prevInputs[1] = inputs[1]
-    inputs[1] = sources[1] and sources[1]:poll(window) or 0
-
-    prevInputs[2] = inputs[2]
-    if config.botActive then
-        -- Der Bot schreibt inputs[2] im Tick selbst (bis M0-07 steckt er noch
-        -- in dieser Datei). Die Tastatur von P2 wird dann nicht gefragt.
-        return
+    for i = 1, 2 do
+        prevInputs[i] = inputs[i]
+        inputs[i] = sources[i] and sources[i]:poll(window) or 0
     end
-    inputs[2] = sources[2] and sources[2]:poll(window) or 0
+end
+
+-- P2 ist entweder Mensch oder Bot. Beide liefern dasselbe Byte; die
+-- Simulation merkt den Unterschied nicht (ADR-014).
+local function makeP2Source()
+    if config.botActive then
+        return BotSource.new(2, {
+            blob = p2, ball = ball, config = config,
+            world = WORLD, gameState = gameState,
+        })
+    end
+    return LocalSource.new(2)
 end
 
 local function resetInputSources()
@@ -430,114 +437,8 @@ end
 local assets = { bg = nil, blob = nil, ball = nil }
 local sounds = {}
 
--- ============================================================================
--- BOT KI MODUL
--- ============================================================================
-local Bot = {
-    targetX = 600,
-    reactionTimer = 0,
-    difficulties = {
-        [1] = { reactionDelay = 0.45, jitter = 70, useDash = false, useSmash = false }, 
-        [2] = { reactionDelay = 0.20, jitter = 25, useDash = false, useSmash = true  }, 
-        [3] = { reactionDelay = 0.04, jitter = 4,  useDash = true,  useSmash = true  }  
-    }
-}
-
-function Bot.predictLandingX(b, c, w, diffSettings)
-    local simX, simY, simVx, simVy = b.x, b.y, b.vx, b.vy
-    local simDt = 0.016
-    local headY = w.groundY - (c.blobRadius * 1.2)
-
-    for t = 0, 2.5, simDt do
-        simVy = simVy + c.gravity * simDt
-        simX = simX + simVx * simDt
-        simY = simY + simVy * simDt
-
-        if simX - c.ballRadius < 0 then
-            simX = c.ballRadius
-            simVx = math.abs(simVx) * c.wallBounce
-        elseif simX + c.ballRadius > w.width then
-            simX = w.width - c.ballRadius
-            simVx = -math.abs(simVx) * c.wallBounce
-        end
-
-        if simY >= headY and simVy > 0 then
-            local jitter = (math.random() * 2 - 1) * diffSettings.jitter
-            local finalX = simX + jitter
-            return math.max(w.width / 2 + c.blobRadius, math.min(w.width - c.blobRadius, finalX))
-        end
-    end
-    return w.width * 0.75
-end
-
-function Bot.updateAI(bot, b, dt, c, w, state)
-    local diff = Bot.difficulties[c.botLevel] or Bot.difficulties[2]
-    local inputs = { left = false, right = false, jump = false, smash = false, dashDir = nil }
-
-    if state.state == "serve" and state.servingPlayer == 2 then
-        if state.serveTimer < state.serveDelay then return inputs end
-
-        if c.botLevel == 1 then
-            if bot.x < b.x + 10 then inputs.right = true else inputs.left = true; inputs.jump = true end
-        elseif c.botLevel == 2 then
-            if bot.x < b.x + 15 then inputs.right = true else inputs.left = true; inputs.jump = true end
-        else
-            if bot.x < b.x + 25 then 
-                inputs.right = true 
-            else 
-                inputs.left = true
-                if math.abs(bot.x - b.x) < 35 then inputs.jump = true end
-                if b.y < w.groundY - c.serveHeight + 20 then inputs.smash = true end
-            end
-        end
-        return inputs
-    end
-
-    Bot.reactionTimer = Bot.reactionTimer + dt
-    if Bot.reactionTimer >= diff.reactionDelay then
-        Bot.reactionTimer = 0
-        if b.x > w.width * 0.35 or b.vx > 0 then
-            Bot.targetX = Bot.predictLandingX(b, c, w, diff)
-            if state.lastTouchPlayer == 2 and state.touchCount == 2 then
-                Bot.targetX = Bot.targetX + 25 
-            end
-        else
-            Bot.targetX = w.width * 0.75 
-        end
-    end
-
-    local tolerance = 8
-    if bot.x < Bot.targetX - tolerance then inputs.right = true
-    elseif bot.x > Bot.targetX + tolerance then inputs.left = true end
-
-    if diff.useDash and bot.cooldownTimer <= 0 then
-        local distToTarget = math.abs(bot.x - Bot.targetX)
-        local timeToImpact = (w.groundY - b.y) / math.max(1, b.vy)
-        local timeToRun = distToTarget / c.moveSpeed
-        
-        if b.x > w.width / 2 and timeToImpact > 0 and timeToRun > timeToImpact then
-            inputs.dashDir = (bot.x < Bot.targetX) and "k" or "h"
-            if timeToImpact < 0.25 then inputs.jump = true end
-        end
-    end
-
-    local distToBallX = math.abs(bot.x - b.x)
-    local ballInJumpZone = b.y > (w.groundY - c.blobRadius * 3.5) and b.y < w.groundY
-
-    if distToBallX < (c.blobRadius + c.ballRadius + 20) and ballInJumpZone then
-        if bot.isGrounded then inputs.jump = true end
-        
-        if diff.useSmash and c.activeSpike and not bot.isGrounded then
-            if b.x < w.width * 0.65 and b.y < (w.groundY - c.netHeight) then 
-                inputs.smash = true 
-            elseif state.lastTouchPlayer == 2 and state.touchCount == 2 and b.vy > 0 then
-                inputs.smash = true
-            end
-        end
-    end
-
-    return inputs
-end
+-- Der Inline-Bot ist mit M0-07 nach src/input/bot_source.lua gewandert
+-- (B-07: es gab zwei Fassungen, B-09: sein Zustand lag auf dem Modul).
 
 -- ============================================================================
 -- AUDIO & ENGINE HELPERS
@@ -593,8 +494,8 @@ function love.load()
     love.graphics.setBackgroundColor(0, 0, 0)   -- Letterbox-Balken (M0-04)
 
     -- Blobs bekommen einen dashGrace Timer für den Dash-Save Shake!
-    p1 = { x = WORLD.width * 0.25, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.15, 0.55, 0.95}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0, botSmash = false }
-    p2 = { x = WORLD.width * 0.75, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.95, 0.25, 0.25}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0, botSmash = false }
+    p1 = { x = WORLD.width * 0.25, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.15, 0.55, 0.95}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0 }
+    p2 = { x = WORLD.width * 0.75, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.95, 0.25, 0.25}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0 }
     net = { x = WORLD.width / 2 - 5, y = WORLD.groundY - config.netHeight, w = 10, h = config.netHeight }
     ball = { x = WORLD.width * 0.25, y = WORLD.groundY - config.serveHeight, vx = 0, vy = 0, radius = config.ballRadius, rotation = 0, color = {1, 1, 1} }
     
@@ -603,7 +504,7 @@ function love.load()
     -- Eine Quelle je Spieler (M0-06, ADR-014). Das Aufzeichnungswerkzeug
     -- tauscht sie bei Bedarf gegen eine Wiedergabe-Quelle aus.
     sources[1] = LocalSource.new(1)
-    sources[2] = LocalSource.new(2)
+    sources[2] = makeP2Source()
 
     love.audio.setVolume(config.volume)
 end
@@ -614,6 +515,7 @@ end
 
 function launchGame(vsBot)
     config.botActive = vsBot
+    sources[2] = makeP2Source()
     gameState.scoreP1 = 0
     gameState.scoreP2 = 0
     gameState.gameInProgress = true
@@ -734,7 +636,7 @@ local function simulateTick(dt)
     if gameState.state == "menu" or gameState.state == "gameover" then return end
 
     applyInputImpulses(p1, 1)
-    if not config.botActive then applyInputImpulses(p2, 2) end
+    applyInputImpulses(p2, 2)
     -- Fruehere Stelle von updateWorldDimensions(). Uebrig bleibt nur der
     -- Config-Wert; die Fenstergroesse hat hier nichts mehr zu suchen (B-01).
     WORLD.groundY = config.blobGroundY or 500
@@ -774,61 +676,19 @@ local function simulateTick(dt)
     end
     updateBlob(p1, dt, 0, net.x)
 
-    -- SPIELER 2 
+    -- SPIELER 2 -- seit M0-07 derselbe Code wie fuer P1. Ob dahinter ein
+    -- Mensch, ein Bot oder das Netz steckt, sieht die Simulation nicht.
     if p2.dashGrace > 0 then p2.dashGrace = p2.dashGrace - dt end
-    local p2Speed = p2.isGrounded and config.moveSpeed or (config.moveSpeed * config.airControl)
-    
-    if config.botActive then
-        local botInputs = Bot.updateAI(p2, ball, dt, config, WORLD, gameState)
-        -- Bis M0-07 den Bot nach src/input/bot_source.lua hebt, verbraucht der
-        -- Bot-Zweig seine Tabelle direkt. Der InputFrame wird trotzdem
-        -- gefuehrt, damit Aufzeichnung und Netz nur ein Format kennen.
-        inputs[2] = Frame.encode({
-            left = botInputs.left, right = botInputs.right,
-            jump = botInputs.jump, smash = botInputs.smash,
-            dash = botInputs.dashDir ~= nil,
-        })
-        p2.botSmash = botInputs.smash
-        
-        if p2.cooldownTimer > 0 then p2.cooldownTimer = p2.cooldownTimer - dt end
-        if p2.touchCooldown > 0 then p2.touchCooldown = p2.touchCooldown - dt end
-        
-        if p2.dashTimer > 0 then
-            p2.dashTimer = p2.dashTimer - dt
-            p2.vx = p2.dashSpeed
-            p2.tiltAngle = (p2.dashSpeed > 0) and 0.6 or -0.6
-        else
-            p2.tiltAngle = p2.tiltAngle * 0.8
-            p2.vx = botInputs.left and -p2Speed or (botInputs.right and p2Speed or 0)
-        end
-        
-        if botInputs.jump and p2.isGrounded then
-            p2.vy = config.jumpForce
-            p2.isGrounded = false
-            spawnDust(p2.x, p2.y, 8, 40, 100) 
-            playSound(sounds.jump)
-        end
-        
-        if botInputs.dashDir and p2.cooldownTimer <= 0 then
-            p2.dashTimer = 0.2
-            p2.dashSpeed = (botInputs.dashDir == "k" and 1 or -1) * config.moveSpeed * config.dashSide
-            p2.cooldownTimer = config.dashCooldown
-            p2.dashGrace = 0.5 -- Bot Dash-Rettung Fenster
-            spawnDust(p2.x, p2.y, 15, 60, 150) 
-            playSound(sounds.dash)
-        end
+    if p2.cooldownTimer > 0 then p2.cooldownTimer = p2.cooldownTimer - dt end
+    if p2.touchCooldown > 0 then p2.touchCooldown = p2.touchCooldown - dt end
+    if p2.dashTimer > 0 then
+        p2.dashTimer = p2.dashTimer - dt
+        p2.vx = p2.dashSpeed
+        p2.tiltAngle = (p2.dashSpeed > 0) and 0.6 or -0.6
     else
-        p2.botSmash = false
-        if p2.cooldownTimer > 0 then p2.cooldownTimer = p2.cooldownTimer - dt end
-        if p2.touchCooldown > 0 then p2.touchCooldown = p2.touchCooldown - dt end
-        if p2.dashTimer > 0 then
-            p2.dashTimer = p2.dashTimer - dt
-            p2.vx = p2.dashSpeed
-            p2.tiltAngle = (p2.dashSpeed > 0) and 0.6 or -0.6
-        else
-            p2.tiltAngle = p2.tiltAngle * 0.8
-            p2.vx = Frame.moveDir(inputs[2]) * p2Speed
-        end
+        p2.tiltAngle = p2.tiltAngle * 0.8
+        local p2Speed = p2.isGrounded and config.moveSpeed or (config.moveSpeed * config.airControl)
+        p2.vx = Frame.moveDir(inputs[2]) * p2Speed
     end
     updateBlob(p2, dt, net.x + net.w, WORLD.width)
 
@@ -994,12 +854,7 @@ function checkBlobBallCollision(p, playerNum)
                 ball.vx = ball.vx + totalImpulse * nx
                 ball.vy = ball.vy + totalImpulse * ny
 
-                local isSpiking
-                if playerNum == 2 and config.botActive then
-                    isSpiking = p.botSmash
-                else
-                    isSpiking = Frame.has(inputs[playerNum], Frame.SMASH)
-                end
+                local isSpiking = Frame.has(inputs[playerNum], Frame.SMASH)
 
                 if config.activeSpike and isSpiking and not p.isGrounded then
                     ball.vx = ball.vx * 1.3
@@ -1464,7 +1319,6 @@ if REC.active then
             p.isGrounded = p.y >= WORLD.groundY
             p.cooldownTimer, p.dashTimer, p.dashSpeed = 0, 0, 0
             p.tiltAngle, p.touchCooldown, p.dashGrace = 0, 0, 0
-            p.botSmash = false
         end
         gameState.lastTouchPlayer, gameState.touchCount = init.touch[1], init.touch[2]
         gameState.scoreP1, gameState.scoreP2 = init.score[1], init.score[2]
@@ -1473,7 +1327,7 @@ if REC.active then
         gameState.faultTimer, gameState.faultPlayer = 0, 0
         gameState.ballSide = (ball.x < WORLD.width / 2) and 1 or 2
         gameState.rallies, gameState.gameInProgress = 0, true
-        config.botActive = true   -- P2 is driven through the Bot hook below
+        config.botActive = true   -- die Aufnahmen sind gegen den Bot gespielt
         resetInputSources()
         camera.shakeTimer = 0
     end
@@ -1653,11 +1507,11 @@ if REC.active then
         end
 
         if REC.queue or REC.probeId then
-            -- Zwei Haken machen aus dem Spiel einen Wiedergabe-Konsumenten:
-            -- P1 bekommt eine Quelle, der Bot liefert die aufgezeichneten Bits
-            -- statt selbst zu denken. Sonst wird nichts umgebogen.
+            -- Seit M0-07 ist die Wiedergabe vollstaendig: beide Spieler
+            -- bekommen eine Quelle, die die aufgezeichneten Bytes ausgibt.
+            -- Am Spiel selbst wird nichts umgebogen.
             sources[1] = replaySource
-            Bot.updateAI = function() return Replay.botInputs(replayBits[2]) end
+            sources[2] = { poll = function() return replayBits[2] end }
             love.window.setVSync(0)
 
             if REC.probeId then

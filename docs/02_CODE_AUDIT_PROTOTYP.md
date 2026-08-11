@@ -93,6 +93,10 @@ Ein zufälliges Zeitfenster vor jedem Aufschlag ist im Turnier eine unnötige Va
 
 **Fix:** M0-07 hebt die Inline-Logik nach `src/input/bot_source.lua` (`03_TECH` §2) und lässt sie gegen die Input-Abstraktion aus B-03 arbeiten. Die Inline-Kopie verschwindet dabei ersatzlos.
 
+**Erledigt in M0-07 (2026-08-11).** Die Logik steht wortgleich in `src/input/bot_source.lua`, alle Zahlen unverändert. Der Bot ist jetzt eine Quelle wie jede andere: er liefert ein Byte je Tick, die Simulation kennt nur noch einen Verbrauchspfad für beide Spieler. `p2.botSmash` ist entfallen — der Smash kommt aus dem `InputFrame`.
+
+**Verhaltensfolge, bewusst in Kauf genommen:** Der Bot bekam beim Absprung bisher volle Bodengeschwindigkeit, weil sein Sprung erst *nach* der Geschwindigkeitsberechnung desselben Ticks ausgelöst wurde. P1 hatte diesen Vorteil nie — dort lag der Sprung schon immer vor dem Tick. Mit dem gemeinsamen Pfad gilt für beide dasselbe: im Absprungtick greift `airControl`. Der Bot legt dadurch 5 statt 10 px in diesem einen Tick zurück. Zwei der elf Referenz-Rallyes ändern sich dadurch messbar, beide mit unverändertem Ausgang (`07_TEST_PLAN` §2).
+
 ### B-08 — `love.graphics.newFont()` im Draw-Aufruf · **mittel, Performance**
 
 An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz erzeugt (`love.graphics.setFont(love.graphics.newFont(32))`). Das allokiert 60×/Sekunde, erzeugt GC-Druck und ist auf schwacher Hardware sichtbar.
@@ -104,6 +108,8 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 `Bot.targetX` und `Bot.reactionTimer` liegen auf dem Modul, nicht pro Instanz. Sobald zwei Bots existieren (2v2, KotH-Füllspieler, Bot-vs-Bot-Demo am Beamer), teilen sie sich einen Zustand.
 
 **Fix:** `Bot.new()` gibt eine Instanz mit eigenem State zurück.
+
+**Erledigt in M0-07 (2026-08-11).** `BotSource.new(playerIndex, ctx)`; `targetX` und `reactionTimer` liegen auf der Instanz. Zwei Bots teilen sich keinen Zielpunkt mehr.
 
 ## 3. Weitere Befunde (nicht blockierend)
 

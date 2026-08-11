@@ -77,6 +77,19 @@ Der Aufzeichnungsmodus fährt ein festes 800 × 600-Fenster, in dem `scale == 1`
 
 Dass auch M0-05 bitgleich bleibt, ist kein Zufall und kein Widerspruch zur Warnung oben: Der `fixed60`-Satz wurde von vornherein mit exakt 1/60 s aufgezeichnet. Der Wechsel auf den echten Akkumulator ändert daran nichts — dieselbe Rechnung mit demselben Schritt. Die Toleranztabelle wird erst dort gebraucht, wo sich die **Arithmetik** ändert: bei der Extraktion nach `src/sim/` (M0-08) und bei den Regelkorrekturen (M0-10).
 
+### Protokoll der akzeptierten Referenzabweichungen
+
+Die `fixed60`-Referenzen werden nach jedem Umbauschritt neu erzeugt und müssen bitgleich
+bleiben. Wo sie das **nicht** sind, steht hier warum. Die Liste ist vollständig; alles, was
+nicht hier steht, ist ein Fehler.
+
+| Schritt | Betroffen | Ursache | Ausgang |
+|---|---|---|---|
+| M0-07 | R-02 (ab Tick 1831, max 460 px), R-03 (ab Tick 779, Ball 0 px) | Der Bot bekam im Absprungtick volle Bodengeschwindigkeit statt `airControl`, weil sein Sprung nach der Geschwindigkeitsberechnung lag. P1 hatte diesen Vorteil nie. Der gemeinsame Verbrauchspfad aus B-07 beseitigt die Asymmetrie. | unverändert (0:1 bzw. 0:6) |
+
+Der gespielte `variable`-Satz bleibt davon unberührt — er ist der eingefrorene Prototyp und
+wird nie neu erzeugt.
+
 **Was die Abweichung nicht bedeutet:** Sie sagt nichts über die Wahl von 1/60 aus. Ein chaotisches System driftet bei jeder Störung; entscheidend ist, ob sich das Ergebnis im Blindtest D1 anders **anfühlt**. Erst wenn D1 kippt, wird 1/120 mit doppelter Tickrate geprüft.
 
 ## 3. Ebene B — Regel-Unit-Tests

@@ -214,10 +214,11 @@ Physikfehler fehlgedeutet wird:
 2. Der Zustand im Replay-Frame ist der Zustand **vor** dem zugehörigen Schritt und **vor**
    den Tastenereignissen dieses Frames (`"state_convention": "pre_step"`). Nur so enthält
    er den Dash-Impuls nicht doppelt, den der Prototyp bereits in `love.keypressed` anwendet.
-3. Der Bot setzt `dashDir` unabhängig von `left`/`right`. Liegt sein Ziel innerhalb der
-   Toleranz von 8 px, kann ein Dash-Bit ohne Richtungsbit entstehen und die Wiedergabe
-   liest ihn als Aufwärts-Dash. Der Fall ist selten; für R-09 wird deshalb der Dash von
-   **Spieler 1** aufgezeichnet, nicht der des Bots.
+3. **Erledigt mit M0-07.** Der Bot setzte `dashDir` unabhängig von `left`/`right`; lag sein
+   Ziel innerhalb der Toleranz von 8 px, entstand ein Dash-Bit ohne Richtungsbit, das die
+   Wiedergabe als Aufwärts-Dash las. `src/input/bot_source.lua` setzt das Richtungsbit jetzt
+   passend zur Dash-Richtung. Die vor M0-07 aufgezeichneten Referenzen behalten den alten
+   Stand; für R-09 kommt der Dash ohnehin von **Spieler 1**.
 
 ---
 
