@@ -16,6 +16,7 @@ Runner.SUITES = {
     "tests.input_frame_test",
     "tests.ruleset_test",
     "tests.rules_test",
+    "tests.bindings_test",
 }
 
 -- Gibt bestandene und gescheiterte Faelle zurueck.

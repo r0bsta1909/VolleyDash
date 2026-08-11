@@ -10,6 +10,7 @@ local Viewport    = require("src.render.viewport")
 local Frame       = require("src.input.frame")
 local LocalSource = require("src.input.local_source")
 local BotSource   = require("src.input.bot_source")
+local Bindings    = require("src.input.bindings")
 local State       = require("src.sim.state")
 local Step        = require("src.sim.step")
 local Rules       = require("src.sim.rules")
@@ -25,8 +26,13 @@ local Rules       = require("src.sim.rules")
 -- Beide Tabellen werden nie ersetzt, nur befuellt: Simulation, Bot und
 -- Aufzeichnung halten Referenzen darauf.
 -- ============================================================================
-local prefs   = Prefs.new()
-local ruleset = Ruleset.new(prefs.preset)
+local prefs    = Prefs.new()
+local ruleset  = Ruleset.new(prefs.preset)
+local bindings = Bindings.new()
+
+-- Laeuft gerade eine Tastenabfrage im Steuerungsmenue? Dann schluckt
+-- love.keypressed den naechsten Anschlag (M0-11).
+local capture = nil
 
 -- Reihenfolge fuer die Auswahl im Menue. `classic` steht vorn, weil es die
 -- Voreinstellung ist (ADR-006).
@@ -79,6 +85,8 @@ for _, a in ipairs(arg or {}) do
     if probe then REC.probeId = probe end
     if a == "--write-manifest" then REC.writeManifest = true end
     if a == "--screenshot" then REC.shot = 0 end
+    local shotMenu = a:match("^%-%-screenshot=(.+)$")
+    if shotMenu then REC.shot, REC.shotMenu = 0, shotMenu end
     if a == "--test" then REC.test = true end
 end
 
@@ -118,6 +126,12 @@ end
 local function loadConfig()
     local loaded = Prefs.load()
     for k, v in pairs(loaded) do prefs[k] = v end
+
+    -- Eine unbrauchbare Belegung (Handarbeit an der Datei, alte Fassung)
+    -- faellt still auf die Vorgabe zurueck, statt das Spiel unsteuerbar zu
+    -- machen.
+    bindings = Bindings.parse(prefs.bindings) or Bindings.new()
+    prefs.bindings = Bindings.serialize(bindings)
 end
 
 -- ============================================================================
@@ -259,6 +273,11 @@ local menu = {
             { name = "Back", target = "main" }
         }
     },
+    controls = {
+        title = "CONTROLS",
+        selection = 1,
+        items = {},   -- in buildControlsMenu() erzeugt, siehe unten
+    },
     settings = {
         title = "SETTINGS",
         selection = 1,
@@ -270,7 +289,7 @@ local menu = {
                 onRight = function() prefs.volume = math.min(1.0, prefs.volume + 0.05); love.audio.setVolume(prefs.volume); saveConfig() end
             },
             { name = "Open Live Tweaker", action = function() toggleTweaker() end },
-            { name = "Controls [WIP]", target = "settings" },
+            { name = "Controls", target = "controls" },
             { name = "Display [WIP]", target = "settings" },
             { name = "Back", target = "main" }
         }
@@ -329,6 +348,46 @@ local sources    = { nil, nil }
 local inputs     = { 0, 0 }
 local prevInputs = { 0, 0 }
 
+-- Das Steuerungsmenue wird erzeugt statt getippt: acht Eintraege, zweimal
+-- vier Aktionen (GDD §7). Der Dash fehlt bewusst -- er ist ein Doppeltipp der
+-- Richtungstasten, keine eigene Taste.
+function buildControlsMenu()
+    local items = {}
+    for slot = 1, 2 do
+        for _, action in ipairs(Bindings.ACTIONS) do
+            items[#items + 1] = {
+                name = string.format("P%d %s", slot, Bindings.LABELS[action]),
+                getValue = function()
+                    if capture and capture.slot == slot and capture.action == action then
+                        return "Taste druecken..."
+                    end
+                    return string.upper(bindings[slot][action])
+                end,
+                action = function() capture = { slot = slot, action = action } end,
+            }
+        end
+    end
+    items[#items + 1] = {
+        name = "Zuruecksetzen",
+        action = function()
+            bindings = Bindings.new()
+            applyBindings()
+        end,
+    }
+    items[#items + 1] = { name = "Back", target = "settings" }
+    return items
+end
+
+-- Belegung an die Quellen weiterreichen und sichern.
+function applyBindings()
+    prefs.bindings = Bindings.serialize(bindings)
+    Prefs.save(prefs)
+    for slot = 1, 2 do
+        local src = sources[slot]
+        if src and src.setKeys then src:setKeys(bindings[slot]) end
+    end
+end
+
 local function dashWindowTicks()
     return math.max(1, math.floor(ruleset.dashWindow * World.TICK_RATE + 0.5))
 end
@@ -350,7 +409,7 @@ local function makeP2Source()
             world = WORLD, state = state, prefs = prefs,
         })
     end
-    return LocalSource.new(2)
+    return LocalSource.new(2, bindings[2])
 end
 
 -- Werte uebernehmen, ohne die Tabelle zu ersetzen: BotSource, Recorder und
@@ -503,7 +562,8 @@ function love.load()
 
     -- Eine Quelle je Spieler (M0-06, ADR-014). Das Aufzeichnungswerkzeug
     -- tauscht sie bei Bedarf gegen eine Wiedergabe-Quelle aus.
-    sources[1] = LocalSource.new(1)
+    menu.controls.items = buildControlsMenu()
+    sources[1] = LocalSource.new(1, bindings[1])
     sources[2] = makeP2Source()
 
     love.audio.setVolume(prefs.volume)
@@ -655,6 +715,20 @@ end
 -- das dash-Bit; die Wirkung steht seit M0-08 in src/sim/step.lua.
 
 function love.keypressed(key)
+    -- Laeuft eine Tastenabfrage, gehoert der naechste Anschlag ihr (M0-11).
+    if capture then
+        if key ~= "escape" then
+            local ok, err = Bindings.set(bindings, capture.slot, capture.action, key)
+            if ok then
+                applyBindings()
+            else
+                print("[bindings] " .. tostring(err))
+            end
+        end
+        capture = nil
+        return
+    end
+
     if key == "f11" or (key == "return" and love.keyboard.isDown("lalt", "ralt")) then
         love.window.setFullscreen(not love.window.getFullscreen())
     end
@@ -768,9 +842,15 @@ function love.draw()
             love.graphics.printf("Game Paused - Press ESC to resume", 0, 140, WORLD.width, "center")
         end
 
+        -- Abstand und Startpunkt haengen an der Zahl der Eintraege: das
+        -- Steuerungsmenue hat zehn und passte sonst nicht mehr aufs Feld
+        -- (M0-11).
         love.graphics.setFont(love.graphics.newFont(24))
+        local count = #currentObj.items
+        local spacing = math.min(40, math.floor(330 / count))
+        local blockTop = 390 - (count * spacing) / 2
         for i, item in ipairs(currentObj.items) do
-            local y = 200 + (i * 40)
+            local y = blockTop + (i - 1) * spacing
             local displayStr = item.name
             if item.getValue then
                 displayStr = displayStr .. ": < " .. item.getValue() .. " >"
@@ -1264,12 +1344,17 @@ if REC.active then
             -- the asynchronous capture is written before the process ends.
             REC.shot = REC.shot + 1
             if REC.shot == 5 then
-                launchGame(true)   -- the field is more interesting than the menu
-                resetRally(2)
-            elseif REC.shot == 150 then
+                if REC.shotMenu then
+                    menu.current = REC.shotMenu
+                    menu[menu.current].selection = 1
+                else
+                    launchGame(true)   -- the field is more interesting than the menu
+                    resetRally(2)
+                end
+            elseif REC.shot == (REC.shotMenu and 20 or 150) then
                 love.graphics.captureScreenshot("viewport.png")
                 print("[shot] " .. love.filesystem.getSaveDirectory() .. "/viewport.png")
-            elseif REC.shot > 152 then
+            elseif REC.shot > (REC.shotMenu and 22 or 152) then
                 love.event.quit()
             end
             baseUpdate(dt)

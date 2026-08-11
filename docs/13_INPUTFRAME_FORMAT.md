@@ -234,8 +234,9 @@ Physikfehler fehlgedeutet wird:
 
 **Offen:**
 
-1. Tastenbelegung aus `Prefs` statt hartcodiert in `LocalSource.DEFAULT_KEYS`
-   (M0-11, GDD §7). Die Gamepad-Schwelle `AXIS_DEADZONE = 0.5` gehört in denselben Schritt.
+1. **Erledigt M0-11:** Tastenbelegung kommt aus den Prefs (`src/input/bindings.lua`).
+   Offen bleibt nur die Gamepad-Schwelle `AXIS_DEADZONE = 0.5`, die noch fest im Code steht —
+   sie braucht ein Gerät zum Einstellen.
 2. Gamepad an echter Hardware prüfen, sobald eines zur Hand ist. Bis dahin gilt der Pfad
    als unbelegt — er ist so gebaut, dass er ohne Gerät schlicht `0` liefert.
 3. Der Bot erzeugt seinen `InputFrame` noch nicht selbst; er schreibt ihn parallel mit

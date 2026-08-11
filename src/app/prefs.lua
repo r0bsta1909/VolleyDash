@@ -24,6 +24,7 @@ Prefs.FIELDS = {
     botActive = { type = "boolean" },
     botLevel  = { type = "number",  min = 1, max = 3 },
     preset    = { type = "string" },   -- zuletzt gewaehltes Ruleset-Preset
+    bindings  = { type = "string" },   -- "a,d,w,s|h,k,u,j", siehe src/input/bindings.lua
 }
 
 Prefs.DEFAULTS = {
@@ -31,6 +32,7 @@ Prefs.DEFAULTS = {
     botActive = true,
     botLevel  = 3,
     preset    = "classic",
+    bindings  = "a,d,w,s|h,k,u,j",
 }
 
 function Prefs.new()

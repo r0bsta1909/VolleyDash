@@ -12,21 +12,24 @@
 -- Datei auch von einem Testrunner geladen werden kann, der kein LOEVE hat.
 -- ============================================================================
 
-local Frame = require("src.input.frame")
+local Frame    = require("src.input.frame")
+local Bindings = require("src.input.bindings")
 
 local LocalSource = {}
 LocalSource.__index = LocalSource
 
--- Vorlaeufige Belegung. Konfigurierbar und persistent wird sie in M0-11
--- (src/input/bindings.lua, GDD §7).
-LocalSource.DEFAULT_KEYS = {
-    { left = "a", right = "d", jump = "w", smash = "s" },
-    { left = "h", right = "k", jump = "u", smash = "j" },
-}
-
 -- Analogachsen werden in der Quelle diskretisiert -- die Simulation kennt
 -- keine halben Eingaben (13_INPUTFRAME_FORMAT §6).
 LocalSource.AXIS_DEADZONE = 0.5
+
+-- Ein Geraet gehoert genau einem Spieler-Slot (GDD §7). Die Zuordnung haelt
+-- ueber Hotplug hinweg, weil sie an der Joystick-ID haengt und nicht an der
+-- Reihenfolge in getJoysticks().
+local padSlot = {}
+
+function LocalSource.releasePads()
+    padSlot = {}
+end
 
 -- ---------------------------------------------------------------------------
 -- Doppeltipp-Erkennung
@@ -84,21 +87,37 @@ LocalSource.TapDetector = TapDetector
 -- Quelle
 -- ---------------------------------------------------------------------------
 
--- playerIndex waehlt Tastenbelegung und Gamepad. keys ist optional und
--- ueberschreibt die Vorgabe.
+-- playerIndex waehlt Gamepad-Slot und Vorgabebelegung. `keys` ist die
+-- Belegung dieses Spielers aus den Prefs (src/input/bindings.lua).
 function LocalSource.new(playerIndex, keys)
     return setmetatable({
         index = playerIndex,
-        keys = keys or LocalSource.DEFAULT_KEYS[playerIndex],
+        keys = keys or Bindings.DEFAULTS[playerIndex],
         taps = TapDetector.new(),
     }, LocalSource)
 end
 
-local function joystickFor(index)
+-- Belegung im laufenden Betrieb austauschen (Menue).
+function LocalSource:setKeys(keys)
+    self.keys = keys
+end
+
+-- Das Pad dieses Slots. Ein noch nicht zugeordnetes Pad wird dem ersten
+-- Slot zugeschlagen, der danach fragt -- damit wird ein waehrend des Spiels
+-- eingestecktes Gamepad ohne Neustart erkannt (GDD §7, Hotplug).
+local function joystickFor(slot)
     if not (love and love.joystick) then return nil end
     local sticks = love.joystick.getJoysticks()
-    local stick = sticks[index]
-    if stick and stick:isGamepad() then return stick end
+
+    for _, js in ipairs(sticks) do
+        if js:isGamepad() and padSlot[js:getID()] == slot then return js end
+    end
+    for _, js in ipairs(sticks) do
+        if js:isGamepad() and padSlot[js:getID()] == nil then
+            padSlot[js:getID()] = slot
+            return js
+        end
+    end
     return nil
 end
 
@@ -106,18 +125,32 @@ end
 -- folgt der SDL-Standardbelegung, die LOEVE ueber isGamepadDown liefert.
 function LocalSource:gamepadBits()
     local stick = joystickFor(self.index)
-    if not stick then return 0 end
+    if not stick then return 0, false end
 
+    local pad = Bindings.GAMEPAD
     local bits = 0
-    local axis = stick:getGamepadAxis("leftx") or 0
-    if axis < -LocalSource.AXIS_DEADZONE or stick:isGamepadDown("dpleft") then
+    local axis = stick:getGamepadAxis(pad.axis) or 0
+    if axis < -LocalSource.AXIS_DEADZONE or stick:isGamepadDown(pad.left) then
         bits = bits + Frame.LEFT
-    elseif axis > LocalSource.AXIS_DEADZONE or stick:isGamepadDown("dpright") then
+    elseif axis > LocalSource.AXIS_DEADZONE or stick:isGamepadDown(pad.right) then
         bits = bits + Frame.RIGHT
     end
-    if stick:isGamepadDown("a") then bits = bits + Frame.JUMP end
-    if stick:isGamepadDown("x") then bits = bits + Frame.SMASH end
-    return bits
+    if stick:isGamepadDown(pad.jump) then bits = bits + Frame.JUMP end
+    if stick:isGamepadDown(pad.smash) then bits = bits + Frame.SMASH end
+
+    -- Dash liegt auf den Schultertasten (GDD §7). Sie setzen zugleich die
+    -- Richtung, damit der Frame eindeutig bleibt (13_INPUTFRAME_FORMAT §4).
+    local dash = false
+    if stick:isGamepadDown(pad.dashLeft) then
+        dash = true
+        bits = bits - (Frame.has(bits, Frame.RIGHT) and Frame.RIGHT or 0)
+        if not Frame.has(bits, Frame.LEFT) then bits = bits + Frame.LEFT end
+    elseif stick:isGamepadDown(pad.dashRight) then
+        dash = true
+        bits = bits - (Frame.has(bits, Frame.LEFT) and Frame.LEFT or 0)
+        if not Frame.has(bits, Frame.RIGHT) then bits = bits + Frame.RIGHT end
+    end
+    return bits, dash
 end
 
 function LocalSource:keyboardBits()
@@ -135,7 +168,7 @@ end
 -- (dashWindow * TICK_RATE).
 function LocalSource:poll(dashWindowTicks)
     local bits = self:keyboardBits()
-    local pad = self:gamepadBits()
+    local pad, padDash = self:gamepadBits()
 
     -- Tastatur und Gamepad wirken parallel. Beide Richtungen gleichzeitig ist
     -- kein Sonderfall: Frame.moveDir loest das nach links auf.
@@ -146,7 +179,8 @@ function LocalSource:poll(dashWindowTicks)
         if Frame.has(pad, Frame.SMASH) and not Frame.has(bits, Frame.SMASH) then bits = bits + Frame.SMASH end
     end
 
-    if self.taps:update(bits, dashWindowTicks) then
+    local doubleTap = self.taps:update(bits, dashWindowTicks)
+    if doubleTap or padDash then
         bits = bits + Frame.DASH
     end
     return bits

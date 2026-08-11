@@ -146,8 +146,20 @@ Der Bot bleibt in v1.0 funktional wie im Prototyp, wird aber architektonisch ent
 
 **Anforderungen ab M0:**
 - Belegung frei konfigurierbar und persistent (fehlt im Prototyp: „Controls [WIP]").
+  **Erledigt M0-11:** `src/input/bindings.lua`, Menü `Settings → Controls`, gespeichert in
+  den Prefs. Doppelbelegungen werden getauscht statt zugelassen, die Tasten der Oberfläche
+  (ESC, TAB, F-Reihe, Pfeile, Enter) sind gesperrt.
 - Gamepad-Hotplug: ein während des Spiels eingestecktes Pad wird erkannt.
-- **Ein Gerät = ein Spieler-Slot.** Im LAN-Modus wird die zweite lokale Belegung deaktiviert, sonst kann ein Spieler beide Blobs steuern.
+  **Erledigt M0-11:** Die Quelle fragt die Padliste in jedem Tick ab; ein noch nicht
+  zugeordnetes Pad fällt dem ersten Slot zu, der danach fragt.
+- **Ein Gerät = ein Spieler-Slot.** **Erledigt M0-11:** Die Zuordnung hängt an der
+  Joystick-ID, nicht an der Reihenfolge in `getJoysticks()` — ein abgezogenes Pad von P1
+  verschiebt damit nicht das Pad von P2.
+- Im LAN-Modus wird die zweite lokale Belegung deaktiviert. **Offen, gehört zu M2**, weil es
+  vor der Lobby keinen LAN-Modus gibt.
+
+**Ungetestet:** Der Gamepad-Pfad ist gebaut, aber an dieser Maschine liegt kein Controller.
+Ohne Gerät liefert er `0` und ändert nichts.
 
 ## 8. Präsentation
 
