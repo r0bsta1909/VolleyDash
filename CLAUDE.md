@@ -199,9 +199,13 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Spiel starten, fixer Timestep | `/d/love2d/LOVE/love.exe . --fixed-dt` |
 | Headless-Tests (Ebene A + B) | _noch nicht vorhanden — M0-13_ |
 | Referenz-Rallye aufzeichnen | `/d/love2d/LOVE/love.exe . --record` (F9/F10/F11, Anleitung: `docs/handoffs/CC-01_AUFZEICHNUNGSANLEITUNG.md`) |
+| `fixed60`-Satz erzeugen | `/d/love2d/LOVE/love.exe . --replay-all`, danach `--scene=R-01`, `--scene=R-06`, `--scene=R-08`, `--scene=R-11` |
+| Referenzen prüfen | `python tools/verify_replays.py` (muss „OK" melden) |
+| Szenenparameter messen | `/d/love2d/LOVE/love.exe . --scene-probe=R-11` |
 | Aufzeichnung selbst testen | `/d/love2d/LOVE/love.exe . --record-selftest [--fixed-dt]` |
 | Build Windows | _noch nicht vorhanden — M1-02_ |
 
-Die drei Aufzeichnungs-Flags sind **temporär** (M0-03) und verschwinden mit dem Shim in M0-05.
-Alle drei müssen aus dem Repo-Wurzelverzeichnis gestartet werden, sonst findet das Werkzeug
+Alle Aufzeichnungs- und Wiedergabe-Flags sind **temporär** (M0-03) und verschwinden mit dem
+Shim in M0-05. Der `fixed60`-Satz wird erzeugt, nicht gespielt (ADR-015).
+Sie alle müssen aus dem Repo-Wurzelverzeichnis gestartet werden, sonst findet das Werkzeug
 `tests/replays/` nicht.

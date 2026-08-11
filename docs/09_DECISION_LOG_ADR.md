@@ -274,6 +274,35 @@ Format: Kontext → Entscheidung → Begründung → Konsequenzen → Verworfene
 
 ---
 
+## ADR-015 — Der `fixed60`-Referenzsatz entsteht durch Wiedergabe, nicht durch erneutes Spielen
+
+**Status:** angenommen · 2026-08-11 · **erweitert ADR-014**
+
+**Kontext:** `07_TEST_PLAN` §2 verlangt jede Referenz-Rallye zweimal: einmal mit dem variablen Schritt des Prototyps, einmal mit konstant 1/60 s. Der erste Durchgang ist von Hand gespielt und liegt vor. Der zweite von Hand nachzuspielen kostet erneut zwei Stunden, liefert aber zwangsläufig **andere** Ballwechsel — zwei Sätze, die weder untereinander noch gegen die spätere Simulation vergleichbar sind.
+
+**Entscheidung:** Der `fixed60`-Satz entsteht, indem die aufgezeichneten `InputFrames` des gespielten Durchgangs mit festem Schritt erneut durch den Prototyp gefahren und mitgeschnitten werden (`tools/replay_source.lua`, `--replay-all`). Wo die Wiedergabe das geprüfte Phänomen verfehlt, tritt eine **Skriptszene** an ihre Stelle: synthetischer Startzustand, fester Eingabeplan, Parameter gemessen statt geraten (`--scene-probe`).
+
+**Begründung:**
+- Die Wiedergabe ist genau die Quelle, die B-03 und ADR-014 vorsehen. Sie ändert **nichts** an der Physik: im Shim werden `love.keyboard.isDown` und `Bot.updateAI` umgelenkt, sonst nichts. Der Beweis dafür ist maschinell — die `in`-Spalte der erzeugten Datei ist Tick für Tick identisch mit der Quelle.
+- Der gespielte Durchgang lief bei einem Median-`dt` von 0,01670 s, also faktisch schon 1/60 mit VSync-Jitter. Dieselben Eingaben bei exakt 1/60 erzeugen daher überwiegend denselben Ballwechsel.
+- Eine Referenz ist erst dann eine Referenz, wenn sie das Phänomen enthält, das sie absichert. Das ist prüfbar (`tools/verify_replays.py`) und wurde geprüft: 11 von 11.
+- Vier Rallyes brauchten eine Szene, weil die Abweichung zwischen den Schrittweiten die Situation zerstört, für die sie existieren. Eine Szene ist weiterhin ein echter Lauf der Prototyp-Physik; nur der Anfangszustand wird gesetzt statt gespielt. Für R-11 gibt es gar keine Alternative: der Deckel `maxBallSpeed` wurde auch im gespielten Lauf nie erreicht.
+
+**Konsequenzen:**
+- Der Header jeder Aufzeichnung führt `driver` (`human`, `replay:…`, `scripted:…`). Das Manifest spiegelt das. Niemand muss raten, wie eine Referenz entstanden ist.
+- Der `fixed60`-Satz ist reproduzierbar: `--replay-all`, dann die vier Szenen. Der gespielte Satz ist es nicht — er bleibt deshalb im Repo (Entscheidung Roberto, 2026-08-11).
+- Wiedergegebene Rallyes laufen nach dem Ende der aufgezeichneten Eingaben mit Nulleingabe weiter, bis der Ballwechsel entschieden ist. Ohne Ausgang lässt sich die Bewertungstabelle aus `07_TEST_PLAN` §2 nicht anwenden.
+- `tools/replay_source.lua` und `tools/verify_replays.py` sind Vorarbeit für M0-13: die Wiedergabe wird dort zum Testtreiber gegen `sim.step()`.
+
+**Verworfen:**
+- *Elf Rallyes ein zweites Mal spielen:* teuer, nicht reproduzierbar, und die beiden Sätze wären inhaltlich verschieden.
+- *Nur Skriptszenen:* würde das gespielte Material wegwerfen. Sieben der elf Rallyes überstehen die Wiedergabe unverändert.
+- *Den variablen Satz zur alleinigen Referenz erklären:* verschiebt das Problem nur; nach M0-05 rechnet die Simulation mit festem Schritt und braucht eine Referenz mit festem Schritt.
+
+**Revisionsauslöser:** Wenn nach M0-08 mehr als zwei Rallyes nur noch über Szenen zu halten sind, ist nicht die Methode falsch, sondern die Rallye-Auswahl aus `07_TEST_PLAN` §2 zu eng an einzelnen Spielsituationen gebaut.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

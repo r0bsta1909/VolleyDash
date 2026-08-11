@@ -52,11 +52,17 @@ Die aufgezeichneten Eingaben werden durch die neue `sim.step()` gefahren. Für j
 | 0,5 – 3 px, aber Rallye-Ausgang identisch | ⚠️ Analyse erforderlich, meist Folge des Timestep-Wechsels |
 | Abweichender Rallye-Ausgang | ❌ nicht bestanden, Refactoring wird nicht fortgesetzt |
 
-**Wichtige Einschränkung, die ehrlich dokumentiert gehört:** Der Wechsel von variablem auf festen Timestep (B-02) verändert die Physik **zwangsläufig** minimal. Der Test kann in dieser Phase nicht auf 0,5 px bestehen. Verfahren für M0.3:
+**Wichtige Einschränkung, die ehrlich dokumentiert gehört:** Der Wechsel von variablem auf festen Timestep (B-02) verändert die Physik **zwangsläufig**. Der Test kann in dieser Phase nicht auf 0,5 px bestehen. Verfahren, umgesetzt in M0-03 (ADR-015):
 
-1. Referenz-Replays zusätzlich mit `dt` auf konstant 1/60 fixiert aufzeichnen (der Prototyp erhält dafür einen temporären Debug-Schalter).
-2. Diese zweite Aufzeichnung wird zur Referenz für den fixen Timestep.
-3. Beide Aufzeichnungen manuell gegeneinander gespielt: Fühlt sich der 1/60-Lauf anders an? Wenn ja, ist die Zielkonstante falsch gewählt (dann 1/120 mit doppelter Tickrate prüfen).
+1. Der gespielte Durchgang liegt unter `tests/replays/variable/`. Median-`dt` 0,01670 s, sd 0,0005 — faktisch schon 1/60 mit VSync-Jitter.
+2. Der `fixed60`-Satz entsteht daraus durch **Wiedergabe derselben `InputFrames` mit konstant 1/60** (`--replay-all`), nicht durch erneutes Spielen. Er ist die Referenz für die Zeit nach M0-05.
+3. Wo die Wiedergabe das geprüfte Phänomen verliert, tritt eine Skriptszene an ihre Stelle (R-01, R-06, R-08, R-11). `tools/verify_replays.py` prüft für jede Rallye, dass sie ihr Phänomen tatsächlich enthält.
+
+**Gemessen, nicht geschätzt:** Bei identischen Eingaben und identischem Startzustand liegen variabler und fixer Schritt schon nach 40 bis 190 Ticks über 0,5 px auseinander, in langen Ballwechseln bis zu 730 px. Zwei der elf Rallyes enden sogar anders aus (R-01 verliert den Aufschlag statt zu punkten, R-06 verfehlt den Aktivkontakt).
+
+**Konsequenz für M0-05:** Ein Vergleich `variable` ↔ `fixed60` ist als Abnahmekriterium wertlos — die Ordnung der Abweichung liegt drei Größenordnungen über der Toleranz. Verglichen wird ausschließlich `fixed60` (Prototyp) ↔ `fixed60` (neue Simulation). Der variable Satz bleibt als Beleg dafür, wie sich der Prototyp tatsächlich verhalten hat, und für den Blindtest D1.
+
+**Was die Abweichung nicht bedeutet:** Sie sagt nichts über die Wahl von 1/60 aus. Ein chaotisches System driftet bei jeder Störung; entscheidend ist, ob sich das Ergebnis im Blindtest D1 anders **anfühlt**. Erst wenn D1 kippt, wird 1/120 mit doppelter Tickrate geprüft.
 
 ## 3. Ebene B — Regel-Unit-Tests
 
@@ -141,7 +147,9 @@ Siehe `06_BUILD` §8.
 
 | Werkzeug | Zweck |
 |----------|-------|
-| `tools/record_replay.lua` | Referenz-Rallyes aufzeichnen |
+| `tools/record_replay.lua` | Referenz-Rallyes aufzeichnen (temporär, M0-03) |
+| `tools/replay_source.lua` | Aufgezeichnete `InputFrames` zurückspielen, Skriptszenen (temporär, M0-03) |
+| `tools/verify_replays.py` | Prüft je Rallye, dass sie ihr Phänomen enthält |
 | `tests/run_headless.lua` | Ebene A + B ohne Fenster |
 | `tests/net_integration.sh` | Zwei Instanzen + Eingabe-Injektion |
 | `tools/fake_clients.lua` | N virtuelle Clients für Lasttest der Lobby |

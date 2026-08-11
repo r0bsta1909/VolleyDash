@@ -1,7 +1,8 @@
 # CC-01 — Anleitung: Referenz-Rallyes aufzeichnen
 
 **Aufgabe:** M0-03 · **Grundlage:** `07_TEST_PLAN` §2 · **Werkzeug:** `tools/record_replay.lua`
-**Zeitbedarf:** rund 45 min je Modus, zusammen **1,5 bis 2 Stunden** inklusive Wiederholungen.
+**Zeitbedarf:** rund 45 min für den gespielten Durchgang. Der zweite Durchgang wird erzeugt,
+nicht gespielt (§6, ADR-015).
 
 Diese Aufzeichnung ist **jetzt** zu machen und nur jetzt möglich. M0-04 fixiert die
 Weltgeometrie, M0-05 den Timestep — danach existiert das Verhalten, das hier abgesichert
@@ -15,8 +16,8 @@ wird, nicht mehr.
 zum Arbeitsverzeichnis; von woanders gestartet landen die Dateien im Nichts.
 
 ```bash
-/d/love2d/LOVE/love.exe . --record      # Durchgang 1: variabler Timestep
-/d/love2d/LOVE/love.exe . --fixed-dt    # Durchgang 2: konstant 1/60 s
+/d/love2d/LOVE/love.exe . --record      # Aufzeichnen, variabler Timestep des Prototyps
+/d/love2d/LOVE/love.exe . --fixed-dt    # dasselbe mit konstant 1/60 s
 ```
 
 Beide Modi öffnen ein **festes, nicht skalierbares 800 × 600-Fenster** und zeigen oben links
@@ -223,15 +224,29 @@ Altverhalten, gegen das man vergleichen könnte.
 
 ## 6. Reihenfolge und Abschluss
 
-1. **Erst alle elf im Normalmodus** (`--record`), Spiel beenden.
-2. **Dann alle elf mit** `--fixed-dt`. Dazwischen die Fenstergröße nicht ändern.
-3. `tests/replays/manifest.json` prüfen: elf Zeilen `"variable": "recorded"` und
-   `"fixed60": "recorded"`, R-12 auf `blocked`.
-4. Dateien committen: `test(replays): record reference rallies R-01..R-11 (M0-03)`.
+**Von Hand wird nur der Durchgang `--record` gespielt.** Er ist am 2026-08-11 erledigt und
+liegt unter `tests/replays/variable/`.
+
+Der zweite Durchgang `fixed60` wird **nicht gespielt, sondern erzeugt** (ADR-015):
+
+```bash
+/d/love2d/LOVE/love.exe . --replay-all        # sieben Rallyes: Eingaben mit 1/60 zurueckspielen
+/d/love2d/LOVE/love.exe . --scene=R-01        # vier Skriptszenen, siehe unten
+/d/love2d/LOVE/love.exe . --scene=R-06
+/d/love2d/LOVE/love.exe . --scene=R-08
+/d/love2d/LOVE/love.exe . --scene=R-11
+python tools/verify_replays.py                 # muss "OK" melden
+```
+
+Warum vier Szenen: Bei identischen Eingaben laufen variabler und fixer Schritt nach 40 bis
+190 Ticks über 0,5 px auseinander. Vier Rallyes verlieren dadurch genau die Situation, für
+die sie existieren — R-01 verliert den Aufschlag, R-06 steht beim Kontakt am Netzpfosten
+(`vx = 0`), R-08 verpasst den Smash aus der Luft, R-11 erreichte den Geschwindigkeitsdeckel
+schon im gespielten Lauf nie. Diese vier haben stattdessen einen gesetzten Startzustand und
+einen festen Eingabeplan; die Physik dazwischen ist unverändert die des Prototyps.
+
+**Wenn eine Rallye nachträglich neu gespielt werden soll** (`--record`, F9/F10/F11 wie oben),
+danach `--replay-all` erneut laufen lassen — der `fixed60`-Satz wird aus dem gespielten Satz
+abgeleitet und muss zu ihm passen.
 
 Danach ist M0-04 freigegeben.
-
-**Warum zwei Durchgänge:** Der Wechsel von variablem auf festen Timestep verändert die Physik
-zwangsläufig minimal (`07_TEST_PLAN` §2). Der Durchgang `fixed60` ist die Referenz, gegen die
-die neue Simulation auf 0,5 px geprüft wird. Der Durchgang `variable` dokumentiert, was der
-Prototyp tatsächlich getan hat, und dient dem Vergleich „fühlt sich 1/60 anders an?".

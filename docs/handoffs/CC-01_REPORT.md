@@ -122,3 +122,127 @@ zu ergänzen.
 
 Elf Rallyes im Modus `--record` und danach elf im Modus `--fixed-dt` nach
 `CC-01_AUFZEICHNUNGSANLEITUNG.md` aufzeichnen, committen — erst danach M0-04 beginnen.
+
+---
+
+# CC-01 — Nachtrag (2026-08-11, zweite Sitzung)
+
+Roberto hat die elf Rallyes mit `--record` gespielt und entschieden: den `fixed60`-Satz
+erzeuge ich selbst, die Assetherkunft ist geklärt, `bot.lua` wird gelöscht, der
+`variable`-Durchgang bleibt.
+
+## Erledigt
+
+- **`tools/verify_replays.py`** — prüft je Rallye ein hartes Kriterium (Netzkappenkontakt,
+  Wandabpraller beidseitig, Aktiv- gegen Passivkontakt, Smash aus der Luft, Dash-Rettung,
+  vierte Berührung, Geschwindigkeitsdeckel), vergleicht beide Durchgänge und prüft den
+  Eingabe-Rundlauf.
+- **`tools/replay_source.lua` + Treiber im Shim** — die Wiedergabe-Quelle aus ADR-014.
+  `--replay-all`, `--replay=<id>`, `--scene=<id>`, `--scene-probe=<id>`, `--write-manifest`.
+- **`fixed60`-Satz vollständig**, elf Dateien, **11 von 11 bestehen ihr Kriterium**.
+- **ADR-015** protokolliert das Verfahren; `07_TEST_PLAN` §2 ist auf den tatsächlichen
+  Ablauf umgeschrieben und um die gemessenen Zahlen ergänzt.
+- **Assets** im Repo, Herkunft in `ASSET_INVENTORY.md` und `10_LEGAL` §4 eingetragen.
+- **`bot.lua` gelöscht**, `02_CODE_AUDIT` B-07, `08_ROADMAP` M0-07, `13_INPUTFRAME_FORMAT`
+  und `docs/README.md` nachgezogen.
+
+## Verifikation beider Sätze
+
+| ID | variable (gespielt) | fixed60 | Treiber fixed60 |
+|---|---|---|---|
+| R-01 | PASS | PASS | `scripted:R-01` |
+| R-02 | PASS | PASS | `replay` |
+| R-03 | PASS | PASS | `replay` |
+| R-04 | PASS | PASS | `replay` |
+| R-05 | PASS | PASS | `replay` |
+| R-06 | PASS | PASS | `scripted:R-06` |
+| R-07 | PASS | PASS | `replay` |
+| R-08 | PASS | PASS | `scripted:R-08` |
+| R-09 | PASS | PASS | `replay` |
+| R-10 | PASS | PASS | `replay` |
+| R-11 | **FAIL** (max 1156 statt 1400) | PASS | `scripted:R-11` |
+
+Der eine Ausreißer im gespielten Satz ist dokumentiert, nicht repariert: `variable/R-11`
+erreicht den Deckel `maxBallSpeed` nicht. Die Datei bleibt unverändert, die Referenz für
+den Deckel ist die Szene in `fixed60`. `verify_replays.py` führt das als bekannten Fall.
+
+## Gemessen: variabler gegen fixen Schritt
+
+Gleiche Eingaben, gleicher Startzustand, nur die Schrittweite unterscheidet sich.
+
+| ID | Ticks | Eingabe-Rundlauf | max. Ballabweichung | ab Tick > 0,5 px |
+|---|---|---|---|---|
+| R-02 | 2627 | identisch | 731,4 px | 64 |
+| R-03 | 1139 | identisch | 507,2 px | 194 |
+| R-04 | 277 | identisch | 521,2 px | 68 |
+| R-05 | 206 | identisch | 0,9 px | 126 |
+| R-07 | 354 | identisch | 2,0 px | 129 |
+| R-09 | 290 | identisch | 21,9 px | 85 |
+| R-10 | 359 | identisch | 1,9 px | 105 |
+
+**Der Eingabe-Rundlauf ist in allen sieben Fällen Tick für Tick identisch.** Das ist der
+Beweis, dass der Treiber genau das eingespielt hat, was aufgezeichnet wurde — die
+Abweichungen stammen ausschließlich aus der Schrittweite, nicht aus dem Werkzeug.
+
+**Die Abweichung ist drei Größenordnungen größer als die Toleranz von 0,5 px.** Sie
+überschreitet sie schon nach 64 bis 194 Ticks, also nach ein bis drei Sekunden. Wo nur
+wenige Kontakte stattfinden (R-05, R-07, R-10), bleibt sie unter 2 px; jeder Blob-Ball-
+Kontakt vervielfacht sie.
+
+**Konsequenz für M0-05:** Ein Vergleich `variable` ↔ `fixed60` als Abnahmekriterium ist
+wertlos. Verglichen wird `fixed60` (Prototyp) gegen `fixed60` (neue Simulation). Das steht
+jetzt so in `07_TEST_PLAN` §2. Über die Wahl von 1/60 sagt die Zahl nichts — das entscheidet
+der Blindtest D1.
+
+## Warum vier Rallyes eine Szene brauchen
+
+- **R-01** verliert bei fixem Schritt den Aufschlag, statt den Punkt zu machen: der Rückball
+  landet auf der eigenen Seite. Der Aufschlagkontakt selbst fällt in beiden Läufen auf
+  denselben Tick (75).
+- **R-06** hat den Blob im Kontaktmoment am Netzpfosten stehen. `updateBlob` klemmt ihn dort
+  auf `vx = 0` — der Aktivtransfer, den R-06 absichern soll, findet dann nicht statt. Ein
+  Tick Versatz genügt dafür.
+- **R-08** verliert den Smash aus der Luft, nachdem der Ballwechsel ab Tick 215 auseinanderläuft.
+- **R-11** erreichte den Deckel in keinem der beiden Läufe.
+
+Die Szenen setzen einen Startzustand und einen festen Eingabeplan; die Physik dazwischen ist
+unverändert die des Prototyps. Die Parameter sind mit `--scene-probe` **gemessen**.
+
+## Neuer Befund am Prototyp: der Smash kann sich selbst aufheben
+
+Beim Bau der R-11-Szene aufgefallen und belegt: Trifft ein springender Blob den Ball **exakt
+von unten**, dreht der Smash `ball.vy = math.abs(ball.vy) * 1.4` die Bewegung nach unten,
+also **in den Blob hinein**. Die anschließende `minOutward`-Korrektur zieht das komplett
+zurück, und der Ball verlässt den Kontakt mit exakt 200 px/s (`ballBaseSpeed * 0.4`) — aus
+einem Anflug mit 1117 px/s.
+
+Der Smash beschleunigt also nur bei seitlichem Versatz. Bei senkrechtem Treffer **bremst er
+maximal**. Das erklärt auch, warum der Geschwindigkeitsdeckel im gespielten R-11 nie fiel.
+
+Ob das Vanilla ist oder ein Fehler, ist eine Regelfrage und gehört nicht in diese Sitzung
+(GDD §3, `02_CODE_AUDIT` §4 ist unantastbar). Es ist jetzt in einer Referenz festgehalten:
+`fixed60/R-08` und `fixed60/R-11` fahren beide bewusst mit Versatz.
+
+## Zweiter Befund: `maxBallSpeed` ist über einen passiven Abpraller unerreichbar
+
+Rechnerisch: ausgehende Geschwindigkeit = `0,75 × eingehende` (`1 + passiveBounce` minus der
+eingehenden Komponente). Ein passiver Kontakt kann den Deckel nur überschreiten, wenn der
+Ball schon vorher schneller als 1867 px/s wäre — was der Deckel selbst verhindert. Der Deckel
+greift ausschließlich über Aktivtransfer (Dash, laufender Blob) oder Smash mit Versatz.
+Das gehört in die Bewertung von B-06/GDD, wenn dort je über `maxBallSpeed` diskutiert wird.
+
+## Entscheidungen, die Roberto treffen muss
+
+Keine. Die fünf offenen Punkte aus dem ersten Bericht sind beantwortet:
+Assetherkunft geklärt (1, 2), `bot.lua` gelöscht (3), Aufzeichnung vollständig (4),
+`variable`-Durchgang bleibt im Repo (5).
+
+Ein einziger Hinweis, ohne Rückfrage: `bg.jpg` liegt mit 4,9 MB dauerhaft in der Historie.
+Herausschreiben ist nur bis zum ersten Push nach GitHub billig. Verkleinern steht als
+Technikpunkt in M1-09.
+
+## Nächster sinnvoller Schritt
+
+M0-04 (B-01, Weltgeometrie fixieren, `viewport.lua` mit Letterbox). Die Absicherung steht:
+`python tools/verify_replays.py` muss danach weiterhin „OK" melden, und nach M0-05 wird
+`fixed60` gegen die neue Simulation gefahren.
