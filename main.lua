@@ -1,5 +1,6 @@
 -- ============================================================================
--- BLOBBY LAN - TWEAKED EFFECTS & DASH SAVES (P1: WASD | P2: HUKJ)
+-- VOLLEY DASH — prototype baseline
+-- Controls: P1 = WASD, P2 = HUKJ
 -- ============================================================================
 
 local defaults = {
@@ -40,19 +41,19 @@ for k, v in pairs(defaults) do config[k] = v end
 -- ============================================================================
 -- SAVE / LOAD SYSTEM
 -- ============================================================================
-love.filesystem.setIdentity("BlobbyLAN") 
+love.filesystem.setIdentity("volleydash")
 
 local function saveConfig()
     local data = ""
     for k, v in pairs(config) do
         data = data .. tostring(k) .. "=" .. tostring(v) .. "\n"
     end
-    love.filesystem.write("blobby_config.sav", data)
+    love.filesystem.write("volleydash_prefs.sav", data)
 end
 
 local function loadConfig()
-    if love.filesystem.getInfo("blobby_config.sav") then
-        for line in love.filesystem.lines("blobby_config.sav") do
+    if love.filesystem.getInfo("volleydash_prefs.sav") then
+        for line in love.filesystem.lines("volleydash_prefs.sav") do
             local k, v = line:match("([^=]+)=([^=]+)")
             if k and v then
                 if type(defaults[k]) == "number" then config[k] = tonumber(v)
@@ -67,7 +68,7 @@ end
 -- SPIELER PROFILE & NAMEN
 -- ============================================================================
 local namePool = {
-    "Blobby", "Slime", "Jelly", "Gloop", "Spiker", "Bouncer", "Titan", "Rookie", 
+    "Blobber", "Slime", "Jelly", "Gloop", "Spiker", "Bouncer", "Titan", "Rookie", 
     "GigaBlob", "Wobble", "Squish", "LanKing", "Pudding", "SmashBro", "NoobSlayer"
 }
 
@@ -142,7 +143,7 @@ end
 local menu = {
     current = "main",
     main = {
-        title = "BLOBBY LAN",
+        title = "VOLLEY DASH",
         selection = 1,
         items = {
             { name = "Local Match", target = "start" },
@@ -383,7 +384,7 @@ end
 function love.load()
     loadConfig() 
     
-    love.window.setTitle("Blobby LAN - Dash Saves & Effects")
+    love.window.setTitle("Volley Dash")
     love.window.setMode(800, 600, { resizable = true, minwidth = 640, minheight = 480 })
     love.window.maximize()
 
