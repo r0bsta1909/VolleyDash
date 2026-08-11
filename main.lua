@@ -46,6 +46,11 @@ for k, v in pairs(defaults) do config[k] = v end
 --   --fixed-dt          simulate with a constant 1/60 s step (implies --record)
 --   --record            recording mode with the prototype's variable step
 --   --record-selftest   automated smoke test of the recorder, then quit
+--   --replay-all        replay every recorded rally with a fixed step and
+--                       record the result as the fixed60 reference pass
+--   --replay=R-04       the same for a single rally
+--   --scene=R-11        run the scripted scene of that rally instead
+--   --scene-probe=R-11  parameter sweep for a scene, prints, records nothing
 -- Without a flag the game behaves exactly as before. The wrappers live at the
 -- bottom of this file, the patched call sites are marked with "RECORDING SHIM".
 -- Removal is part of M0-05.
@@ -57,18 +62,36 @@ local REC = {
     step        = 1 / 60,
     accumulator = 0,
     maxFrameDt  = 0.25,
+    queue       = nil,   -- rally ids still to replay
+    sceneId     = nil,
+    probeId     = nil,
 }
 
 for _, a in ipairs(arg or {}) do
     if a == "--fixed-dt" then REC.fixedDt = true end
     if a == "--record" then REC.active = true end
     if a == "--record-selftest" then REC.selftest = true end
+    if a == "--replay-all" then
+        REC.queue = { "R-01", "R-02", "R-03", "R-04", "R-05", "R-06",
+                      "R-07", "R-08", "R-09", "R-10", "R-11" }
+    end
+    local one = a:match("^%-%-replay=(.+)$")
+    if one then REC.queue = { one } end
+    local scene = a:match("^%-%-scene=(.+)$")
+    if scene then REC.queue = { scene }; REC.sceneId = scene end
+    local probe = a:match("^%-%-scene%-probe=(.+)$")
+    if probe then REC.probeId = probe end
+    if a == "--write-manifest" then REC.writeManifest = true end
 end
+if REC.writeManifest then REC.active = true end
+if REC.queue or REC.probeId then REC.fixedDt = true end
 REC.active = REC.active or REC.fixedDt or REC.selftest
 REC.mode = REC.fixedDt and "fixed60" or "variable"
 
 local Recorder = nil
+local Replay = nil
 if REC.active then Recorder = require("tools.record_replay") end
+if REC.queue or REC.probeId then Replay = require("tools.replay_source") end
 -- ============================================================================
 
 -- ============================================================================
@@ -1250,6 +1273,194 @@ if REC.active then
     local baseDraw       = love.draw
     local baseKeypressed = love.keypressed
 
+    -- ------------------------------------------------------------------
+    -- Replay driver (M0-03). Feeds recorded InputFrames back into the
+    -- prototype so the fixed60 reference pass does not have to be played a
+    -- second time. Only the input source changes -- love.update, the
+    -- collision code and every constant stay untouched.
+    -- ------------------------------------------------------------------
+    local injected = {}
+    local botBits = 0
+    local prevP1Bits = 0
+    local run = nil
+    local beginNext
+
+    local function has(bits, mask) return math.floor(bits / mask) % 2 == 1 end
+
+    local function applyInit(init)
+        ball.x, ball.y, ball.vx, ball.vy = init.ball[1], init.ball[2], init.ball[3], init.ball[4]
+        ball.rotation, ball.radius = 0, config.ballRadius
+        p1.x, p1.y, p1.vx, p1.vy = init.p1[1], init.p1[2], init.p1[3], init.p1[4]
+        p2.x, p2.y, p2.vx, p2.vy = init.p2[1], init.p2[2], init.p2[3], init.p2[4]
+        for _, p in ipairs({ p1, p2 }) do
+            p.isGrounded = p.y >= WORLD.groundY
+            p.cooldownTimer, p.dashTimer, p.dashSpeed = 0, 0, 0
+            p.tiltAngle, p.touchCooldown, p.dashGrace = 0, 0, 0
+            p.botSmash = false
+        end
+        gameState.lastTouchPlayer, gameState.touchCount = init.touch[1], init.touch[2]
+        gameState.scoreP1, gameState.scoreP2 = init.score[1], init.score[2]
+        gameState.servingPlayer, gameState.state = init.server, init.phase
+        gameState.serveTimer, gameState.serveDelay = 0, 1.0
+        gameState.faultTimer, gameState.faultPlayer = 0, 0
+        gameState.ballSide = (ball.x < WORLD.width / 2) and 1 or 2
+        gameState.rallies, gameState.gameInProgress = 0, true
+        config.botActive = true   -- P2 is driven through the Bot hook below
+        for k in pairs(lastTaps) do lastTaps[k] = nil end
+        camera.shakeTimer = 0
+        prevP1Bits = 0
+    end
+
+    -- P1 jump and dash are events in the prototype (love.keypressed), while the
+    -- recording holds jump as a level. The rising edge is replayed as a key
+    -- press, the dash bit through the prototype's own double tap handler, so
+    -- dashCooldown and the dash code path are the original ones.
+    local function feed(bits1, bits2)
+        injected.a, injected.d = has(bits1, 1), has(bits1, 2)
+        injected.w, injected.s = has(bits1, 4), has(bits1, 8)
+        botBits = bits2
+
+        if injected.w and not has(prevP1Bits, 4) then
+            baseKeypressed("w")
+            lastTaps["1w"] = nil   -- never let two replayed jumps become an up dash
+        end
+        if has(bits1, 16) then
+            local dir = injected.d and "d" or (injected.a and "a" or "w")
+            handleDoubleTap(dir, 1, p1, "a", "d", "w")
+            handleDoubleTap(dir, 1, p1, "a", "d", "w")
+            lastTaps["1" .. dir] = nil
+        end
+        prevP1Bits = bits1
+    end
+
+    beginNext = function()
+        local id = table.remove(REC.queue, 1)
+        if not id then
+            Recorder.writeManifest()
+            print("[replay] fertig")
+            love.event.quit()
+            run = nil
+            return
+        end
+
+        local data
+        if REC.sceneId == id then
+            local scene = Replay.scene(id)
+            if not scene then
+                print("[replay] keine Szene fuer " .. id)
+                return beginNext()
+            end
+            data = { count = scene.ticks, init = scene.makeInit(scene), scene = scene }
+            Recorder.setDriver("scripted:" .. id)
+        else
+            local loaded, err = Replay.load("tests/replays/variable/" .. id .. ".json")
+            if not loaded then
+                print("[replay] " .. tostring(err))
+                return beginNext()
+            end
+            data = loaded
+            Recorder.setDriver("replay:variable/" .. id .. ".json")
+        end
+
+        applyInit(data.init)
+        Recorder.selectById(id)
+        Recorder.start()
+        run = { id = id, data = data, tick = 0, tail = 0 }
+        print(string.format("[replay] %s: %d Ticks", id, data.count))
+    end
+
+    local TAIL_MAX = 400
+
+    local function replayStep()
+        if not run then return end
+
+        -- Five ticks past the end of the rally, so the awarded point is inside
+        -- the file. A frame holds the state BEFORE its own step, so stopping on
+        -- the deciding step would cut the result off.
+        local AFTER = 5
+        local rallyOver = gameState.state ~= "play"
+        if rallyOver and run.sawPlay then run.after = (run.after or 0) + 1 end
+        if gameState.state == "play" then run.sawPlay = true end
+
+        -- A scripted scene ends when its rally ends, not when the tick budget
+        -- runs out. Keeps the reference short and its outcome unambiguous.
+        if run.data.scene and run.sawPlay and (run.after or 0) > AFTER then
+            run.tick = run.data.count
+        end
+
+        if run.tick >= run.data.count then
+            -- Let a replayed rally finish. 07_TEST_PLAN section 2 grades on the
+            -- outcome, so a reference that stops mid-flight cannot be graded.
+            -- Zero input, at most TAIL_MAX ticks.
+            if (not rallyOver or (run.after or 0) <= AFTER) and run.tail < TAIL_MAX then
+                feed(0, 0)
+                baseUpdate(REC.step)
+                Recorder.step(REC.step)
+                run.tail = run.tail + 1
+                return
+            end
+            Recorder.stop()
+            print(string.format("[replay] %s fertig (+%d Ticks Auslauf)", run.id, run.tail))
+            beginNext()
+            return
+        end
+        local b1, b2
+        if run.data.scene then
+            b1, b2 = run.data.scene.inputs(run.data.scene, run.tick)
+        else
+            local pair = run.data.inputs[run.tick + 1]
+            b1, b2 = pair[1], pair[2]
+        end
+        feed(b1, b2)
+        baseUpdate(REC.step)
+        Recorder.step(REC.step)
+        run.tick = run.tick + 1
+    end
+
+    -- Parameter sweep for a scripted scene. Runs the simulation in a tight
+    -- loop without recording and prints the metrics of every candidate, so the
+    -- scene parameters are measured instead of guessed.
+    local function sceneProbe(id)
+        local scene = Replay.scene(id)
+        if not scene then print("[probe] keine Szene fuer " .. id) return end
+        local sw = scene.sweep
+        for candidate = sw.from, sw.to, (sw.step or 1) do
+            scene[sw.field] = candidate
+            applyInit(scene.makeInit(scene))
+
+            local peak, contacts, contactVx, airSmash = 0, 0, 0, false
+            local postPeak, preContact = 0, 0
+            local prevTouch, prevPlayer = 0, 0
+            for tick = 0, scene.ticks - 1 do
+                local b1, b2 = scene.inputs(scene, tick)
+                feed(b1, b2)
+                local wasAir, blobVx = not p1.isGrounded, p1.vx
+                local smashHeld = injected.s
+                local before = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
+                baseUpdate(REC.step)
+
+                local v = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
+                if v > peak then peak = v end
+                if gameState.touchCount > 0
+                   and (gameState.touchCount > prevTouch or gameState.lastTouchPlayer ~= prevPlayer) then
+                    contacts = contacts + 1
+                    if v > postPeak then postPeak = v; preContact = before end
+                    if gameState.lastTouchPlayer == 1 then
+                        if math.abs(blobVx) > math.abs(contactVx) then contactVx = blobVx end
+                        if wasAir and smashHeld then airSmash = true end
+                    end
+                end
+                prevTouch, prevPlayer = gameState.touchCount, gameState.lastTouchPlayer
+            end
+
+            print(string.format(
+                "[probe] %s %s=%-5s peak=%8.2f contacts=%d maxContactVx=%7.1f airSmash=%-5s "
+                .. "bestContact %7.1f -> %7.1f score=%d:%d phase=%s",
+                id, sw.field, tostring(candidate), peak, contacts, contactVx, tostring(airSmash),
+                preContact, postPeak, gameState.scoreP1, gameState.scoreP2, gameState.state))
+        end
+    end
+
     function love.load()
         baseLoad()
         Recorder.attach({
@@ -1266,10 +1477,43 @@ if REC.active then
             while Recorder.currentId() ~= "R-00" do Recorder.nextRally() end
             Recorder.start()
         end
+
+        if REC.writeManifest then
+            Recorder.writeManifest()
+            print("[manifest] tests/replays/manifest.json geschrieben")
+            love.event.quit()
+            return
+        end
+
+        if REC.queue or REC.probeId then
+            -- The two hooks that turn the prototype into a replay consumer.
+            -- Nothing else is redirected; the hardware is simply not asked.
+            love.keyboard.isDown = function(...)
+                for i = 1, select("#", ...) do
+                    if injected[select(i, ...)] then return true end
+                end
+                return false
+            end
+            Bot.updateAI = function() return Replay.botInputs(botBits) end
+            love.window.setVSync(0)
+
+            if REC.probeId then
+                sceneProbe(REC.probeId)
+                love.event.quit()
+            else
+                beginNext()
+            end
+        end
     end
 
     function love.update(dt)
         Recorder.update(dt)
+
+        if REC.queue then
+            replayStep()
+            Recorder.frameDone()
+            return
+        end
 
         if REC.fixedDt then
             REC.accumulator = REC.accumulator + math.min(dt, REC.maxFrameDt)

@@ -174,6 +174,22 @@ function Recorder.currentId()
     return rallyByIndex(S.index).id
 end
 
+function Recorder.selectById(id)
+    for i, rally in ipairs(RALLIES) do
+        if rally.id == id then
+            S.index = i
+            return true
+        end
+    end
+    return false
+end
+
+-- "human", "replay:variable/R-04.json" or "scripted:R-11". Goes into the file
+-- header so nobody has to guess how a reference came to be.
+function Recorder.setDriver(name)
+    S.header.driver = name
+end
+
 -- ---------------------------------------------------------------------------
 -- Input capture
 -- ---------------------------------------------------------------------------
@@ -379,6 +395,7 @@ function Recorder.save()
     head[#head + 1] = '  "platform": ' .. esc(platform()) .. ','
     head[#head + 1] = '  "patches_active": ' .. patchList() .. ','
     head[#head + 1] = '  "p2_source": ' .. esc(p2source) .. ','
+    head[#head + 1] = '  "driver": ' .. esc(S.header.driver or "human") .. ','
     -- Trap 6: as long as B-01 is open the window size is part of the input.
     head[#head + 1] = string.format('  "window": [%d, %d],', S.header.window[1], S.header.window[2])
     head[#head + 1] = '  "world": [' .. num(S.header.world[1]) .. ', ' .. num(S.header.world[2]) .. '],'
@@ -416,6 +433,16 @@ function Recorder.stop()
     Recorder.save()
 end
 
+-- How a file came to be. Read straight out of the header, so the manifest
+-- cannot drift away from the files.
+local function driverOf(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local head = f:read(2048) or ""
+    f:close()
+    return head:match('"driver": "([^"]*)"') or "human"
+end
+
 -- The manifest is rebuilt from what is actually on disk, so the tool never
 -- has to read JSON back.
 function Recorder.writeManifest()
@@ -428,9 +455,14 @@ function Recorder.writeManifest()
                 if variable == "missing" then variable = "blocked" end
                 if fixed60  == "missing" then fixed60  = "blocked" end
             end
+            local drivers = ""
+            local dv, df = driverOf(replayPath(rally.id, "variable")),
+                           driverOf(replayPath(rally.id, "fixed60"))
+            if dv then drivers = drivers .. ', "variable_driver": ' .. esc(dv) end
+            if df then drivers = drivers .. ', "fixed60_driver": ' .. esc(df) end
             parts[#parts + 1] = string.format(
-                '    { "rally_id": %s, "description": %s, "variable": %s, "fixed60": %s%s }',
-                esc(rally.id), esc(rally.desc), esc(variable), esc(fixed60),
+                '    { "rally_id": %s, "description": %s, "variable": %s, "fixed60": %s%s%s }',
+                esc(rally.id), esc(rally.desc), esc(variable), esc(fixed60), drivers,
                 rally.blocked and (', "blocked_reason": ' .. esc(rally.blocked)) or "")
         end
     end
