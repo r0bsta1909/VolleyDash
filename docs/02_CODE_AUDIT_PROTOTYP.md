@@ -42,6 +42,10 @@ Die Physik integriert mit dem realen Frame-Delta. Auf 144 Hz verhält sich der B
 
 **Fix:** Fixer Simulationsschritt 1/60 s mit Akkumulator. Rendering bleibt entkoppelt und interpoliert. Details in `03_TECH` §3.
 
+**Erledigt in M0-05 (2026-08-11).** `love.update` verteilt die reale Frame-Zeit auf ganze Ticks von `World.TICK_DT`; die Physik sieht ausschließlich diese Konstante. Der Rest im Akkumulator wird als `renderAlpha` an die Zeichenschicht gegeben, die zwischen dem Zustand vor und nach dem letzten Tick interpoliert. Sprungstellen (`resetBall`) setzen den Interpolationspuffer zurück.
+
+Nachweis: der Selbsttest zeichnet **300 Ticks in 5,05 s Echtzeit auf, während 2261 Frames gerendert wurden** (rund 448 fps ohne VSync) — Tickrate und Bildrate sind entkoppelt. Die elf `fixed60`-Referenzen sind nach dem Umbau erneut Frame für Frame bitgleich, weil sie schon mit exakt 1/60 s aufgezeichnet wurden.
+
 ### B-03 — Eingabe wird mitten in der Simulation gelesen · **kritisch**
 
 ```lua

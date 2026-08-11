@@ -42,12 +42,15 @@ local World    = require("src.sim.world")
 local Viewport = require("src.render.viewport")
 
 -- ============================================================================
--- TEMPORARY RECORDING SHIM (M0-03) -- remove after reference replays are captured.
--- This is NOT the B-02 fixed-timestep implementation. Do not build on it.
+-- TEMPORARY REFERENCE TOOLING (M0-03) -- goes away with M0-13, when the
+-- headless test runner takes over recording and playback.
+--
+-- The fixed-timestep shim that used to live here is gone: M0-05 made 1/60 s
+-- the real loop for everyone, so --fixed-dt has no meaning any more. What is
+-- left is the recorder and the replay driver, both hooked into that loop.
 --
 -- Everything below is inert unless one of the command line flags is given:
---   --fixed-dt          simulate with a constant 1/60 s step (implies --record)
---   --record            recording mode with the prototype's variable step
+--   --record            recorder overlay and F9/F10/F11
 --   --record-selftest   automated smoke test of the recorder, then quit
 --   --replay-all        replay every recorded rally with a fixed step and
 --                       record the result as the fixed60 reference pass
@@ -57,24 +60,19 @@ local Viewport = require("src.render.viewport")
 --   --screenshot        grab one frame into the save directory, then quit.
 --                       Keeps the normal window, so the letterbox of M0-04 is
 --                       actually visible in the picture.
--- Without a flag the game behaves exactly as before. The wrappers live at the
--- bottom of this file, the patched call sites are marked with "RECORDING SHIM".
--- Removal is part of M0-05.
+-- Without a flag the game behaves exactly as it does for a player. The
+-- wrappers live at the bottom of this file, the patched call sites are marked
+-- with "RECORDING SHIM".
 -- ============================================================================
 local REC = {
-    fixedDt     = false,
     selftest    = false,
     active      = false,
-    step        = 1 / 60,
-    accumulator = 0,
-    maxFrameDt  = 0.25,
     queue       = nil,   -- rally ids still to replay
     sceneId     = nil,
     probeId     = nil,
 }
 
 for _, a in ipairs(arg or {}) do
-    if a == "--fixed-dt" then REC.fixedDt = true end
     if a == "--record" then REC.active = true end
     if a == "--record-selftest" then REC.selftest = true end
     if a == "--replay-all" then
@@ -90,14 +88,16 @@ for _, a in ipairs(arg or {}) do
     if a == "--write-manifest" then REC.writeManifest = true end
     if a == "--screenshot" then REC.shot = 0 end
 end
-if REC.writeManifest then REC.active = true end
--- Everything that produces reference data runs in the fixed 800x600 window.
--- --screenshot deliberately does not, otherwise there is nothing to look at.
-REC.refMode = REC.active or REC.queue or REC.probeId
+REC.active = REC.active or REC.selftest or REC.writeManifest or REC.queue ~= nil or REC.probeId ~= nil
+
+-- Everything that produces reference data runs in the fixed 800x600 window and
+-- with the two recording patches. --screenshot deliberately does not, otherwise
+-- there is nothing to look at.
+REC.refMode = REC.active
 if REC.shot then REC.active = true end
-if REC.queue or REC.probeId then REC.fixedDt = true end
-REC.active = REC.active or REC.fixedDt or REC.selftest
-REC.mode = REC.fixedDt and "fixed60" or "variable"
+
+-- Since M0-05 there is only one timestep. Every new recording is a fixed60 one.
+REC.mode = "fixed60"
 
 local Recorder = nil
 local Replay = nil
@@ -329,6 +329,54 @@ local gameState = {
 local WORLD = { width = World.WIDTH, height = World.HEIGHT, groundY = config.blobGroundY }
 local p1, p2, ball, net
 
+-- ============================================================================
+-- RENDER-INTERPOLATION (M0-05, B-02)
+--
+-- Die Simulation laeuft mit festen 1/60 s, gezeichnet wird mit der Bildrate des
+-- Monitors. Ohne Interpolation ruckelt jedes Bild sichtbar, das nicht exakt auf
+-- 60 Hz laeuft -- auf 144 Hz wiederholen sich Frames, auf 50 Hz fallen welche
+-- aus. Gezeichnet wird deshalb zwischen dem Zustand vor und nach dem letzten
+-- Tick, gewichtet mit dem Rest im Akkumulator.
+--
+-- Interpoliert werden ausschliesslich Anzeigewerte. Die Simulation liest diese
+-- Tabellen nie.
+-- ============================================================================
+local renderPrev = {
+    p1   = { x = 0, y = 0, tilt = 0 },
+    p2   = { x = 0, y = 0, tilt = 0 },
+    ball = { x = 0, y = 0, rot = 0 },
+}
+local renderView = { p1 = {}, p2 = {}, ball = {} }
+local renderAlpha = 0
+
+-- Vor jedem Tick aufrufen. Zugleich der Weg, eine Sprungstelle zu entschaerfen:
+-- nach resetBall steht der Ball an einer neuen Stelle, und ohne diesen Aufruf
+-- wuerde er einen Frame lang quer durchs Bild gleiten.
+local function captureRenderState()
+    if not (p1 and p2 and ball) then return end
+    renderPrev.p1.x, renderPrev.p1.y, renderPrev.p1.tilt = p1.x, p1.y, p1.tiltAngle
+    renderPrev.p2.x, renderPrev.p2.y, renderPrev.p2.tilt = p2.x, p2.y, p2.tiltAngle
+    renderPrev.ball.x, renderPrev.ball.y, renderPrev.ball.rot = ball.x, ball.y, ball.rotation
+end
+
+local function lerp(a, b, t) return a + (b - a) * t end
+
+local function blobView(dst, src, prev)
+    for k, v in pairs(src) do dst[k] = v end
+    dst.x = lerp(prev.x, src.x, renderAlpha)
+    dst.y = lerp(prev.y, src.y, renderAlpha)
+    dst.tiltAngle = lerp(prev.tilt, src.tiltAngle, renderAlpha)
+    return dst
+end
+
+local function ballView(dst, src, prev)
+    for k, v in pairs(src) do dst[k] = v end
+    dst.x = lerp(prev.x, src.x, renderAlpha)
+    dst.y = lerp(prev.y, src.y, renderAlpha)
+    dst.rotation = lerp(prev.rot, src.rotation, renderAlpha)
+    return dst
+end
+
 local assets = { bg = nil, blob = nil, ball = nil }
 local sounds = {}
 local lastTaps = {} 
@@ -554,6 +602,10 @@ function resetBall(server)
     
     if p1 then p1.tiltAngle = 0; p1.touchCooldown = 0; p1.dashGrace = 0; p1.x = WORLD.width * 0.25 end
     if p2 then p2.tiltAngle = 0; p2.touchCooldown = 0; p2.dashGrace = 0; p2.x = WORLD.width * 0.75 end
+
+    -- Sprungstelle: ohne das gleitet der Ball einen Frame lang von der alten
+    -- zur neuen Aufschlagposition (M0-05).
+    captureRenderState()
 end
 
 local function awardPointTo(winningPlayer)
@@ -580,9 +632,15 @@ end
 -- ============================================================================
 -- LOGIK
 -- ============================================================================
-function love.update(dt)
+
+-- Ein Simulationsschritt. `dt` ist immer World.TICK_DT -- die Funktion wird
+-- ausschliesslich aus dem Akkumulator unten und aus dem Wiedergabe-Treiber
+-- aufgerufen, nie mit dem dt aus love.update (M0-05, B-02).
+--
+-- Frueher stand hier `dt = math.min(dt, 0.05)`. Bei festen 1/60 s ist das
+-- wirkungslos und ersatzlos entfallen.
+local function simulateTick(dt)
     if gameState.state == "menu" or gameState.state == "gameover" then return end
-    dt = math.min(dt, 0.05)
     -- Fruehere Stelle von updateWorldDimensions(). Uebrig bleibt nur der
     -- Config-Wert; die Fenstergroesse hat hier nichts mehr zu suchen (B-01).
     WORLD.groundY = config.blobGroundY or 500
@@ -718,6 +776,33 @@ function love.update(dt)
         -- Shake hier entfernt! Nur noch Staub und Sound bei einfachem Bodenkontakt.
         if ball.x < WORLD.width / 2 then awardPointTo(2) else awardPointTo(1) end
     end
+end
+
+-- ============================================================================
+-- FIXER SIMULATIONSSCHRITT (M0-05, B-02)
+--
+-- love.update bekommt die reale Frame-Zeit und verteilt sie auf ganze Ticks
+-- von 1/60 s. Was uebrig bleibt, steht als renderAlpha fuer die Interpolation
+-- bereit. Die Physik sieht ausschliesslich World.TICK_DT.
+--
+-- onPostTick gehoert dem temporaeren Werkzeug am Dateiende: die Aufzeichnung
+-- haengt sich dort ein, ohne dass die Schleife etwas davon wissen muss. Der
+-- Haken verschwindet mit dem Werkzeug.
+-- ============================================================================
+local accumulator = 0
+local onPostTick    -- vom Aufzeichnungswerkzeug gesetzt, sonst nil
+
+function love.update(dt)
+    accumulator = math.min(accumulator + dt, World.MAX_FRAME_DT)
+
+    while accumulator >= World.TICK_DT do
+        accumulator = accumulator - World.TICK_DT
+        captureRenderState()
+        simulateTick(World.TICK_DT)
+        if onPostTick then onPostTick() end
+    end
+
+    renderAlpha = accumulator / World.TICK_DT
 end
 
 function updateBlob(p, dt, wallLeft, wallRight)
@@ -1078,9 +1163,15 @@ function love.draw()
         return
     end
 
-    drawShadow(p1.x, p1.y, config.blobRadius, WORLD.groundY)
-    drawShadow(p2.x, p2.y, config.blobRadius, WORLD.groundY)
-    drawShadow(ball.x, ball.y, config.ballRadius * 1.5, config.ballGroundY or 520)
+    -- Ab hier wird der interpolierte Zustand gezeichnet, nicht der simulierte
+    -- (M0-05). Die Tabellen sind Kopien; nichts davon fliesst zurueck.
+    local vp1  = blobView(renderView.p1, p1, renderPrev.p1)
+    local vp2  = blobView(renderView.p2, p2, renderPrev.p2)
+    local vball = ballView(renderView.ball, ball, renderPrev.ball)
+
+    drawShadow(vp1.x, vp1.y, config.blobRadius, WORLD.groundY)
+    drawShadow(vp2.x, vp2.y, config.blobRadius, WORLD.groundY)
+    drawShadow(vball.x, vball.y, config.ballRadius * 1.5, config.ballGroundY or 520)
 
     drawParticles()
 
@@ -1089,28 +1180,28 @@ function love.draw()
     love.graphics.setColor(0.40, 0.20, 0.05)
     love.graphics.rectangle("line", net.x, net.y, net.w, net.h, 3, 3)
 
-    drawBlob(p1, true)
-    drawBlob(p2, false)
+    drawBlob(vp1, true, vball)
+    drawBlob(vp2, false, vball)
 
-    love.graphics.setColor(ball.color)
-    if ball.y + ball.radius >= 0 then
+    love.graphics.setColor(vball.color)
+    if vball.y + vball.radius >= 0 then
         if assets.ball then
             local bw, bh = assets.ball:getDimensions()
-            local bScale = (ball.radius * 2) / bw
-            love.graphics.draw(assets.ball, ball.x, ball.y, ball.rotation, bScale, bScale, bw/2, bh/2)
+            local bScale = (vball.radius * 2) / bw
+            love.graphics.draw(assets.ball, vball.x, vball.y, vball.rotation, bScale, bScale, bw/2, bh/2)
         else
             love.graphics.push()
-            love.graphics.translate(ball.x, ball.y)
-            love.graphics.rotate(ball.rotation)
-            love.graphics.circle("fill", 0, 0, ball.radius)
+            love.graphics.translate(vball.x, vball.y)
+            love.graphics.rotate(vball.rotation)
+            love.graphics.circle("fill", 0, 0, vball.radius)
             love.graphics.setColor(1, 1, 1, 0.5)
-            love.graphics.circle("fill", -ball.radius*0.3, -ball.radius*0.3, ball.radius * 0.4)
+            love.graphics.circle("fill", -vball.radius*0.3, -vball.radius*0.3, vball.radius * 0.4)
             love.graphics.setColor(0, 0, 0, 0.5)
-            love.graphics.line(0, 0, ball.radius, 0)
+            love.graphics.line(0, 0, vball.radius, 0)
             love.graphics.pop()
         end
     else
-        local indX = math.max(15, math.min(WORLD.width - 15, ball.x))
+        local indX = math.max(15, math.min(WORLD.width - 15, vball.x))
         love.graphics.polygon("fill", indX - 10, 4, indX + 10, 4, indX, 18)
         love.graphics.setColor(1, 1, 1, 0.9)
         love.graphics.circle("fill", indX, 8, 3)
@@ -1143,8 +1234,8 @@ function love.draw()
             love.graphics.rectangle("fill", x - 30, WORLD.groundY + 15, 60 * (p.cooldownTimer / config.dashCooldown), 4)
         end
     end
-    drawCooldown(p1, WORLD.width * 0.25)
-    drawCooldown(p2, WORLD.width * 0.75)
+    drawCooldown(vp1, WORLD.width * 0.25)
+    drawCooldown(vp2, WORLD.width * 0.75)
 
     if gameState.state == "serve" then
         love.graphics.setColor(0, 0, 0, 0.6)
@@ -1222,7 +1313,11 @@ function love.draw()
     Viewport.release()
 end
 
-function drawBlob(p, isP1)
+-- `ballRef` ist der interpolierte Ball (M0-05); die Augen folgen ihm. Ohne den
+-- Parameter griffe die Funktion auf den simulierten Ball zu und die Pupillen
+-- wuerden gegenueber dem gezeichneten Ball zappeln.
+function drawBlob(p, isP1, ballRef)
+    ballRef = ballRef or ball
     love.graphics.push()
     love.graphics.translate(p.x, p.y)
     love.graphics.rotate(p.tiltAngle)
@@ -1248,8 +1343,8 @@ function drawBlob(p, isP1)
         love.graphics.rectangle("fill", p.x - r, p.y - 5, r * 2, 5)
         love.graphics.setColor(1, 1, 1, 0.25)
         love.graphics.arc("fill", p.x, p.y - 12, r * 0.7, math.pi, 2 * math.pi)
-        local dx = ball.x - p.x
-        local dy = ball.y - p.y
+        local dx = ballRef.x - p.x
+        local dy = ballRef.y - p.y
         local angle = math.atan2(dy, dx)
         local eyeOffsetX = isP1 and 14 or -14
         local eyeOffsetY = -r * 0.45
@@ -1278,12 +1373,17 @@ end
 if REC.active then
     local patches = { "serveDelay=1.0", "randomseed=1", "window=800x600 fixed" }
 
-    Recorder.setup({ mode = REC.mode, step = REC.step, patches = patches })
+    Recorder.setup({ mode = REC.mode, step = World.TICK_DT, patches = patches })
 
     local baseLoad       = love.load
     local baseUpdate     = love.update
     local baseDraw       = love.draw
     local baseKeypressed = love.keypressed
+
+    -- Ein aufgezeichneter Frame je Simulationstick, direkt aus der Schleife
+    -- von M0-05. Frueher haben Shim und Aufzeichnung sich ihren eigenen
+    -- Akkumulator geteilt; das ist mit B-02 erledigt.
+    onPostTick = function() Recorder.step(World.TICK_DT) end
 
     -- ------------------------------------------------------------------
     -- Replay driver (M0-03). Feeds recorded InputFrames back into the
@@ -1383,6 +1483,15 @@ if REC.active then
 
     local TAIL_MAX = 400
 
+    -- Ein Tick im Werkzeugmodus. Ruft denselben Schritt wie der Akkumulator,
+    -- aber ohne ihn -- der Treiber bestimmt selbst, wann ein Tick faellt.
+    -- Der Nachzug von captureRenderState haelt die Anzeige bei alpha = 0
+    -- deckungsgleich mit dem simulierten Zustand.
+    local function toolTick()
+        simulateTick(World.TICK_DT)
+        captureRenderState()
+    end
+
     local function replayStep()
         if not run then return end
 
@@ -1406,8 +1515,8 @@ if REC.active then
             -- Zero input, at most TAIL_MAX ticks.
             if (not rallyOver or (run.after or 0) <= AFTER) and run.tail < TAIL_MAX then
                 feed(0, 0)
-                baseUpdate(REC.step)
-                Recorder.step(REC.step)
+                toolTick()
+                Recorder.step(World.TICK_DT)
                 run.tail = run.tail + 1
                 return
             end
@@ -1424,8 +1533,8 @@ if REC.active then
             b1, b2 = pair[1], pair[2]
         end
         feed(b1, b2)
-        baseUpdate(REC.step)
-        Recorder.step(REC.step)
+        toolTick()
+        Recorder.step(World.TICK_DT)
         run.tick = run.tick + 1
     end
 
@@ -1449,7 +1558,7 @@ if REC.active then
                 local wasAir, blobVx = not p1.isGrounded, p1.vx
                 local smashHeld = injected.s
                 local before = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
-                baseUpdate(REC.step)
+                toolTick()
 
                 local v = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
                 if v > peak then peak = v end
@@ -1480,6 +1589,11 @@ if REC.active then
             p1 = p1, p2 = p2, ball = ball, net = net,
         })
         if REC.selftest then
+            -- Ohne VSync laeuft der Selbsttest mit weit ueber 60 Bildern je
+            -- Sekunde. Die 300 Ticks muessen trotzdem rund 5 s dauern -- das
+            -- ist der Nachweis, dass die Simulation an der Tickrate haengt und
+            -- nicht an der Bildrate (B-02).
+            love.window.setVSync(0)
             print("[selftest] love " .. table.concat({ love.getVersion() }, ".", 1, 3))
             print("[selftest] hasKeyRepeat = " .. tostring(love.keyboard.hasKeyRepeat()))
             print("[selftest] window " .. table.concat({ love.graphics.getDimensions() }, "x"))
@@ -1488,6 +1602,7 @@ if REC.active then
             resetBall(2)          -- let the bot serve, otherwise nothing moves
             while Recorder.currentId() ~= "R-00" do Recorder.nextRally() end
             Recorder.start()
+            REC.selftestStart, REC.selftestFrames = love.timer.getTime(), 0
         end
 
         if REC.writeManifest then
@@ -1528,10 +1643,10 @@ if REC.active then
             if REC.shot == 5 then
                 launchGame(true)   -- the field is more interesting than the menu
                 resetBall(2)
-            elseif REC.shot == 30 then
+            elseif REC.shot == 150 then
                 love.graphics.captureScreenshot("viewport.png")
                 print("[shot] " .. love.filesystem.getSaveDirectory() .. "/viewport.png")
-            elseif REC.shot > 32 then
+            elseif REC.shot > 152 then
                 love.event.quit()
             end
             baseUpdate(dt)
@@ -1544,22 +1659,16 @@ if REC.active then
             return
         end
 
-        if REC.fixedDt then
-            REC.accumulator = REC.accumulator + math.min(dt, REC.maxFrameDt)
-            while REC.accumulator >= REC.step do
-                REC.accumulator = REC.accumulator - REC.step
-                baseUpdate(REC.step)
-                Recorder.step(REC.step)
-            end
-        else
-            baseUpdate(dt)
-            Recorder.step(dt)
-        end
+        -- Normalfall: der echte Akkumulator laeuft, die Aufzeichnung haengt
+        -- ueber onPostTick an jedem Tick.
+        baseUpdate(dt)
         Recorder.frameDone()
+        if REC.selftestFrames then REC.selftestFrames = REC.selftestFrames + 1 end
 
         if REC.selftest and Recorder.tickCount() >= 300 then
             Recorder.stop()
-            print("[selftest] stopped after " .. Recorder.tickCount() .. " ticks")
+            print(string.format("[selftest] %d Ticks in %.2f s Echtzeit, %d Frames",
+                Recorder.tickCount(), love.timer.getTime() - REC.selftestStart, REC.selftestFrames))
             love.event.quit()
         end
     end
@@ -1572,7 +1681,7 @@ if REC.active then
         love.graphics.origin()
         love.graphics.setFont(love.graphics.newFont(13))
         love.graphics.setColor(1, 0.85, 0.2, 1)
-        love.graphics.print(REC.fixedDt and "FIXED 1/60" or "REC MODE (variable dt)", 12, 8)
+        love.graphics.print("REC MODE 1/60", 12, 8)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.pop()
 

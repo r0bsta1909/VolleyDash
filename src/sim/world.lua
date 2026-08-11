@@ -26,4 +26,20 @@ World.NET_X     = World.WIDTH / 2 - World.NET_WIDTH / 2   -- 395
 -- Aufschlagpositionen, im Prototyp als WORLD.width * 0.25 / 0.75 geschrieben.
 World.SERVE_X = { World.WIDTH * 0.25, World.WIDTH * 0.75 } -- 200, 600
 
+-- ---------------------------------------------------------------------------
+-- Zeit (M0-05, B-02)
+--
+-- TICK_DT ist eine Konstante der Simulation, kein Parameter. Der dt aus
+-- love.update erreicht die Physik nie (03_TECH section 3). Sonst verhaelt sich
+-- der Ball auf 144 Hz anders als auf 60 Hz, und ein Frame-Haenger laesst ihn
+-- durch das Netz tunneln.
+-- ---------------------------------------------------------------------------
+World.TICK_RATE = 60
+World.TICK_DT   = 1 / 60
+
+-- Spiral-of-Death-Schutz: hoechstens 15 Ticks werden in einem Frame nachgeholt.
+-- Wer laenger haengt, verliert Simulationszeit statt in eine Endlosschleife zu
+-- laufen.
+World.MAX_FRAME_DT = 0.25
+
 return World

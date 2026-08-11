@@ -16,13 +16,15 @@ wird, nicht mehr.
 zum Arbeitsverzeichnis; von woanders gestartet landen die Dateien im Nichts.
 
 ```bash
-/d/love2d/LOVE/love.exe . --record      # Aufzeichnen, variabler Timestep des Prototyps
-/d/love2d/LOVE/love.exe . --fixed-dt    # dasselbe mit konstant 1/60 s
+/d/love2d/LOVE/love.exe . --record      # Aufzeichnen
 ```
 
-Beide Modi öffnen ein **festes, nicht skalierbares 800 × 600-Fenster** und zeigen oben links
-`REC MODE (variable dt)` bzw. `FIXED 1/60`. Ohne Flag verhält sich das Spiel unverändert und
-zeichnet nichts auf.
+Der Modus öffnet ein **festes, nicht skalierbares 800 × 600-Fenster** und zeigt oben links
+`REC MODE 1/60`. Ohne Flag verhält sich das Spiel unverändert und zeichnet nichts auf.
+
+**Seit M0-05 gibt es nur noch einen Timestep.** Das Spiel läuft immer mit festen 1/60 s,
+`--fixed-dt` ist entfallen, und jede neue Aufnahme landet in `tests/replays/fixed60/`.
+Der gespielte `variable`-Satz bleibt als historischer Beleg liegen.
 
 Vor dem ersten Durchgang prüfen:
 

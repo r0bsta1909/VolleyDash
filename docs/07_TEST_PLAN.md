@@ -73,7 +73,9 @@ python tools/verify_replays.py            # muss "OK" melden
 # danach die frames-Bloecke beider Staende vergleichen -- sie muessen identisch sein
 ```
 
-Der Aufzeichnungsmodus fährt ein festes 800 × 600-Fenster, in dem `scale == 1` gilt. Solange nur Geometrie und Struktur umgebaut werden und nicht die Physik, darf sich **kein einziger Wert** ändern. M0-04 wurde so abgenommen. Ab M0-05 gilt stattdessen die Toleranztabelle oben.
+Der Aufzeichnungsmodus fährt ein festes 800 × 600-Fenster, in dem `scale == 1` gilt. Solange nur Geometrie und Struktur umgebaut werden und nicht die Arithmetik, darf sich **kein einziger Wert** ändern. **M0-04 und M0-05 wurden so abgenommen.**
+
+Dass auch M0-05 bitgleich bleibt, ist kein Zufall und kein Widerspruch zur Warnung oben: Der `fixed60`-Satz wurde von vornherein mit exakt 1/60 s aufgezeichnet. Der Wechsel auf den echten Akkumulator ändert daran nichts — dieselbe Rechnung mit demselben Schritt. Die Toleranztabelle wird erst dort gebraucht, wo sich die **Arithmetik** ändert: bei der Extraktion nach `src/sim/` (M0-08) und bei den Regelkorrekturen (M0-10).
 
 **Was die Abweichung nicht bedeutet:** Sie sagt nichts über die Wahl von 1/60 aus. Ein chaotisches System driftet bei jeder Störung; entscheidend ist, ob sich das Ergebnis im Blindtest D1 anders **anfühlt**. Erst wenn D1 kippt, wird 1/120 mit doppelter Tickrate geprüft.
 
