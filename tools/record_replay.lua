@@ -11,6 +11,8 @@
 -- started from the repository root.
 -- ============================================================================
 
+local Ruleset = require("src.sim.ruleset")
+
 local Recorder = {}
 
 Recorder.FORMAT_VERSION = 1
@@ -137,8 +139,8 @@ function Recorder.setup(opts)
     S.ready = false
 end
 
--- p1, p2, ball, net, WORLD, gameState, config and defaults are locals of
--- main.lua; they are handed over once after love.load and never reassigned.
+-- state, ruleset, prefs und inputs sind Tabellen aus main.lua; sie werden
+-- einmal nach love.load uebergeben und nie ersetzt.
 function Recorder.attach(refs)
     S.refs  = refs
     S.ready = true
@@ -282,14 +284,14 @@ end
 -- Serialisation
 -- ---------------------------------------------------------------------------
 
-local function rulesetSnapshot(defaults)
+local function rulesetSnapshot(ruleset)
     local keys = {}
-    for k in pairs(defaults) do keys[#keys + 1] = k end
+    for k in pairs(ruleset) do keys[#keys + 1] = k end
     table.sort(keys)
 
     local parts = {}
     for _, k in ipairs(keys) do
-        local v = defaults[k]
+        local v = ruleset[k]
         local out
         if type(v) == "number" then
             out = num(v)
@@ -313,9 +315,14 @@ function Recorder.save()
     local rally = rallyByIndex(S.index)
     local path = replayPath(rally.id, S.mode)
 
+    -- Woher die Eingaben von P2 kamen. Bei Wiedergabe und Szene sagt das der
+    -- Treiber; die Bot-Stufe von jetzt waere dort eine Falschangabe.
+    local driver = S.header.driver or "human"
     local p2source
-    if S.refs.config.botActive then
-        p2source = "bot:" .. tostring(S.refs.config.botLevel)
+    if driver ~= "human" then
+        p2source = driver
+    elseif S.refs.prefs.botActive then
+        p2source = "bot:" .. tostring(S.refs.prefs.botLevel)
     else
         p2source = "local_keyboard"
     end
@@ -341,7 +348,8 @@ function Recorder.save()
     -- step once, compare against frame[i+1] state.
     head[#head + 1] = '  "state_convention": "pre_step",'
     head[#head + 1] = '  "input_format": "13_INPUTFRAME_FORMAT.md v1 (left=1 right=2 jump=4 smash=8 dash=16)",'
-    head[#head + 1] = '  "ruleset_snapshot": ' .. rulesetSnapshot(S.refs.defaults) .. ','
+    head[#head + 1] = '  "ruleset_hash": ' .. esc(Ruleset.hash(S.refs.ruleset)) .. ','
+    head[#head + 1] = '  "ruleset_snapshot": ' .. rulesetSnapshot(S.refs.ruleset) .. ','
     head[#head + 1] = '  "tick_count": ' .. S.tick .. ','
     head[#head + 1] = '  "frames": ['
 

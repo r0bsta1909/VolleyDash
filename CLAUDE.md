@@ -134,6 +134,10 @@ Progression, Unlocks, Cosmetics, Accounts.
 - **Lua 5.1 / LuaJIT.** Kein `string.pack`, kein Integer-Typ, kein `//`-Operator,
   kein `goto` in älteren Pfaden. API-Auswahl entsprechend.
 - **Serialisierung:** `love.data.pack` / `love.data.unpack`. Prüfsummen über `love.data.hash`.
+  **Ausnahme (M0-09):** Der Ruleset-Hash wird in `src/sim/ruleset.lua` selbst gerechnet
+  (djb2 über die kanonische Form). `src/sim/` muss `love`-frei bleiben, sonst laufen die
+  Tests der Ebenen A und B nicht headless. Der Hash erkennt abweichende Rulesets, er
+  sichert nichts ab — dafür reicht das.
 - **Netzwerk:** `lua-enet` und `luasocket` sind in LÖVE enthalten. Keine externen Abhängigkeiten
   für den Netcode. LuaSocket **immer** mit `settimeout(0)`, gepollt in `love.update`.
   Blockierende Aufrufe halten die gesamte Hauptschleife an.

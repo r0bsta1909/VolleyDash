@@ -96,7 +96,8 @@ function Rules.awardPointTo(state, ruleset, winningPlayer, events)
     if state.match.servingPlayer == winningPlayer then
         state.match.score[winningPlayer] = state.match.score[winningPlayer] + 1
 
-        if state.match.score[1] >= 15 or state.match.score[2] >= 15 then
+        local target = ruleset.targetScore or 15
+        if state.match.score[1] >= target or state.match.score[2] >= target then
             state.match.phase = "gameover"
             emit(events, { type = "match_over", winner = winningPlayer })
             return

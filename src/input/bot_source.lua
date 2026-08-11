@@ -84,19 +84,22 @@ end
 function BotSource:decide()
     local bot   = self.ctx.blob
     local b     = self.ctx.ball
-    local c     = self.ctx.config
+    local c     = self.ctx.ruleset
     local w     = self.ctx.world
-    local state = self.ctx.gameState
+    local match = self.ctx.state.match
+    local rally = self.ctx.state.rally
 
-    local diff = BotSource.DIFFICULTIES[c.botLevel] or BotSource.DIFFICULTIES[2]
+    -- Die Bot-Stufe ist eine lokale Einstellung, kein Regelwerk (ADR-005).
+    local diff = BotSource.DIFFICULTIES[self.ctx.prefs.botLevel] or BotSource.DIFFICULTIES[2]
     local inputs = { left = false, right = false, jump = false, smash = false, dashDir = nil }
 
-    if state.state == "serve" and state.servingPlayer == 2 then
-        if state.serveTimer < state.serveDelay then return inputs end
+    if match.phase == "serve" and match.servingPlayer == 2 then
+        if rally.serveTimer < rally.serveDelay then return inputs end
 
-        if c.botLevel == 1 then
+        local level = self.ctx.prefs.botLevel
+        if level == 1 then
             if bot.x < b.x + 10 then inputs.right = true else inputs.left = true; inputs.jump = true end
-        elseif c.botLevel == 2 then
+        elseif level == 2 then
             if bot.x < b.x + 15 then inputs.right = true else inputs.left = true; inputs.jump = true end
         else
             if bot.x < b.x + 25 then
@@ -117,7 +120,7 @@ function BotSource:decide()
         self.reactionTimer = 0
         if b.x > w.width * 0.35 or b.vx > 0 then
             self.targetX = self:predictLandingX(b, c, w, diff)
-            if state.lastTouchPlayer == 2 and state.touchCount == 2 then
+            if rally.lastTouchPlayer == 2 and rally.touchCount == 2 then
                 self.targetX = self.targetX + 25
             end
         else
@@ -149,7 +152,7 @@ function BotSource:decide()
         if diff.useSmash and c.activeSpike and not bot.isGrounded then
             if b.x < w.width * 0.65 and b.y < (w.groundY - c.netHeight) then
                 inputs.smash = true
-            elseif state.lastTouchPlayer == 2 and state.touchCount == 2 and b.vy > 0 then
+            elseif rally.lastTouchPlayer == 2 and rally.touchCount == 2 and b.vy > 0 then
                 inputs.smash = true
             end
         end

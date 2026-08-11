@@ -3,42 +3,9 @@
 -- Controls: P1 = WASD, P2 = HUKJ
 -- ============================================================================
 
-local defaults = {
-    botActive = true,        
-    botLevel = 3,            
-    
-    volume = 0.25,           
-    blobGroundY = 500,       
-    ballGroundY = 520,       
-    activeTransfer = 0.40,   
-    passiveBounce = 0.75,    
-    airControl = 0.50,       
-    gravity = 1000,          
-    blobGravity = 1600,      
-    ballBaseSpeed = 500,     
-    maxBallSpeed = 1400,     
-    ballRadius = 30,         
-    jumpForce = -750,        
-    moveSpeed = 600,         
-    blobRadius = 54,         
-    netHeight = 160,         
-    serveHeight = 140,       
-    serveBoost = 0.50,       
-    wallBounce = 0.70,       
-    
-    dashCooldown = 1.5,      
-    dashSide = 2.5,          
-    dashUp = 1.3,            
-    dashWindow = 0.20,       
-    
-    speedScaling = false,    
-    activeSpike = true       
-}
-
-local config = {}
-for k, v in pairs(defaults) do config[k] = v end
-
 local World       = require("src.sim.world")
+local Ruleset     = require("src.sim.ruleset")
+local Prefs       = require("src.app.prefs")
 local Viewport    = require("src.render.viewport")
 local Frame       = require("src.input.frame")
 local LocalSource = require("src.input.local_source")
@@ -46,6 +13,24 @@ local BotSource   = require("src.input.bot_source")
 local State       = require("src.sim.state")
 local Step        = require("src.sim.step")
 local Rules       = require("src.sim.rules")
+
+-- ============================================================================
+-- RULESET UND PREFS (M0-09, B-04, ADR-005)
+--
+-- `ruleset` beeinflusst die Simulation, wird im Netzwerkspiel vom Host
+-- verteilt und gehasht und ist waehrend eines Matches unveraenderlich.
+-- `prefs` ist rein lokal und geht niemanden sonst etwas an. Der Live-Tweaker
+-- fasst ausschliesslich das Ruleset an, das Menue ausschliesslich die Prefs.
+--
+-- Beide Tabellen werden nie ersetzt, nur befuellt: Simulation, Bot und
+-- Aufzeichnung halten Referenzen darauf.
+-- ============================================================================
+local prefs   = Prefs.new()
+local ruleset = Ruleset.new(prefs.preset)
+
+-- Reihenfolge fuer die Auswahl im Menue. `classic` steht vorn, weil es die
+-- Voreinstellung ist (ADR-006).
+local PRESET_ORDER = { "classic", "prototype" }
 
 -- ============================================================================
 -- TEMPORARY REFERENCE TOOLING (M0-03) -- goes away with M0-13, when the
@@ -127,24 +112,12 @@ if REC.queue or REC.probeId then Replay = require("tools.replay_source") end
 love.filesystem.setIdentity("volleydash")
 
 local function saveConfig()
-    local data = ""
-    for k, v in pairs(config) do
-        data = data .. tostring(k) .. "=" .. tostring(v) .. "\n"
-    end
-    love.filesystem.write("volleydash_prefs.sav", data)
+    Prefs.save(prefs)
 end
 
 local function loadConfig()
-    if love.filesystem.getInfo("volleydash_prefs.sav") then
-        for line in love.filesystem.lines("volleydash_prefs.sav") do
-            local k, v = line:match("([^=]+)=([^=]+)")
-            if k and v then
-                if type(defaults[k]) == "number" then config[k] = tonumber(v)
-                elseif type(defaults[k]) == "boolean" then config[k] = (v == "true")
-                else config[k] = v end
-            end
-        end
-    end
+    local loaded = Prefs.load()
+    for k, v in pairs(loaded) do prefs[k] = v end
 end
 
 -- ============================================================================
@@ -246,9 +219,17 @@ local menu = {
             { name = "Play: VS Bot", action = function() launchGame(true) end },
             { 
                 name = "Bot Level", 
-                getValue = function() return tostring(config.botLevel) end,
-                onLeft = function() config.botLevel = math.max(1, config.botLevel - 1); saveConfig() end,
-                onRight = function() config.botLevel = math.min(3, config.botLevel + 1); saveConfig() end
+                getValue = function() return tostring(prefs.botLevel) end,
+                onLeft = function() prefs.botLevel = math.max(1, prefs.botLevel - 1); saveConfig() end,
+                onRight = function() prefs.botLevel = math.min(3, prefs.botLevel + 1); saveConfig() end
+            },
+            {
+                -- Das Preset wirkt erst beim naechsten Matchstart: waehrend
+                -- eines Matches ist das Ruleset unveraenderlich (ADR-005).
+                name = "Ruleset",
+                getValue = function() return prefs.preset end,
+                onLeft = function() cyclePreset(-1) end,
+                onRight = function() cyclePreset(1) end
             },
             { name = "Back", target = "main" }
         }
@@ -284,9 +265,9 @@ local menu = {
         items = {
             { 
                 name = "Master Volume", 
-                getValue = function() return math.floor(config.volume * 100) .. "%" end,
-                onLeft = function() config.volume = math.max(0.0, config.volume - 0.05); love.audio.setVolume(config.volume); saveConfig() end,
-                onRight = function() config.volume = math.min(1.0, config.volume + 0.05); love.audio.setVolume(config.volume); saveConfig() end
+                getValue = function() return math.floor(prefs.volume * 100) .. "%" end,
+                onLeft = function() prefs.volume = math.max(0.0, prefs.volume - 0.05); love.audio.setVolume(prefs.volume); saveConfig() end,
+                onRight = function() prefs.volume = math.min(1.0, prefs.volume + 0.05); love.audio.setVolume(prefs.volume); saveConfig() end
             },
             { name = "Open Live Tweaker", action = function() toggleTweaker() end },
             { name = "Controls [WIP]", target = "settings" },
@@ -333,7 +314,7 @@ local state, match, rally
 local simEvents = {}
 local resetRally   -- weiter unten definiert, hier fuer launchGame vorangestellt
 
-local WORLD = { width = World.WIDTH, height = World.HEIGHT, groundY = config.blobGroundY }
+local WORLD = { width = World.WIDTH, height = World.HEIGHT, groundY = ruleset.blobGroundY }
 local p1, p2, ball, net
 
 -- ============================================================================
@@ -349,7 +330,7 @@ local inputs     = { 0, 0 }
 local prevInputs = { 0, 0 }
 
 local function dashWindowTicks()
-    return math.max(1, math.floor(config.dashWindow * World.TICK_RATE + 0.5))
+    return math.max(1, math.floor(ruleset.dashWindow * World.TICK_RATE + 0.5))
 end
 
 local function gatherInputs()
@@ -363,13 +344,33 @@ end
 -- P2 ist entweder Mensch oder Bot. Beide liefern dasselbe Byte; die
 -- Simulation merkt den Unterschied nicht (ADR-014).
 local function makeP2Source()
-    if config.botActive then
+    if prefs.botActive then
         return BotSource.new(2, {
-            blob = p2, ball = ball, config = config,
-            world = WORLD, gameState = { },
+            blob = p2, ball = ball, ruleset = ruleset,
+            world = WORLD, state = state, prefs = prefs,
         })
     end
     return LocalSource.new(2)
+end
+
+-- Werte uebernehmen, ohne die Tabelle zu ersetzen: BotSource, Recorder und
+-- die Simulation halten Referenzen auf genau diese eine Tabelle.
+function applyRuleset(values)
+    for k in pairs(Ruleset.FIELDS) do ruleset[k] = nil end
+    for k, v in pairs(values) do
+        if Ruleset.FIELDS[k] ~= nil then ruleset[k] = v end
+    end
+end
+
+-- Preset im Menue durchschalten. Wirksam wird es beim naechsten Matchstart.
+function cyclePreset(direction)
+    local index = 1
+    for i, name in ipairs(PRESET_ORDER) do
+        if name == prefs.preset then index = i end
+    end
+    index = ((index - 1 + direction) % #PRESET_ORDER) + 1
+    prefs.preset = PRESET_ORDER[index]
+    saveConfig()
 end
 
 local function resetInputSources()
@@ -440,7 +441,7 @@ local sounds = {}
 local function playSound(snd)
     if snd then
         local clone = snd:clone()
-        clone:setVolume(config.volume or 0.25)
+        clone:setVolume(prefs.volume or 0.25)
         clone:play()
     end
 end
@@ -484,12 +485,12 @@ function love.load()
     sounds.whistle = loadSound("whistle")
     sounds.whistle_end = loadSound("whistle_end")
 
-    WORLD.groundY = config.blobGroundY or 500
+    WORLD.groundY = ruleset.blobGroundY or 500
     love.graphics.setBackgroundColor(0, 0, 0)   -- Letterbox-Balken (M0-04)
 
     -- Der gesamte Spielzustand (M0-08). Alles Weitere sind nur Abkuerzungen
     -- in diese eine Tabelle.
-    state = State.new(config)
+    state = State.new(ruleset)
     match, rally = state.match, state.rally
     p1, p2 = state.blobs[1], state.blobs[2]
     ball, net = state.ball, state.net
@@ -505,7 +506,7 @@ function love.load()
     sources[1] = LocalSource.new(1)
     sources[2] = makeP2Source()
 
-    love.audio.setVolume(config.volume)
+    love.audio.setVolume(prefs.volume)
 end
 
 -- updateWorldDimensions() ist mit M0-04 entfallen (B-01). Die Weltgroesse
@@ -513,7 +514,11 @@ end
 -- src/render/viewport.lua als reine Render-Transformation.
 
 function launchGame(vsBot)
-    config.botActive = vsBot
+    -- Das Ruleset wird beim Matchstart festgelegt und aendert sich danach
+    -- nicht mehr (ADR-005). Der Live-Tweaker ist die dokumentierte Ausnahme
+    -- fuer das Offline-Spiel.
+    applyRuleset(Ruleset.PRESETS[prefs.preset] or Ruleset.PRESETS.classic)
+    prefs.botActive = vsBot
     sources[2] = makeP2Source()
     match.score[1] = 0
     match.score[2] = 0
@@ -583,7 +588,7 @@ end
 -- Ballwechsel von aussen neu aufsetzen (Menue, Neustart nach dem Satz).
 resetRally = function(server)
     for i = #simEvents, 1, -1 do simEvents[i] = nil end
-    Rules.resetBall(state, config, server, simEvents)
+    Rules.resetBall(state, ruleset, server, simEvents)
     processEvents(simEvents)
 end
 
@@ -596,14 +601,14 @@ end
 -- nur noch der Lesbarkeit an den Aufrufstellen -- die Schrittweite ist eine
 -- Konstante der Simulation (M0-05).
 local function simulateTick(dt)
-    Step.tick(state, inputs[1], inputs[2], config, simEvents)
+    Step.tick(state, inputs[1], inputs[2], ruleset, simEvents)
     processEvents(simEvents)
 
     -- Kosmetik laeuft mit der Tickrate mit, gehoert aber nicht in die
     -- Simulation: kein Rueckfluss in die Physik.
     if camera.shakeTimer > 0 then camera.shakeTimer = camera.shakeTimer - dt end
     updateParticles(dt)
-    WORLD.groundY = config.blobGroundY or 500
+    WORLD.groundY = ruleset.blobGroundY or 500
 end
 
 -- ============================================================================
@@ -704,11 +709,13 @@ function love.keypressed(key)
         local opt = tweakMenu.options[tweakMenu.selectedIndex]
         if key == "left" or key == "right" then
             if opt.type == "bool" then
-                config[opt.key] = not config[opt.key]
+                ruleset[opt.key] = not ruleset[opt.key]
             else
                 local delta = (key == "right" and 1 or -1) * opt.step
                 if opt.key == "jumpForce" then delta = -delta end
-                config[opt.key] = math.max(opt.min, math.min(opt.max, config[opt.key] + delta))
+                -- Grenzen kommen aus src/sim/ruleset.lua, damit es nur eine
+                -- Wahrheit gibt (F-10).
+                ruleset[opt.key] = Ruleset.clamp(opt.key, ruleset[opt.key] + delta)
             end
         end
         return
@@ -788,9 +795,9 @@ function love.draw()
     local vp2  = blobView(renderView.p2, p2, renderPrev.p2)
     local vball = ballView(renderView.ball, ball, renderPrev.ball)
 
-    drawShadow(vp1.x, vp1.y, config.blobRadius, WORLD.groundY)
-    drawShadow(vp2.x, vp2.y, config.blobRadius, WORLD.groundY)
-    drawShadow(vball.x, vball.y, config.ballRadius * 1.5, config.ballGroundY or 520)
+    drawShadow(vp1.x, vp1.y, ruleset.blobRadius, WORLD.groundY)
+    drawShadow(vp2.x, vp2.y, ruleset.blobRadius, WORLD.groundY)
+    drawShadow(vball.x, vball.y, ruleset.ballRadius * 1.5, ruleset.ballGroundY or 520)
 
     drawParticles()
 
@@ -827,7 +834,7 @@ function love.draw()
     end
 
     local p1DisplayName = namePool[p1NameIdx]
-    local p2DisplayName = config.botActive and namePool[botNameIdx] or namePool[p2NameIdx]
+    local p2DisplayName = prefs.botActive and namePool[botNameIdx] or namePool[p2NameIdx]
 
     love.graphics.setFont(love.graphics.newFont(32))
     love.graphics.setColor(0, 0, 0, 0.6)
@@ -850,7 +857,7 @@ function love.draw()
     local function drawCooldown(p, x)
         if p.cooldownTimer > 0 then
             love.graphics.setColor(0.9, 0.2, 0.2, 0.8)
-            love.graphics.rectangle("fill", x - 30, WORLD.groundY + 15, 60 * (p.cooldownTimer / config.dashCooldown), 4)
+            love.graphics.rectangle("fill", x - 30, WORLD.groundY + 15, 60 * (p.cooldownTimer / ruleset.dashCooldown), 4)
         end
     end
     drawCooldown(vp1, WORLD.width * 0.25)
@@ -916,8 +923,8 @@ function love.draw()
             else
                 love.graphics.setColor(0.8, 0.8, 0.8)
             end
-            local valStr = tostring(config[opt.key])
-            if type(config[opt.key]) == "number" then valStr = string.format(opt.step < 1 and "%.2f" or "%.0f", config[opt.key]) end
+            local valStr = tostring(ruleset[opt.key])
+            if type(ruleset[opt.key]) == "number" then valStr = string.format(opt.step < 1 and "%.2f" or "%.0f", ruleset[opt.key]) end
             love.graphics.print(opt.name, 25, yOffset)
             love.graphics.print("< " .. valStr .. " >", 290, yOffset)
             yOffset = yOffset + 22
@@ -946,12 +953,12 @@ function drawBlob(p, isP1, ballRef)
     if assets.blob then
         love.graphics.setColor(p.color)
         local bw, bh = assets.blob:getDimensions()
-        local bScaleX = (config.blobRadius * 2) / bw
+        local bScaleX = (ruleset.blobRadius * 2) / bw
         local bScaleY = bScaleX 
         if not isP1 then bScaleX = -bScaleX end
         love.graphics.draw(assets.blob, p.x, p.y, 0, bScaleX, bScaleY, bw/2, bh)
     else
-        local r = config.blobRadius
+        local r = ruleset.blobRadius
         love.graphics.push()
         love.graphics.rotate(-p.tiltAngle) 
         love.graphics.setColor(0, 0, 0, 0.2)
@@ -1022,7 +1029,7 @@ if REC.active then
 
     local function applyInit(init)
         ball.x, ball.y, ball.vx, ball.vy = init.ball[1], init.ball[2], init.ball[3], init.ball[4]
-        ball.rotation, ball.radius = 0, config.ballRadius
+        ball.rotation, ball.radius = 0, ruleset.ballRadius
         p1.x, p1.y, p1.vx, p1.vy = init.p1[1], init.p1[2], init.p1[3], init.p1[4]
         p2.x, p2.y, p2.vx, p2.vy = init.p2[1], init.p2[2], init.p2[3], init.p2[4]
         for _, p in ipairs({ p1, p2 }) do
@@ -1037,7 +1044,7 @@ if REC.active then
         rally.faultTimer, rally.faultPlayer = 0, 0
         rally.ballSide = (ball.x < WORLD.width / 2) and 1 or 2
         rally.rallies, match.inProgress = 0, true
-        config.botActive = true   -- die Aufnahmen sind gegen den Bot gespielt
+        prefs.botActive = true   -- die Aufnahmen sind gegen den Bot gespielt
         resetInputSources()
         camera.shakeTimer = 0
     end
@@ -1074,6 +1081,11 @@ if REC.active then
                 return beginNext()
             end
             data = loaded
+            if data.ruleset then
+                -- Die Aufzeichnung bringt ihr Regelwerk mit. Ohne das liefe
+                -- die Wiedergabe gegen die heutige Voreinstellung.
+                applyRuleset(Ruleset.fromSnapshot(data.ruleset))
+            end
             Recorder.setDriver("replay:variable/" .. id .. ".json")
         end
 
@@ -1189,8 +1201,8 @@ if REC.active then
     function love.load()
         baseLoad()
         Recorder.attach({
-            world = WORLD, state = state, config = config,
-            defaults = defaults, inputs = inputs,
+            world = WORLD, state = state, ruleset = ruleset,
+            prefs = prefs, inputs = inputs,
         })
         if REC.selftest then
             -- Ohne VSync laeuft der Selbsttest mit weit ueber 60 Bildern je
@@ -1207,6 +1219,13 @@ if REC.active then
             while Recorder.currentId() ~= "R-00" do Recorder.nextRally() end
             Recorder.start()
             REC.selftestStart, REC.selftestFrames = love.timer.getTime(), 0
+        end
+
+        if REC.refMode then
+            -- Referenzdaten entstehen mit dem Preset des Prototyps, nicht mit
+            -- der Vanilla-Voreinstellung: die Rallyes brauchen Dash und Smash
+            -- (ADR-006 gilt fuer das Spiel, nicht fuer die Beweisstuecke).
+            applyRuleset(Ruleset.PRESETS.prototype)
         end
 
         if REC.writeManifest then

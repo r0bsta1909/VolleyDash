@@ -64,6 +64,8 @@ Die Simulation fragt direkt die Hardware. Damit kann sie nicht von einem Netzwer
 
 **Fix:** Aufspaltung in `Ruleset` (simulationsrelevant, vom Host verteilt, gehasht, während des Matches unveränderlich) und `Prefs` (lokal: Lautstärke, Tastenbelegung, Anzeige). Live-Tweaker wirkt nur offline oder host-seitig in der Lobby.
 
+**Erledigt in M0-09 (2026-08-11).** `src/sim/ruleset.lua` (Felder mit Grenzen, Presets `classic`/`prototype`, Validierung, kanonische Form, Hash) und `src/app/prefs.lua` (Lautstärke, Bot-Stufe, gewähltes Preset). Das Preset wird beim Matchstart festgelegt und ändert sich danach nicht mehr; der Live-Tweaker bleibt als dokumentierte Ausnahme fürs Offline-Spiel und arbeitet nur noch auf dem Ruleset. **`classic` ist die Voreinstellung** (ADR-006): kein Dash, kein Smash, kein Speed-Scaling.
+
 ### B-05 — Satzende ohne Zwei-Punkte-Vorsprung · **hoch, Regelfehler**
 
 ```lua
@@ -117,8 +119,8 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 
 | ID | Befund | Bewertung |
 |----|--------|-----------|
-| F-01 | `saveConfig()` schreibt ein selbstgebautes `key=value`-Format ohne Versionsfeld | Bei Formatänderung bricht das Laden still. Versionsfeld + Fallback auf Defaults ergänzen |
-| F-02 | `loadConfig()` liest jeden Key aus der Datei, auch unbekannte | Manipulierte Save-Datei kann beliebige Config-Keys setzen. Nach Whitelist aus `defaults` filtern |
+| F-01 | `saveConfig()` schreibt ein selbstgebautes `key=value`-Format ohne Versionsfeld | **Erledigt M0-09.** `Prefs.VERSION = 1` steht in der Datei; passt sie nicht, gelten die Voreinstellungen |
+| F-02 | `loadConfig()` liest jeden Key aus der Datei, auch unbekannte | **Erledigt M0-09.** Whitelist `Prefs.FIELDS`; unbekannte Schlüssel, falsche Typen und Werte außerhalb der Grenzen werden verworfen |
 | F-03 | `math.randomseed(os.time())` auf Modulebene | Bei zwei gleichzeitig gestarteten Clients identische Seeds. Für Kosmetik egal, für Simulation relevant → getrennte RNG-Ströme |
 | F-04 | `playSound` klont bei jedem Aufruf die Source | Bei vielen Wandtreffern in Folge Allokationsdruck. Source-Pool mit fester Größe |
 | F-05 | Globale Funktionen (`launchGame`, `drawBlob`, `updateBlob`, `resetBall`) | Verschmutzt `_G`, erschwert Modularisierung. In M0 ohnehin behoben |
@@ -126,7 +128,7 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 | F-07 | Kein `conf.lua` erkennbar | Pflicht für Distribution: `t.version = "11.5"`, Fenstergröße, Identity, ungenutzte Module deaktivieren |
 | F-08 | `love.window.maximize()` fest in `love.load` | Für Beamer-Client unerwünscht; gehört in Prefs |
 | F-09 | Keine Trennung Update/Draw beim Menü (`gameState.state == "menu"` returned früh aus `love.update`) | Partikel und Kamera frieren im Menü ein — kosmetisch, aber Menühintergrund-Demo wird damit unmöglich |
-| F-10 | Tweaker-Optionen erlauben `ballRadius` bis 80 bei `netHeight` bis 350 | Konfigurationen, in denen kein legales Spiel möglich ist. Für Offline-Spielerei ok, im Ruleset validieren |
+| F-10 | Tweaker-Optionen erlauben `ballRadius` bis 80 bei `netHeight` bis 350 | **Erledigt M0-09.** `Ruleset.validate` prüft Feldgrenzen und Spielbarkeit (Sprunghöhe + Radien müssen die Netzkante erreichen). Die Grenzen des Tweakers kommen jetzt aus derselben Definition |
 
 ## 4. Was ausdrücklich erhalten bleiben muss
 

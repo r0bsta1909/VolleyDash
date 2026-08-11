@@ -14,6 +14,7 @@ local Runner = {}
 
 Runner.SUITES = {
     "tests.input_frame_test",
+    "tests.ruleset_test",
 }
 
 -- Gibt bestandene und gescheiterte Faelle zurueck.

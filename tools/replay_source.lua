@@ -38,6 +38,23 @@ local function ints2(body, key)
     return { tonumber(a), tonumber(b) }
 end
 
+-- Das Ruleset aus dem Kopf der Datei. Zahlen stehen dort als Strings, damit
+-- keine Nachkommastelle verloren geht; Wahrheitswerte als true/false.
+function Replay.rulesetOf(text)
+    local block = text:match('"ruleset_snapshot": {(.-)\n  }')
+    if not block then return nil end
+
+    local rs = {}
+    for key, value in block:gmatch('"([%w_]+)": "([^"]*)"') do
+        rs[key] = tonumber(value)
+    end
+    for key, value in block:gmatch('"([%w_]+)": (%a+)') do
+        if value == "true" then rs[key] = true
+        elseif value == "false" then rs[key] = false end
+    end
+    return rs
+end
+
 -- Returns { count, inputs = { {p1, p2}, ... }, init = { ... } } or nil, err.
 function Replay.load(path)
     local text, err = readAll(path)
@@ -69,7 +86,10 @@ function Replay.load(path)
         return nil, "Frame 0 unvollstaendig in " .. path
     end
 
-    return { count = #inputs, inputs = inputs, init = init, path = path }
+    return {
+        count = #inputs, inputs = inputs, init = init, path = path,
+        ruleset = Replay.rulesetOf(text),
+    }
 end
 
 -- InputFrame bits, canonical per 13_INPUTFRAME_FORMAT.md / ADR-014.

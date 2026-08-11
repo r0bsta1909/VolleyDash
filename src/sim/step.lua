@@ -35,7 +35,9 @@ local function applyImpulses(state, index, bits, prev, ruleset, events)
     local dir = Frame.moveDir(bits)
     local dashed = false
 
-    if Frame.has(bits, Frame.DASH) and blob.cooldownTimer <= 0 then
+    -- Der Dash ist im Vanilla-Regelwerk aus (01_GDD §3.1, ADR-006). Die
+    -- Quelle meldet ihn trotzdem; die Simulation entscheidet (ADR-014).
+    if Frame.has(bits, Frame.DASH) and ruleset.allowDash and blob.cooldownTimer <= 0 then
         dashed = true
         blob.cooldownTimer = ruleset.dashCooldown
         blob.dashGrace = 0.5

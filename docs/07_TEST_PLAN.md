@@ -114,8 +114,8 @@ Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
 | T-R-11 | 16:14 | Satz beendet |
 | T-R-12 | 20:20 → 21:20 bei `deuceCap=21` | Satz beendet (E-09) |
 | T-R-13 | Rallye 30 s ohne Punkt | Punkt an Nicht-Aufschläger (GDD P5) |
-| T-R-14 | Ruleset-Hash bei identischem Ruleset, andere Schlüsselreihenfolge | identischer Hash (kanonische Serialisierung) |
-| T-R-15 | Ruleset mit `ballRadius=80`, `netHeight=350` | Validierung lehnt ab (F-10) |
+| T-R-14 | Ruleset-Hash bei identischem Ruleset, andere Schlüsselreihenfolge | identischer Hash (kanonische Serialisierung) — **umgesetzt M0-09**, `tests/ruleset_test.lua` |
+| T-R-15 | Ruleset mit `ballRadius=80`, `netHeight=350` | Validierung lehnt ab (F-10) — **umgesetzt M0-09** |
 
 ## 4. Ebene C — Netzwerk-Integration
 
