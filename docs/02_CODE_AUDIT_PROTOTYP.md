@@ -109,6 +109,8 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 
 **Fix:** Fonts einmalig in `love.load` in eine `assets.fonts`-Tabelle.
 
+**Erledigt in M0-12 (2026-08-11), vorgezogen aus M0-02.** `src/app/assets.lua` lädt alle sieben benutzten Größen einmal; die Zeichenschicht ruft nur noch `Assets.setFont`. Offen aus M0-02 bleibt der Sound-Pool (F-04).
+
 ### B-09 — Bot-State ist Modul-global · **mittel**
 
 `Bot.targetX` und `Bot.reactionTimer` liegen auf dem Modul, nicht pro Instanz. Sobald zwei Bots existieren (2v2, KotH-Füllspieler, Bot-vs-Bot-Demo am Beamer), teilen sie sich einen Zustand.
@@ -125,8 +127,8 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 | F-02 | `loadConfig()` liest jeden Key aus der Datei, auch unbekannte | **Erledigt M0-09.** Whitelist `Prefs.FIELDS`; unbekannte Schlüssel, falsche Typen und Werte außerhalb der Grenzen werden verworfen |
 | F-03 | `math.randomseed(os.time())` auf Modulebene | Bei zwei gleichzeitig gestarteten Clients identische Seeds. Für Kosmetik egal, für Simulation relevant → getrennte RNG-Ströme |
 | F-04 | `playSound` klont bei jedem Aufruf die Source | Bei vielen Wandtreffern in Folge Allokationsdruck. Source-Pool mit fester Größe |
-| F-05 | Globale Funktionen (`launchGame`, `drawBlob`, `updateBlob`, `resetBall`) | Verschmutzt `_G`, erschwert Modularisierung. In M0 ohnehin behoben |
-| F-06 | `gameState` mischt Match-Zustand, Rundenzustand und UI-Zustand | Sauber trennen: `MatchState` (Sätze, Punkte), `RallyState` (Berührungen, Aufschläger), `UIState` (Menü, Tweaker) |
+| F-05 | Globale Funktionen (`launchGame`, `drawBlob`, `updateBlob`, `resetBall`) | **Erledigt M0-12.** Alles liegt in Modulen; `main.lua` hat 64 Zeilen und definiert nur noch die LÖVE-Rückrufe |
+| F-06 | `gameState` mischt Match-Zustand, Rundenzustand und UI-Zustand | **Erledigt M0-08/M0-12.** `state.match` und `state.rally` in `src/sim/state.lua`; der UI-Zustand liegt in den Szenen und im Menü |
 | F-07 | Kein `conf.lua` erkennbar | Pflicht für Distribution: `t.version = "11.5"`, Fenstergröße, Identity, ungenutzte Module deaktivieren |
 | F-08 | `love.window.maximize()` fest in `love.load` | Für Beamer-Client unerwünscht; gehört in Prefs |
 | F-09 | Keine Trennung Update/Draw beim Menü (`gameState.state == "menu"` returned früh aus `love.update`) | Partikel und Kamera frieren im Menü ein — kosmetisch, aber Menühintergrund-Demo wird damit unmöglich |
