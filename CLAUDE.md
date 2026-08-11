@@ -147,7 +147,9 @@ Progression, Unlocks, Cosmetics, Accounts.
 
 ## 8. Entwicklungsumgebung
 
-- Hauptentwicklung läuft unter **Windows**. Shell ist **Git Bash**, nicht PowerShell.
+- Hauptentwicklung läuft unter **Windows**. Shell ist **Git Bash**; Roberto startet in der
+  Praxis auch aus **PowerShell**. Beide Formen gehören in Anleitungen — die Git-Bash-Pfade
+  (`/d/love2d/...`) sind in PowerShell schlicht ungültig.
 - LÖVE 11.5 liegt unter `D:\love2d\LOVE\love.exe`. Start aus dem Repo-Wurzelverzeichnis:
   `/d/love2d/LOVE/love.exe .` (Git Bash) bzw. `D:\love2d\LOVE\love.exe .` (PowerShell).
   Der Pfad ist maschinenspezifisch und gehört **nicht** hartcodiert in Skripte —

@@ -8,16 +8,44 @@ was sich absichtlich geändert hat, und was ich von dir brauche.
 
 ## 1. Starten
 
-Alles aus dem **Repo-Wurzelverzeichnis**, Git Bash:
+Zuerst ins Repo wechseln — beide Shells:
+
+```powershell
+cd C:\devolley-dash
+```
+
+**PowerShell** (Backslashes, voller Laufwerksbuchstabe):
+
+| Was | Befehl |
+|---|---|
+| **Spielen** | `D:\love2d\LOVE\love.exe .` |
+| Tests (83 Fälle, ~1 s) | `D:\love2d\LOVE\lovec.exe . --test` |
+| Tests ohne LÖVE-Bibliothek | `D:\love2d\LOVE\lovec.exe . --test-no-love` |
+| Referenzen prüfen | `python toolserify_replays.py` |
+| Neue Rallye aufzeichnen | `D:\love2d\LOVE\lovec.exe . --record` (F9/F10/F11) |
+| Alter Stand für den Blindtest | `D:\love2d\LOVE\love.exe C:\devolley-dash-baseline` |
+
+**Git Bash** (Schrägstriche, `/d/` statt `D:\`):
 
 | Was | Befehl |
 |---|---|
 | **Spielen** | `/d/love2d/LOVE/love.exe .` |
-| Tests (83 Fälle, ~1 s) | `/d/love2d/LOVE/love.exe . --test` |
-| Tests ohne LÖVE-Bibliothek | `/d/love2d/LOVE/love.exe . --test-no-love` |
+| Tests | `/d/love2d/LOVE/love.exe . --test` |
 | Referenzen prüfen | `python tools/verify_replays.py` |
-| Neue Rallye aufzeichnen | `/d/love2d/LOVE/love.exe . --record` (F9/F10/F11) |
-| `fixed60`-Satz neu erzeugen | `/d/love2d/LOVE/love.exe . --replay-all`, danach `--scene=R-01`, `--scene=R-06`, `--scene=R-08`, `--scene=R-11` |
+| Alter Stand | `/d/love2d/LOVE/love.exe /c/dev/volley-dash-baseline` |
+
+`lovec.exe` ist dieselbe Engine mit Konsolenausgabe — nimm die überall dort, wo du Text
+sehen willst (Tests, Aufzeichnung). Zum reinen Spielen ist `love.exe` richtig.
+
+**`fixed60`-Satz neu erzeugen** (nur nötig, wenn du am Werkzeug etwas änderst):
+
+```powershell
+D:\love2d\LOVE\lovec.exe . --replay-all
+D:\love2d\LOVE\lovec.exe . --scene=R-01
+D:\love2d\LOVE\lovec.exe . --scene=R-06
+D:\love2d\LOVE\lovec.exe . --scene=R-08
+D:\love2d\LOVE\lovec.exe . --scene=R-11
+```
 
 **Steuerung:** P1 `A`/`D` laufen, `W` springen, `S` Smash, Doppeltipp `A`/`D` = Dash.
 P2 `H`/`K`, `U`, `J`. `ESC` Menü/Pause, `TAB` Live-Tweaker, `F11` Vollbild,
@@ -71,14 +99,14 @@ C:\dev\volley-dash-baseline     ← Prototyp, Tag prototype-baseline
 
 Starten:
 
-```bash
-/d/love2d/LOVE/love.exe /c/dev/volley-dash-baseline
+```powershell
+D:\love2d\LOVE\love.exe C:\devolley-dash-baseline
 ```
 
-Wieder loswerden, wenn du ihn nicht mehr brauchst:
+Wieder loswerden, wenn du ihn nicht mehr brauchst — aus `C:\devolley-dash` heraus:
 
-```bash
-git worktree remove ../volley-dash-baseline --force
+```powershell
+git worktree remove ..olley-dash-baseline --force
 ```
 
 ### Ablauf
