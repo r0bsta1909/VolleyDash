@@ -24,7 +24,7 @@ Quellcode ──> game.love ──┬──> Windows: love.exe + game.love (konk
 
 ```lua
 function love.conf(t)
-    t.identity            = "VolleyDash"      -- Speicherordner
+    t.identity            = "volleydash"     -- Speicherordner (kleingeschrieben, ADR-010)
     t.version             = "11.5"           -- Pflicht: Kompatibilitätswarnung
     t.console             = false
 
@@ -41,9 +41,16 @@ function love.conf(t)
     t.modules.physics     = false            -- Box2D wird nicht verwendet
     t.modules.video       = false
     t.modules.touch       = false
-    t.modules.sensor      = false
+    t.modules.mouse       = false            -- Tastatursteuerung, GDD §7
+    t.modules.thread      = false            -- Netzwerk wird gepollt, ADR-003
 end
 ```
+
+**Stand M0-01:** `conf.lua` liegt im Repo und entspricht dieser Vorlage mit zwei
+Abweichungen. `t.identity` heißt **`volleydash`** (kleingeschrieben, passend zum
+Bundle-Identifier `games.4brain.volleydash`); ein Wechsel würde nur die vorhandene
+Prefs-Datei verwaisen lassen. Und `t.modules.sensor` ist entfallen — den Schalter gibt es
+erst ab LÖVE 12.0, unter dem gepinnten 11.5 läuft er ins Leere.
 
 `t.version = "11.5"` ist nicht Kosmetik: LÖVE gibt bei abweichender Laufzeitversion eine Warnung aus. Ohne diesen Eintrag startet das Spiel unter einer künftigen 12.0 kommentarlos mit potenziell verändertem Verhalten.
 

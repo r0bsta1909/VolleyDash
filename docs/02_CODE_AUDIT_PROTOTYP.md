@@ -129,8 +129,8 @@ An mindestens sechs Stellen in `love.draw` wird pro Frame eine neue Font-Instanz
 | F-04 | `playSound` klont bei jedem Aufruf die Source | Bei vielen Wandtreffern in Folge Allokationsdruck. Source-Pool mit fester Größe |
 | F-05 | Globale Funktionen (`launchGame`, `drawBlob`, `updateBlob`, `resetBall`) | **Erledigt M0-12.** Alles liegt in Modulen; `main.lua` hat 64 Zeilen und definiert nur noch die LÖVE-Rückrufe |
 | F-06 | `gameState` mischt Match-Zustand, Rundenzustand und UI-Zustand | **Erledigt M0-08/M0-12.** `state.match` und `state.rally` in `src/sim/state.lua`; der UI-Zustand liegt in den Szenen und im Menü |
-| F-07 | Kein `conf.lua` erkennbar | Pflicht für Distribution: `t.version = "11.5"`, Fenstergröße, Identity, ungenutzte Module deaktivieren |
-| F-08 | `love.window.maximize()` fest in `love.load` | Für Beamer-Client unerwünscht; gehört in Prefs |
+| F-07 | Kein `conf.lua` erkennbar | **Erledigt M0-01.** Version gepinnt (ADR-001), Identity `volleydash`, Fenster 1280 × 960 (4:3 wie das Feld), `physics`/`video`/`touch`/`mouse`/`thread` abgeschaltet |
+| F-08 | `love.window.maximize()` fest in `love.load` | **Erledigt M0-01.** Ersatzlos entfallen; die Fenstergröße kommt aus `conf.lua`. Eine Anzeigeoption in den Prefs (Vollbild, Beamer) bleibt für M5 offen |
 | F-09 | Keine Trennung Update/Draw beim Menü (`gameState.state == "menu"` returned früh aus `love.update`) | Partikel und Kamera frieren im Menü ein — kosmetisch, aber Menühintergrund-Demo wird damit unmöglich |
 | F-10 | Tweaker-Optionen erlauben `ballRadius` bis 80 bei `netHeight` bis 350 | **Erledigt M0-09.** `Ruleset.validate` prüft Feldgrenzen und Spielbarkeit (Sprunghöhe + Radien müssen die Netzkante erreichen). Die Grenzen des Tweakers kommen jetzt aus derselben Definition |
 

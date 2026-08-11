@@ -22,21 +22,17 @@ local ReferenceMode = require("tools.reference_mode")
 
 ReferenceMode.parse(arg)
 
-love.filesystem.setIdentity("volleydash")
-
 function love.load()
     -- Ein Testlauf braucht weder Fenster noch Spiel.
     if ReferenceMode.runTests() then return end
 
-    love.window.setTitle("Volley Dash")
+    -- Titel, Groesse, Identity und die abgeschalteten Module stehen in
+    -- conf.lua (M0-01). Hier bleibt nur der Sonderfall:
     if ReferenceMode.refMode() then
         -- Referenzdaten entstehen in einem festen Fenster. Seit M0-04 haengt
         -- die Welt nicht mehr daran, aber der Satz soll reproduzierbar bleiben
         -- und die Fensterwarnung des Recorders etwas bedeuten.
         love.window.setMode(800, 600, { resizable = false })
-    else
-        love.window.setMode(800, 600, { resizable = true, minwidth = 640, minheight = 480 })
-        love.window.maximize()
     end
     love.graphics.setBackgroundColor(0, 0, 0)   -- Letterbox-Balken (M0-04)
 
