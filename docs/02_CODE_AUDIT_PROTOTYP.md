@@ -85,6 +85,8 @@ Ein zufälliges Zeitfenster vor jedem Aufschlag ist im Turnier eine unnötige Va
 
 **Fix:** Fix 1,0 s (GDD P4).
 
+**Erledigt in M0-08 (2026-08-11), vorgezogen aus M0-10.** Die Reinheitsregel aus `03_TECH` §3 verbietet `math.random` in `src/sim/`; damit war die zufällige Aufschlagverzögerung der einzige Blocker für die Extraktion. Die Alternative wäre ein `rng.lua` gewesen — Aufwand für einen Wert, der laut GDD P4 ohnehin konstant sein soll. `src/sim/rules.lua` setzt jetzt immer 1,0 s. **Alle Referenzaufnahmen liefen bereits mit dieser Konstante**, deshalb ändert sich an ihnen nichts. Was von M0-10 offen bleibt: Zwei-Punkte-Vorsprung (B-05) und Rallye-Timeout (P5).
+
 ### B-07 — Bot-Code doppelt vorhanden · **mittel**
 
 `bot.lua` existierte als Modul (Schwierigkeiten als Strings `easy/medium/hard/god`), aber `main.lua` enthält eine **zweite, abweichende Kopie** (Schwierigkeiten als Zahlen `1/2/3`, zusätzliche Aufschlaglogik, andere Dash-Bedingung, Anpassung des Zielpunkts beim dritten Ballkontakt). Die inline-Version ist die aktuellere. Zwei Wahrheiten für dieselbe Sache — klassischer Drift-Kandidat.

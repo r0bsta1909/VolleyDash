@@ -43,6 +43,9 @@ local Viewport    = require("src.render.viewport")
 local Frame       = require("src.input.frame")
 local LocalSource = require("src.input.local_source")
 local BotSource   = require("src.input.bot_source")
+local State       = require("src.sim.state")
+local Step        = require("src.sim.step")
+local Rules       = require("src.sim.rules")
 
 -- ============================================================================
 -- TEMPORARY REFERENCE TOOLING (M0-03) -- goes away with M0-13, when the
@@ -323,22 +326,13 @@ local tweakMenu = {
     }
 }
 
-local gameState = { 
-    state = "menu",          
-    previousState = "serve", 
-    gameInProgress = false,  
-    scoreP1 = 0, scoreP2 = 0, rallies = 0, 
-    lastTouchPlayer = 0, touchCount = 0,
-    servingPlayer = 1,
-    serveTimer = 0, serveDelay = 1.0,
-    faultTimer = 0, faultPlayer = 0,
-    ballSide = 1 
-}
+-- Der Spielzustand liegt seit M0-08 vollstaendig in src/sim/state.lua.
+-- `match`, `rally`, `p1`, `p2`, `ball`, `net` sind nur Abkuerzungen in diese
+-- eine Tabelle hinein -- keine zweite Wahrheit.
+local state, match, rally
+local simEvents = {}
+local resetRally   -- weiter unten definiert, hier fuer launchGame vorangestellt
 
--- Logisches Spielfeld, konstant (M0-04, ADR-004, B-01). Breite und Hoehe
--- kommen aus src/sim/world.lua und werden nie aus der Fenstergroesse
--- abgeleitet. groundY bleibt veraenderlich, weil es aus der Config kommt --
--- der Live-Tweaker darf es weiterhin verschieben (Trennung in M0-09).
 local WORLD = { width = World.WIDTH, height = World.HEIGHT, groundY = config.blobGroundY }
 local p1, p2, ball, net
 
@@ -372,7 +366,7 @@ local function makeP2Source()
     if config.botActive then
         return BotSource.new(2, {
             blob = p2, ball = ball, config = config,
-            world = WORLD, gameState = gameState,
+            world = WORLD, gameState = { },
         })
     end
     return LocalSource.new(2)
@@ -493,13 +487,18 @@ function love.load()
     WORLD.groundY = config.blobGroundY or 500
     love.graphics.setBackgroundColor(0, 0, 0)   -- Letterbox-Balken (M0-04)
 
-    -- Blobs bekommen einen dashGrace Timer für den Dash-Save Shake!
-    p1 = { x = WORLD.width * 0.25, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.15, 0.55, 0.95}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0 }
-    p2 = { x = WORLD.width * 0.75, y = WORLD.groundY, vx = 0, vy = 0, isGrounded = true, color = {0.95, 0.25, 0.25}, cooldownTimer = 0, dashTimer = 0, tiltAngle = 0, dashSpeed = 0, touchCooldown = 0, dashGrace = 0 }
-    net = { x = WORLD.width / 2 - 5, y = WORLD.groundY - config.netHeight, w = 10, h = config.netHeight }
-    ball = { x = WORLD.width * 0.25, y = WORLD.groundY - config.serveHeight, vx = 0, vy = 0, radius = config.ballRadius, rotation = 0, color = {1, 1, 1} }
-    
-    if not assets.ball then ball.color = {0.98, 0.85, 0.12} end
+    -- Der gesamte Spielzustand (M0-08). Alles Weitere sind nur Abkuerzungen
+    -- in diese eine Tabelle.
+    state = State.new(config)
+    match, rally = state.match, state.rally
+    p1, p2 = state.blobs[1], state.blobs[2]
+    ball, net = state.ball, state.net
+
+    -- Farben sind Anzeige, nicht Simulation. Sie haengen deshalb hier an den
+    -- Blobs und nicht in src/sim/state.lua.
+    p1.color = { 0.15, 0.55, 0.95 }
+    p2.color = { 0.95, 0.25, 0.25 }
+    ball.color = assets.ball and { 1, 1, 1 } or { 0.98, 0.85, 0.12 }
 
     -- Eine Quelle je Spieler (M0-06, ADR-014). Das Aufzeichnungswerkzeug
     -- tauscht sie bei Bedarf gegen eine Wiedergabe-Quelle aus.
@@ -516,227 +515,95 @@ end
 function launchGame(vsBot)
     config.botActive = vsBot
     sources[2] = makeP2Source()
-    gameState.scoreP1 = 0
-    gameState.scoreP2 = 0
-    gameState.gameInProgress = true
-    gameState.state = "serve"
+    match.score[1] = 0
+    match.score[2] = 0
+    match.inProgress = true
+    match.phase = "serve"
     tweakMenu.active = false
-    resetBall(1)
+    resetRally(1)
 end
 
 function toggleTweaker()
-    if gameState.gameInProgress then
-        gameState.state = gameState.previousState
+    if match.inProgress then
+        match.phase = match.previousPhase
     else
-        gameState.state = "serve"
+        match.phase = "serve"
     end
     tweakMenu.active = true
     menu.current = "main" 
 end
 
-function resetBall(server)
-    gameState.servingPlayer = server
-    gameState.state = "serve"
-    gameState.faultTimer = 0
-    
-    gameState.serveTimer = 0
-    -- RECORDING SHIM (M0-03): the only simulation-relevant math.random in the
-    -- prototype (B-06). Fixed to 1.0 while recording, which is the target value
-    -- from GDD P4 anyway. Noted in patches_active of every recorded file.
-    gameState.serveDelay = REC.refMode and 1.0 or (1.0 + math.random() * 0.5)
-    
-    ball.x = (server == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
-    ball.y = WORLD.groundY - config.serveHeight 
-    ball.vx = 0
-    ball.vy = 0
-    ball.rotation = 0
-    
-    gameState.rallies = 0
-    gameState.lastTouchPlayer = 0
-    gameState.touchCount = 0
-    gameState.ballSide = server 
-    
-    if p1 then p1.tiltAngle = 0; p1.touchCooldown = 0; p1.dashGrace = 0; p1.x = WORLD.width * 0.25 end
-    if p2 then p2.tiltAngle = 0; p2.touchCooldown = 0; p2.dashGrace = 0; p2.x = WORLD.width * 0.75 end
+-- Kosmetik aus den Ereignissen der Simulation. Die Reihenfolge der
+-- Staubwolken bleibt die des Prototyps, weil die Ereignisse in der
+-- Reihenfolge ihres Entstehens kommen (M0-08).
+local function processEvents(events)
+    for i = 1, #events do
+        local e = events[i]
+        local kind = e.type
 
-    -- Sprungstelle: ohne das gleitet der Ball einen Frame lang von der alten
-    -- zur neuen Aufschlagposition (M0-05).
-    captureRenderState()
+        if kind == "jump" then
+            spawnDust(e.x, e.y, 8, 40, 100)
+            playSound(sounds.jump)
+        elseif kind == "dash" then
+            playSound(sounds.dash)
+            if e.up then
+                spawnDust(e.x, e.y, 10, 40, 100)
+            else
+                spawnDust(e.x, e.y, 15, 60, 150)
+            end
+        elseif kind == "land" then
+            spawnDust(e.x, e.y, 10, 50, 80)
+        elseif kind == "wall_hit" then
+            playSound(sounds.hit_wall)
+        elseif kind == "net_hit" then
+            playSound(sounds.hit_net)
+        elseif kind == "blob_hit" then
+            playSound(sounds.hit_blob)
+        elseif kind == "dash_save" then
+            addShake(5, 0.25)
+        elseif kind == "fault" then
+            addShake(4, 0.2)
+        elseif kind == "smash" then
+            addShake(3, 0.15)
+        elseif kind == "ground_hit" then
+            playSound(sounds.hit_sand)
+            spawnDust(e.x, e.y, 25, 80, 200)
+        elseif kind == "point" or kind == "side_out" then
+            playSound(sounds.whistle)
+        elseif kind == "match_over" then
+            playSound(sounds.whistle_end)
+        elseif kind == "rally_reset" then
+            -- Sprungstelle: sonst gleitet der Ball einen Frame lang von der
+            -- alten zur neuen Aufschlagposition (M0-05).
+            captureRenderState()
+        end
+    end
 end
 
-local function awardPointTo(winningPlayer)
-    if gameState.servingPlayer == winningPlayer then
-        if winningPlayer == 1 then
-            gameState.scoreP1 = gameState.scoreP1 + 1
-        else
-            gameState.scoreP2 = gameState.scoreP2 + 1
-        end
-        
-        if gameState.scoreP1 >= 15 or gameState.scoreP2 >= 15 then
-            gameState.state = "gameover"
-            playSound(sounds.whistle_end)
-        else
-            playSound(sounds.whistle)
-            resetBall(winningPlayer)
-        end
-    else
-        playSound(sounds.whistle)
-        resetBall(winningPlayer)
-    end
+-- Ballwechsel von aussen neu aufsetzen (Menue, Neustart nach dem Satz).
+resetRally = function(server)
+    for i = #simEvents, 1, -1 do simEvents[i] = nil end
+    Rules.resetBall(state, config, server, simEvents)
+    processEvents(simEvents)
 end
 
 -- ============================================================================
 -- LOGIK
 -- ============================================================================
 
--- Sprung und Dash sind Ereignisse. Die Quelle liefert Zustaende, die
--- Simulation leitet die Flanken ab (ADR-014). Frueher stand beides in
--- love.keypressed und lief damit ausserhalb des Ticks, in Echtzeit gemessen.
-local function applyInputImpulses(p, idx)
-    local bits, prev = inputs[idx], prevInputs[idx]
-    local dir = Frame.moveDir(bits)
-    local dashed = false
-
-    if Frame.has(bits, Frame.DASH) and p.cooldownTimer <= 0 then
-        dashed = true
-        p.cooldownTimer = config.dashCooldown
-        p.dashGrace = 0.5
-        playSound(sounds.dash)
-        if dir == 0 then
-            -- Aufwaerts-Dash: kein Richtungsbit gesetzt
-            p.vy = config.jumpForce * config.dashUp
-            p.isGrounded = false
-            spawnDust(p.x, p.y, 10, 40, 100)
-        else
-            p.dashTimer = 0.2
-            p.dashSpeed = dir * config.moveSpeed * config.dashSide
-            spawnDust(p.x, p.y, 15, 60, 150)
-        end
-    end
-
-    -- Ein ausgefuehrter Aufwaerts-Dash verbraucht den Sprungtipp; im Prototyp
-    -- sprang der Blob beim zweiten Tipp nicht zusaetzlich. Wurde der Dash
-    -- dagegen vom Cooldown geschluckt, bleibt der Sprung.
-    local upDashed = dashed and dir == 0
-    if Frame.pressed(bits, prev, Frame.JUMP) and p.isGrounded and not upDashed then
-        p.vy = config.jumpForce
-        p.isGrounded = false
-        spawnDust(p.x, p.y, 8, 40, 100)
-        playSound(sounds.jump)
-    end
-end
-
--- Ein Simulationsschritt. `dt` ist immer World.TICK_DT -- die Funktion wird
--- ausschliesslich aus dem Akkumulator unten und aus dem Wiedergabe-Treiber
--- aufgerufen, nie mit dem dt aus love.update (M0-05, B-02).
---
--- Frueher stand hier `dt = math.min(dt, 0.05)`. Bei festen 1/60 s ist das
--- wirkungslos und ersatzlos entfallen.
+-- Ein Simulationsschritt. Die Physik steckt vollstaendig in src/sim/; hier
+-- bleibt nur die Uebersetzung der Ereignisse in Kosmetik. Das Argument dient
+-- nur noch der Lesbarkeit an den Aufrufstellen -- die Schrittweite ist eine
+-- Konstante der Simulation (M0-05).
 local function simulateTick(dt)
-    if gameState.state == "menu" or gameState.state == "gameover" then return end
+    Step.tick(state, inputs[1], inputs[2], config, simEvents)
+    processEvents(simEvents)
 
-    applyInputImpulses(p1, 1)
-    applyInputImpulses(p2, 2)
-    -- Fruehere Stelle von updateWorldDimensions(). Uebrig bleibt nur der
-    -- Config-Wert; die Fenstergroesse hat hier nichts mehr zu suchen (B-01).
-    WORLD.groundY = config.blobGroundY or 500
-
+    -- Kosmetik laeuft mit der Tickrate mit, gehoert aber nicht in die
+    -- Simulation: kein Rueckfluss in die Physik.
     if camera.shakeTimer > 0 then camera.shakeTimer = camera.shakeTimer - dt end
     updateParticles(dt)
-
-    net.y = WORLD.groundY - config.netHeight
-    net.h = config.netHeight
-    ball.radius = config.ballRadius
-    
-    if gameState.state == "serve" then
-        ball.y = WORLD.groundY - config.serveHeight
-        gameState.serveTimer = gameState.serveTimer + dt 
-    end
-
-    if gameState.faultTimer > 0 then
-        gameState.faultTimer = gameState.faultTimer - dt
-        if gameState.faultTimer <= 0 then
-            if gameState.faultPlayer == 1 then awardPointTo(2) else awardPointTo(1) end
-            return 
-        end
-    end
-
-    -- SPIELER 1 
-    if p1.dashGrace > 0 then p1.dashGrace = p1.dashGrace - dt end
-    if p1.cooldownTimer > 0 then p1.cooldownTimer = p1.cooldownTimer - dt end
-    if p1.touchCooldown > 0 then p1.touchCooldown = p1.touchCooldown - dt end
-    if p1.dashTimer > 0 then
-        p1.dashTimer = p1.dashTimer - dt
-        p1.vx = p1.dashSpeed
-        p1.tiltAngle = (p1.dashSpeed > 0) and 0.6 or -0.6 
-    else
-        p1.tiltAngle = p1.tiltAngle * 0.8 
-        local p1Speed = p1.isGrounded and config.moveSpeed or (config.moveSpeed * config.airControl)
-        p1.vx = Frame.moveDir(inputs[1]) * p1Speed
-    end
-    updateBlob(p1, dt, 0, net.x)
-
-    -- SPIELER 2 -- seit M0-07 derselbe Code wie fuer P1. Ob dahinter ein
-    -- Mensch, ein Bot oder das Netz steckt, sieht die Simulation nicht.
-    if p2.dashGrace > 0 then p2.dashGrace = p2.dashGrace - dt end
-    if p2.cooldownTimer > 0 then p2.cooldownTimer = p2.cooldownTimer - dt end
-    if p2.touchCooldown > 0 then p2.touchCooldown = p2.touchCooldown - dt end
-    if p2.dashTimer > 0 then
-        p2.dashTimer = p2.dashTimer - dt
-        p2.vx = p2.dashSpeed
-        p2.tiltAngle = (p2.dashSpeed > 0) and 0.6 or -0.6
-    else
-        p2.tiltAngle = p2.tiltAngle * 0.8
-        local p2Speed = p2.isGrounded and config.moveSpeed or (config.moveSpeed * config.airControl)
-        p2.vx = Frame.moveDir(inputs[2]) * p2Speed
-    end
-    updateBlob(p2, dt, net.x + net.w, WORLD.width)
-
-    -- BALL PHYSIK
-    if gameState.state == "play" then
-        ball.vy = ball.vy + config.gravity * dt
-        ball.x = ball.x + ball.vx * dt
-        ball.y = ball.y + ball.vy * dt
-        ball.rotation = ball.rotation + (ball.vx / ball.radius) * dt
-
-        local currentSide = (ball.x < WORLD.width / 2) and 1 or 2
-        if gameState.ballSide ~= currentSide then
-            gameState.ballSide = currentSide
-            gameState.touchCount = 0
-            gameState.lastTouchPlayer = 0
-            p1.touchCooldown = 0
-            p2.touchCooldown = 0
-        end
-
-        if ball.x - ball.radius < 0 then
-            ball.x = ball.radius
-            ball.vx = math.abs(ball.vx) * config.wallBounce
-            playSound(sounds.hit_wall)
-        elseif ball.x + ball.radius > WORLD.width then
-            ball.x = WORLD.width - ball.radius
-            ball.vx = -math.abs(ball.vx) * config.wallBounce
-            playSound(sounds.hit_wall)
-        end
-    end
-
-    checkNetCollision()
-    checkBlobBallCollision(p1, 1)
-    checkBlobBallCollision(p2, 2)
-
-    local maxBallVel = config.maxBallSpeed
-    local curBallVel = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
-    if curBallVel > maxBallVel then
-        ball.vx = (ball.vx / curBallVel) * maxBallVel
-        ball.vy = (ball.vy / curBallVel) * maxBallVel
-    end
-
-    local targetBallGround = config.ballGroundY or 520
-    if gameState.state == "play" and gameState.faultTimer <= 0 and (ball.y + ball.radius >= targetBallGround) then
-        playSound(sounds.hit_sand)
-        spawnDust(ball.x, targetBallGround, 25, 80, 200) 
-        -- Shake hier entfernt! Nur noch Staub und Sound bei einfachem Bodenkontakt.
-        if ball.x < WORLD.width / 2 then awardPointTo(2) else awardPointTo(1) end
-    end
+    WORLD.groundY = config.blobGroundY or 500
 end
 
 -- ============================================================================
@@ -767,188 +634,29 @@ function love.update(dt)
     renderAlpha = accumulator / World.TICK_DT
 end
 
-function updateBlob(p, dt, wallLeft, wallRight)
-    local appliedGravity = config.blobGravity
-    if p.vy > 0 then appliedGravity = appliedGravity * 1.5 end
-
-    p.vy = p.vy + appliedGravity * dt
-    p.x = p.x + p.vx * dt
-    p.y = p.y + p.vy * dt
-
-    if p.y >= WORLD.groundY then 
-        if not p.isGrounded then spawnDust(p.x, WORLD.groundY, 10, 50, 80) end 
-        p.y = WORLD.groundY
-        p.vy = 0
-        p.isGrounded = true 
-    end
-
-    local minX = wallLeft + config.blobRadius
-    local maxX = wallRight - config.blobRadius
-    if p.x < minX then p.x = minX; p.vx = 0 end
-    if p.x > maxX then p.x = maxX; p.vx = 0 end
-end
-
--- ============================================================================
--- KOLLISION
--- ============================================================================
-function checkBlobBallCollision(p, playerNum)
-    local tilt = p.tiltAngle or 0
-    local headOffsetX = math.sin(tilt) * (config.blobRadius * 0.4)
-    local headOffsetY = -math.cos(tilt) * (config.blobRadius * 0.4) + (config.blobRadius * 0.4)
-
-    local dx = ball.x - (p.x + headOffsetX)
-    local dy = ball.y - (p.y + headOffsetY)
-    local dist = math.sqrt(dx * dx + dy * dy)
-    local minDist = ball.radius + config.blobRadius
-
-    if dist < minDist then
-        if dist == 0 then dist = 0.0001 end
-        local nx = dx / dist
-        local ny = dy / dist
-        local relVx = ball.vx - p.vx
-        local relVy = ball.vy - p.vy
-        local relNormalVel = relVx * nx + relVy * ny
-
-        if relNormalVel < 0 then
-            local ballNormalVel = ball.vx * nx + ball.vy * ny
-            
-            if gameState.state == "serve" then
-                gameState.state = "play"
-                ballNormalVel = -config.ballBaseSpeed * config.serveBoost
-            end
-
-            ball.x = (p.x + headOffsetX) + nx * minDist
-            ball.y = (p.y + headOffsetY) + ny * minDist
-
-            if p.touchCooldown <= 0 then
-                p.touchCooldown = 0.20 
-                if gameState.lastTouchPlayer == playerNum then
-                    gameState.touchCount = gameState.touchCount + 1
-                else
-                    gameState.lastTouchPlayer = playerNum
-                    gameState.touchCount = 1
-                end
-                playSound(sounds.hit_blob)
-
-                -- DASH SAVE SHAKE: Wenn der Spieler in den letzten 0.5s gedasht hat, wackelt das Bild!
-                if p.dashGrace > 0 then
-                    addShake(5, 0.25)
-                    p.dashGrace = 0 -- Damit es nur einmal pro Dash wackelt
-                end
-            end
-
-            if gameState.touchCount > 3 and gameState.faultTimer <= 0 then
-                gameState.faultTimer = 0.75
-                gameState.faultPlayer = playerNum
-                ball.vx = nx * 50
-                ball.vy = math.abs(ball.vy) * 0.2
-                addShake(4, 0.2) -- Kleiner Shake beim 4-Touch-Fehler
-            elseif gameState.touchCount <= 3 then
-                local blobNormalVel = p.vx * nx + p.vy * ny
-                local baseImpulse = 0
-                if ballNormalVel < 0 then baseImpulse = -ballNormalVel * (1 + config.passiveBounce) end
-                local addedImpulse = 0
-                if blobNormalVel > 0 then addedImpulse = blobNormalVel * config.activeTransfer * (1 + config.passiveBounce) end
-                
-                local totalImpulse = math.max(0, baseImpulse + addedImpulse)
-                ball.vx = ball.vx + totalImpulse * nx
-                ball.vy = ball.vy + totalImpulse * ny
-
-                local isSpiking = Frame.has(inputs[playerNum], Frame.SMASH)
-
-                if config.activeSpike and isSpiking and not p.isGrounded then
-                    ball.vx = ball.vx * 1.3
-                    ball.vy = math.abs(ball.vy) * 1.4
-                    addShake(3, 0.15) -- Minimaler Shake bei hartem Smash
-                end
-
-                if config.speedScaling then
-                    ball.vx = ball.vx * 1.05
-                    ball.vy = ball.vy * 1.05
-                end
-
-                local currentOutwardVel = ball.vx * nx + ball.vy * ny
-                local minOutward = config.ballBaseSpeed * 0.4
-                if currentOutwardVel < minOutward then
-                    ball.vx = ball.vx + nx * (minOutward - currentOutwardVel)
-                    ball.vy = ball.vy + ny * (minOutward - currentOutwardVel)
-                end
-            end
-            gameState.rallies = gameState.rallies + 1
-        else
-            ball.x = (p.x + headOffsetX) + nx * minDist
-            ball.y = (p.y + headOffsetY) + ny * minDist
-        end
-    end
-end
-
-function checkNetCollision()
-    local capRadius = net.w / 2
-    local capX = net.x + capRadius
-    local capY = net.y + capRadius
-
-    if ball.y < capY then
-        local dx = ball.x - capX
-        local dy = ball.y - capY
-        local dist = math.sqrt(dx * dx + dy * dy)
-        local minDist = ball.radius + capRadius
-
-        if dist < minDist then
-            if dist == 0 then dist = 0.0001 end
-            local nx = dx / dist
-            local ny = dy / dist
-            local normalVel = ball.vx * nx + ball.vy * ny
-
-            if normalVel < 0 then
-                ball.x = capX + nx * minDist
-                ball.y = capY + ny * minDist
-                local impulse = -normalVel * (1 + 0.8) 
-                ball.vx = ball.vx + impulse * nx
-                ball.vy = ball.vy + impulse * ny
-                playSound(sounds.hit_net)
-            else
-                ball.x = capX + nx * minDist
-                ball.y = capY + ny * minDist
-            end
-        end
-    else
-        if ball.x + ball.radius > net.x and ball.x - ball.radius < net.x + net.w then
-            if ball.y + ball.radius > capY then
-                local hitNetSide = false
-                if ball.x < capX then
-                    if ball.vx > 0 then hitNetSide = true end
-                    ball.x = net.x - ball.radius
-                    ball.vx = -math.abs(ball.vx) * 0.8
-                else
-                    if ball.vx < 0 then hitNetSide = true end
-                    ball.x = net.x + net.w + ball.radius
-                    ball.vx = math.abs(ball.vx) * 0.8
-                end
-                if hitNetSide then playSound(sounds.hit_net) end
-            end
-        end
-    end
-end
+-- updateBlob, checkBlobBallCollision und checkNetCollision sind mit M0-08
+-- nach src/sim/physics.lua gewandert, resetBall und awardPointTo nach
+-- src/sim/rules.lua. main.lua kennt die Physik nicht mehr.
 
 -- ============================================================================
 -- INPUT EVENTS (MENÜ + SPIEL)
 -- ============================================================================
--- handleDoubleTap ist mit M0-06 entfallen. Die Doppeltipp-Erkennung sitzt
--- jetzt in src/input/local_source.lua, zaehlt in Ticks statt in Sekunden und
--- liefert das dash-Bit; die Wirkung steht in applyInputImpulses.
+-- handleDoubleTap ist mit M0-06 entfallen. Die Doppeltipp-Erkennung sitzt in
+-- src/input/local_source.lua, zaehlt in Ticks statt in Sekunden und liefert
+-- das dash-Bit; die Wirkung steht seit M0-08 in src/sim/step.lua.
 
 function love.keypressed(key)
     if key == "f11" or (key == "return" and love.keyboard.isDown("lalt", "ralt")) then
         love.window.setFullscreen(not love.window.getFullscreen())
     end
 
-    if gameState.state == "menu" then
+    if match.phase == "menu" then
         local currentObj = menu[menu.current]
         
         if key == "escape" then
             if menu.current == "main" then
-                if gameState.gameInProgress then
-                    gameState.state = gameState.previousState
+                if match.inProgress then
+                    match.phase = match.previousPhase
                 else
                     saveConfig()
                     love.event.quit() 
@@ -980,15 +688,15 @@ function love.keypressed(key)
     end
 
     if key == "escape" then
-        gameState.previousState = gameState.state
-        gameState.state = "menu"
+        match.previousPhase = match.phase
+        match.phase = "menu"
         menu.current = "main"
         tweakMenu.active = false
         saveConfig() 
         return
     end
 
-    if tweakMenu.active and gameState.state ~= "gameover" then
+    if tweakMenu.active and match.phase ~= "gameover" then
         if key == "tab" or key == "f1" then tweakMenu.active = false; saveConfig(); return end
         if key == "up" then tweakMenu.selectedIndex = math.max(1, tweakMenu.selectedIndex - 1) end
         if key == "down" then tweakMenu.selectedIndex = math.min(#tweakMenu.options, tweakMenu.selectedIndex + 1) end
@@ -1007,7 +715,7 @@ function love.keypressed(key)
     end
 
     if key == "tab" or key == "f1" then tweakMenu.active = true end
-    if key == "r" and gameState.state == "gameover" then resetBall(1) end
+    if key == "r" and match.phase == "gameover" then resetRally(1) end
 
     -- Bewegung, Sprung, Smash und Dash laufen seit M0-06 nicht mehr ueber
     -- Tastenereignisse, sondern ueber den InputFrame des jeweiligen Ticks.
@@ -1034,7 +742,7 @@ function love.draw()
         love.graphics.rectangle("fill", 0, WORLD.groundY, WORLD.width, WORLD.height - WORLD.groundY)
     end
 
-    if gameState.state == "menu" then
+    if match.phase == "menu" then
         love.graphics.setColor(0, 0, 0, 0.75)
         love.graphics.rectangle("fill", 0, 0, WORLD.width, WORLD.height)
         
@@ -1043,7 +751,7 @@ function love.draw()
         love.graphics.setColor(1, 0.85, 0.2)
         love.graphics.printf(currentObj.title, 0, 80, WORLD.width, "center")
 
-        if gameState.gameInProgress and menu.current == "main" then
+        if match.inProgress and menu.current == "main" then
             love.graphics.setFont(love.graphics.newFont(16))
             love.graphics.setColor(0.2, 0.8, 0.2)
             love.graphics.printf("Game Paused - Press ESC to resume", 0, 140, WORLD.width, "center")
@@ -1123,19 +831,19 @@ function love.draw()
 
     love.graphics.setFont(love.graphics.newFont(32))
     love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.print(p1DisplayName .. ": " .. gameState.scoreP1, WORLD.width * 0.15 + 2, 32)
-    love.graphics.print(p2DisplayName .. ": " .. gameState.scoreP2, WORLD.width * 0.65 + 2, 32)
+    love.graphics.print(p1DisplayName .. ": " .. match.score[1], WORLD.width * 0.15 + 2, 32)
+    love.graphics.print(p2DisplayName .. ": " .. match.score[2], WORLD.width * 0.65 + 2, 32)
     
-    if gameState.servingPlayer == 1 then
+    if match.servingPlayer == 1 then
         love.graphics.setColor(1, 0.85, 0.2, 1)
-        love.graphics.print(p1DisplayName .. ": " .. gameState.scoreP1, WORLD.width * 0.15, 30)
+        love.graphics.print(p1DisplayName .. ": " .. match.score[1], WORLD.width * 0.15, 30)
         love.graphics.setColor(1, 1, 1, 0.9)
-        love.graphics.print(p2DisplayName .. ": " .. gameState.scoreP2, WORLD.width * 0.65, 30)
+        love.graphics.print(p2DisplayName .. ": " .. match.score[2], WORLD.width * 0.65, 30)
     else
         love.graphics.setColor(1, 1, 1, 0.9)
-        love.graphics.print(p1DisplayName .. ": " .. gameState.scoreP1, WORLD.width * 0.15, 30)
+        love.graphics.print(p1DisplayName .. ": " .. match.score[1], WORLD.width * 0.15, 30)
         love.graphics.setColor(1, 0.85, 0.2, 1)
-        love.graphics.print(p2DisplayName .. ": " .. gameState.scoreP2, WORLD.width * 0.65, 30)
+        love.graphics.print(p2DisplayName .. ": " .. match.score[2], WORLD.width * 0.65, 30)
     end
 
     love.graphics.setFont(love.graphics.newFont(16))
@@ -1148,33 +856,33 @@ function love.draw()
     drawCooldown(vp1, WORLD.width * 0.25)
     drawCooldown(vp2, WORLD.width * 0.75)
 
-    if gameState.state == "serve" then
+    if match.phase == "serve" then
         love.graphics.setColor(0, 0, 0, 0.6)
-        local sideX = (gameState.servingPlayer == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
+        local sideX = (match.servingPlayer == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
         love.graphics.print("WAITING FOR SERVE", sideX - 78, 77)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.print("WAITING FOR SERVE", sideX - 80, 75)
-    elseif gameState.faultTimer > 0 then
-        local sideX = (gameState.faultPlayer == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
+    elseif rally.faultTimer > 0 then
+        local sideX = (rally.faultPlayer == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
         love.graphics.setColor(0, 0, 0, 0.6)
         love.graphics.print("FAULT!", sideX - 28, 77)
         love.graphics.setColor(1, 0.2, 0.2, 1)
         love.graphics.print("FAULT!", sideX - 30, 75)
-    elseif gameState.touchCount > 0 then
-        local sideX = (gameState.lastTouchPlayer == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
+    elseif rally.touchCount > 0 then
+        local sideX = (rally.lastTouchPlayer == 1) and (WORLD.width * 0.25) or (WORLD.width * 0.75)
         love.graphics.setColor(0, 0, 0, 0.6)
-        love.graphics.print("Touches: " .. gameState.touchCount .. " / 3", sideX - 43, 77)
+        love.graphics.print("Touches: " .. rally.touchCount .. " / 3", sideX - 43, 77)
         love.graphics.setColor(1, 0.85, 0.2, 1)
-        love.graphics.print("Touches: " .. gameState.touchCount .. " / 3", sideX - 45, 75)
+        love.graphics.print("Touches: " .. rally.touchCount .. " / 3", sideX - 45, 75)
     end
 
-    if gameState.state == "gameover" then
+    if match.phase == "gameover" then
         love.graphics.setColor(0, 0, 0, 0.8)
         love.graphics.rectangle("fill", 0, 0, WORLD.width, WORLD.height)
         
         love.graphics.setColor(1, 0.85, 0.2)
         love.graphics.setFont(love.graphics.newFont(48))
-        local winnerName = (gameState.scoreP1 >= 15) and p1DisplayName or p2DisplayName
+        local winnerName = (match.score[1] >= 15) and p1DisplayName or p2DisplayName
         love.graphics.printf(winnerName .. " WINS!", 0, WORLD.height/2 - 50, WORLD.width, "center")
         
         love.graphics.setFont(love.graphics.newFont(24))
@@ -1182,7 +890,7 @@ function love.draw()
         love.graphics.printf("Press 'R' to play again or 'ESC' for Menu", 0, WORLD.height/2 + 20, WORLD.width, "center")
     end
 
-    if tweakMenu.active and gameState.state ~= "gameover" then
+    if tweakMenu.active and match.phase ~= "gameover" then
         local maxVisible = tweakMenu.maxVisible
         local startIndex = 1
         if tweakMenu.selectedIndex > maxVisible then
@@ -1282,7 +990,9 @@ end
 -- so the real-time relation is kept. Nothing inside love.update is rewritten.
 -- ============================================================================
 if REC.active then
-    local patches = { "serveDelay=1.0", "randomseed=1", "window=800x600 fixed" }
+    -- serveDelay stand hier bis M0-07 als Patch. Seit M0-08 ist die feste
+    -- Aufschlagverzoegerung Regel (B-06, GDD P4) und kein Eingriff mehr.
+    local patches = { "randomseed=1", "window=800x600 fixed" }
 
     Recorder.setup({ mode = REC.mode, step = World.TICK_DT, patches = patches })
 
@@ -1320,13 +1030,13 @@ if REC.active then
             p.cooldownTimer, p.dashTimer, p.dashSpeed = 0, 0, 0
             p.tiltAngle, p.touchCooldown, p.dashGrace = 0, 0, 0
         end
-        gameState.lastTouchPlayer, gameState.touchCount = init.touch[1], init.touch[2]
-        gameState.scoreP1, gameState.scoreP2 = init.score[1], init.score[2]
-        gameState.servingPlayer, gameState.state = init.server, init.phase
-        gameState.serveTimer, gameState.serveDelay = 0, 1.0
-        gameState.faultTimer, gameState.faultPlayer = 0, 0
-        gameState.ballSide = (ball.x < WORLD.width / 2) and 1 or 2
-        gameState.rallies, gameState.gameInProgress = 0, true
+        rally.lastTouchPlayer, rally.touchCount = init.touch[1], init.touch[2]
+        match.score[1], match.score[2] = init.score[1], init.score[2]
+        match.servingPlayer, match.phase = init.server, init.phase
+        rally.serveTimer, rally.serveDelay = 0, 1.0
+        rally.faultTimer, rally.faultPlayer = 0, 0
+        rally.ballSide = (ball.x < WORLD.width / 2) and 1 or 2
+        rally.rallies, match.inProgress = 0, true
         config.botActive = true   -- die Aufnahmen sind gegen den Bot gespielt
         resetInputSources()
         camera.shakeTimer = 0
@@ -1393,9 +1103,9 @@ if REC.active then
         -- the file. A frame holds the state BEFORE its own step, so stopping on
         -- the deciding step would cut the result off.
         local AFTER = 5
-        local rallyOver = gameState.state ~= "play"
+        local rallyOver = match.phase ~= "play"
         if rallyOver and run.sawPlay then run.after = (run.after or 0) + 1 end
-        if gameState.state == "play" then run.sawPlay = true end
+        if match.phase == "play" then run.sawPlay = true end
 
         -- A scripted scene ends when its rally ends, not when the tick budget
         -- runs out. Keeps the reference short and its outcome unambiguous.
@@ -1456,31 +1166,31 @@ if REC.active then
 
                 local v = math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy)
                 if v > peak then peak = v end
-                if gameState.touchCount > 0
-                   and (gameState.touchCount > prevTouch or gameState.lastTouchPlayer ~= prevPlayer) then
+                if rally.touchCount > 0
+                   and (rally.touchCount > prevTouch or rally.lastTouchPlayer ~= prevPlayer) then
                     contacts = contacts + 1
                     if v > postPeak then postPeak = v; preContact = before end
-                    if gameState.lastTouchPlayer == 1 then
+                    if rally.lastTouchPlayer == 1 then
                         if math.abs(blobVx) > math.abs(contactVx) then contactVx = blobVx end
                         if wasAir and smashHeld then airSmash = true end
                     end
                 end
-                prevTouch, prevPlayer = gameState.touchCount, gameState.lastTouchPlayer
+                prevTouch, prevPlayer = rally.touchCount, rally.lastTouchPlayer
             end
 
             print(string.format(
                 "[probe] %s %s=%-5s peak=%8.2f contacts=%d maxContactVx=%7.1f airSmash=%-5s "
                 .. "bestContact %7.1f -> %7.1f score=%d:%d phase=%s",
                 id, sw.field, tostring(candidate), peak, contacts, contactVx, tostring(airSmash),
-                preContact, postPeak, gameState.scoreP1, gameState.scoreP2, gameState.state))
+                preContact, postPeak, match.score[1], match.score[2], match.phase))
         end
     end
 
     function love.load()
         baseLoad()
         Recorder.attach({
-            world = WORLD, gameState = gameState, config = config, defaults = defaults,
-            p1 = p1, p2 = p2, ball = ball, net = net, inputs = inputs,
+            world = WORLD, state = state, config = config,
+            defaults = defaults, inputs = inputs,
         })
         if REC.selftest then
             -- Ohne VSync laeuft der Selbsttest mit weit ueber 60 Bildern je
@@ -1493,7 +1203,7 @@ if REC.active then
             print("[selftest] window " .. table.concat({ love.graphics.getDimensions() }, "x"))
             print("[selftest] WORLD " .. WORLD.width .. "x" .. WORLD.height)
             launchGame(true)
-            resetBall(2)          -- let the bot serve, otherwise nothing moves
+            resetRally(2)         -- let the bot serve, otherwise nothing moves
             while Recorder.currentId() ~= "R-00" do Recorder.nextRally() end
             Recorder.start()
             REC.selftestStart, REC.selftestFrames = love.timer.getTime(), 0
@@ -1532,7 +1242,7 @@ if REC.active then
             REC.shot = REC.shot + 1
             if REC.shot == 5 then
                 launchGame(true)   -- the field is more interesting than the menu
-                resetBall(2)
+                resetRally(2)
             elseif REC.shot == 150 then
                 love.graphics.captureScreenshot("viewport.png")
                 print("[shot] " .. love.filesystem.getSaveDirectory() .. "/viewport.png")

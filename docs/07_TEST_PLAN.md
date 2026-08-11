@@ -90,6 +90,11 @@ nicht hier steht, ist ein Fehler.
 Der gespielte `variable`-Satz bleibt davon unberührt — er ist der eingefrorene Prototyp und
 wird nie neu erzeugt.
 
+**M0-08 steht bewusst nicht in dieser Tabelle.** Die vollständige Extraktion der Simulation
+nach `src/sim/` — Zustand, Physik, Regeln, Schritt — lief bitgleich durch, alle elf Rallyes,
+jeder Wert. Das ist der Punkt der ganzen Übung: Wenn ein Umbau dieser Größe keine einzige
+Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
+
 **Was die Abweichung nicht bedeutet:** Sie sagt nichts über die Wahl von 1/60 aus. Ein chaotisches System driftet bei jeder Störung; entscheidend ist, ob sich das Ergebnis im Blindtest D1 anders **anfühlt**. Erst wenn D1 kippt, wird 1/120 mit doppelter Tickrate geprüft.
 
 ## 3. Ebene B — Regel-Unit-Tests

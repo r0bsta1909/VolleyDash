@@ -197,15 +197,16 @@ end
 -- ---------------------------------------------------------------------------
 
 local function snapshot()
-    local r = S.refs
+    local st = S.refs.state
+    local ball, blobs = st.ball, st.blobs
     return {
-        ball  = { r.ball.x, r.ball.y, r.ball.vx, r.ball.vy },
-        p1    = { r.p1.x, r.p1.y, r.p1.vx, r.p1.vy },
-        p2    = { r.p2.x, r.p2.y, r.p2.vx, r.p2.vy },
-        touch = { r.gameState.lastTouchPlayer, r.gameState.touchCount },
-        score = { r.gameState.scoreP1, r.gameState.scoreP2 },
-        server = r.gameState.servingPlayer,
-        phase  = r.gameState.state,
+        ball  = { ball.x, ball.y, ball.vx, ball.vy },
+        p1    = { blobs[1].x, blobs[1].y, blobs[1].vx, blobs[1].vy },
+        p2    = { blobs[2].x, blobs[2].y, blobs[2].vx, blobs[2].vy },
+        touch = { st.rally.lastTouchPlayer, st.rally.touchCount },
+        score = { st.match.score[1], st.match.score[2] },
+        server = st.match.servingPlayer,
+        phase  = st.match.phase,
     }
 end
 
@@ -252,7 +253,7 @@ end
 function Recorder.step(dt)
     if not (S.ready and S.recording) then return end
 
-    local phase = S.refs.gameState.state
+    local phase = S.refs.state.match.phase
     if phase ~= "play" and phase ~= "serve" then
         -- menu or gameover: the update returned early, nothing moved
         return

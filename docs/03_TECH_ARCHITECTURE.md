@@ -92,9 +92,9 @@ volley-dash/
 
 ## 3. Die zentrale Regel: `src/sim/` ist rein
 
-**`step(state, inputP1, inputP2, ruleset) → newState, events`**
+**`step(state, inputP1, inputP2, ruleset) → events`**
 
-Diese Funktion ist die einzige Stelle, an der sich der Spielzustand ändert. Sie ist eine reine Funktion: gleiche Eingaben, gleiche Ausgabe. Sie darf nicht:
+Diese Funktion ist die einzige Stelle, an der sich der Spielzustand ändert. Gleiche Eingaben, gleicher Zustand, gleiches Ergebnis. Sie darf nicht:
 
 - zeichnen, Sound abspielen, Tasten lesen
 - `os.time`, `os.clock`, `love.timer` aufrufen
@@ -104,6 +104,10 @@ Diese Funktion ist die einzige Stelle, an der sich der Spielzustand ändert. Sie
 **Warum diese Härte, obwohl kein Lockstep gefahren wird:** Auch bei host-autoritativer Simulation braucht man die Reinheit für (a) Replays, (b) automatisierte Physik-Regressionstests, (c) Client-seitige Vorhersage der eigenen Blob-Bewegung, (d) den Desync-Detektor. Die Kosten sind gering, der Nutzen steht an vier Stellen.
 
 `events` ist eine Liste kosmetischer Auslöser (`{type="wall_hit", x=…}`, `{type="jump", player=1}`, `{type="point", to=2}`), die die Rendering-Schicht in Partikel und Sound übersetzt. So bleibt die Simulation stumm und der Client kann Effekte auch für Snapshots erzeugen, die er nicht selbst simuliert hat.
+
+**Abweichung, entschieden in M0-08:** `step` gibt **keinen neuen Zustand** zurück, sondern ändert den übergebenen an Ort und Stelle und liefert nur die Ereignisliste. Grund: Eine Kopie des gesamten Zustands 60-mal je Sekunde ist auf acht Jahre alter Hardware unnötiger Allokationsdruck, und alte Zustände braucht niemand — ADR-002 hat Rollback verworfen, host-autoritative Snapshots kommen ohne Historie aus. An der Determiniertheit ändert das nichts: Die Funktion liest ausschließlich `state`, die beiden `InputFrames` und das `Ruleset`. Auch die Ereignisliste stellt der Aufrufer, sie wird bei jedem Aufruf geleert.
+
+**`rng.lua` existiert noch nicht.** Seit M0-08 kommt die Simulation ohne Zufall aus (die zufällige Aufschlagverzögerung ist mit B-06 entfallen). Die Datei wird erst angelegt, wenn ein Mutator oder ein deterministischer Bot sie braucht — bis dahin ist „kein Zufall" die schärfere und billigere Regel.
 
 ### Fixer Timestep
 
