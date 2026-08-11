@@ -255,7 +255,7 @@ Format: Kontext → Entscheidung → Begründung → Konsequenzen → Verworfene
 - Bits 0–3 sind **Zustände** (lag im Tick an), die Flankenerkennung liegt in der Simulation. Nur so kann die Simulation entscheiden, ob ein Sprung zulässig ist — die Quelle weiß nicht, ob der Blob am Boden steht.
 - Bit 4 (`dash`) ist die bewusste Ausnahme: ein **abgeleiteter Impuls**. Die Doppeltipp-Erkennung sitzt in der Eingabequelle, nicht in der Simulation. Sonst müsste die Simulation Tipp-Historien pro Spieler führen, der Bot müsste Tastendrücke simulieren, und das Netzwerk müsste Tastenfolgen statt Absichten übertragen.
 - Die Richtung des Dash kommt aus den gleichzeitig gesetzten Richtungsbits, nicht aus einem eigenen Feld. Das spart Zustand und macht widersprüchliche Frames unmöglich.
-- **Bei gleichzeitig `left` und `right` gewinnt `left`.** Das ist das gemessene Verhalten des Prototyps (`main.lua:539` und `main.lua:588`, `and/or`-Kette mit Linksauswertung), nicht eine Setzung. Die Referenz-Rallyes halten das jetzige Verhalten fest; eine Änderung an dieser Stelle würde die Aufzeichnung entwerten.
+- **Bei gleichzeitig `left` und `right` gewinnt `left`.** Das ist das gemessene Verhalten des Prototyps (`main.lua:585` und `main.lua:635`, `and/or`-Kette mit Linksauswertung), nicht eine Setzung. Die Referenz-Rallyes halten das jetzige Verhalten fest; eine Änderung an dieser Stelle würde die Aufzeichnung entwerten.
 
 **Konsequenzen:**
 - Der Regressionstest der Ebene A prüft die Physik, **nicht** die Doppeltipp-Erkennung. Die braucht einen eigenen Unit-Test in M0-06; die Mindestfälle stehen in `13_INPUTFRAME_FORMAT.md` §4.

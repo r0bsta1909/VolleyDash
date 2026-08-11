@@ -99,7 +99,7 @@ Unit-Test in M0-06**. Mindestfälle:
 | Doppeltipp während `dashCooldown > 0` | kein `dash`-Bit |
 | Doppeltipp zweier **verschiedener** Richtungen | kein `dash`-Bit |
 
-Im Prototyp misst `handleDoubleTap` (`main.lua:810–843`) über `love.timer.getTime()`, also
+Im Prototyp misst `handleDoubleTap` (`main.lua:857–890`) über `love.timer.getTime()`, also
 in **Echtzeit**. Ab M0-06 zählt die Erkennung in **Ticks** (`dashWindow` × 60 = 12 Ticks),
 sonst hängt sie an der Bildwiederholrate. Das ist eine bewusste, in M0-06 zu prüfende
 Verhaltensänderung.
@@ -113,10 +113,10 @@ Verhaltensänderung.
 Diese Festlegung ist **gemessen, nicht gewünscht.** Der Prototyp verhält sich so:
 
 ```lua
--- main.lua:539 (Spieler 1)
+-- main.lua:585 (Spieler 1)
 p1.vx = love.keyboard.isDown("a") and -p1Speed or (love.keyboard.isDown("d") and p1Speed or 0)
 
--- main.lua:588 (Spieler 2, lokal)
+-- main.lua:635 (Spieler 2, lokal)
 p2.vx = love.keyboard.isDown("h") and -p2Speed or (love.keyboard.isDown("k") and p2Speed or 0)
 ```
 
@@ -138,8 +138,8 @@ elseif right then vx = +speed
 else vx = 0 end
 ```
 
-Der Bot kann strukturell nie beide Bits setzen: `Bot.updateAI` (`main.lua:340–342`) und
-`Bot.update` (`bot.lua:83–87`) setzen `left` und `right` in einem `if/elseif`. Für Quellen
+Der Bot kann strukturell nie beide Bits setzen: `Bot.updateAI` (`main.lua:375–377`) und
+`Bot.update` (`bot.lua:82–87`) setzen `left` und `right` in einem `if/elseif`. Für Quellen
 `bot` und `network` ist der Fall also nur über einen manipulierten Frame erreichbar; die
 Regel gilt trotzdem für alle vier Quellen einheitlich.
 
@@ -178,7 +178,7 @@ dem, was der Prototyp tatsächlich verbraucht:
 | `dash` | Flanke aus `handleDoubleTap` | Flanke aus `handleDoubleTap` | `botInputs.dashDir ~= nil` |
 
 Aufgezeichnet wird beim Bot ausdrücklich der **Output** (`botInputs`), nicht der Zustand des
-Bots. Damit sind die Zufallsanteile des Bots (`main.lua:296`, `bot.lua:44`) in der
+Bots. Damit sind die Zufallsanteile des Bots (`main.lua:331`, `bot.lua:44`) in der
 Aufzeichnung eingefroren und für die Wiedergabe unschädlich.
 
 Im Modus `fixed60` teilen sich mehrere Simulationsschritte eines Frames denselben
