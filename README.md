@@ -40,14 +40,24 @@ sie nicht hatte. Wer sie will, stellt unter *Local Match → Ruleset* auf `proto
 
 ## Im LAN spielen
 
-**Noch nicht enthalten.** Der Menüpunkt *Network Match* trägt deshalb ein `[WIP]`.
+**Seit 0.2.0 enthalten**, 1 gegen 1, ohne IP-Eingabe:
 
-Geplant ist LAN-Spiel **ohne IP-Eingabe**: Der Host öffnet eine Lobby, die anderen sehen
-sie per UDP-Broadcast in der Serverliste und treten bei. Die manuelle IP-Eingabe bleibt als
-gleichwertiger Weg daneben stehen, weil in fremden Netzen regelmäßig eine Firewall den
-Broadcast schluckt. Unter Windows ist beim ersten Start die Freigabe für **private
-Netzwerke** anzuhaken — wer diese Abfrage wegklickt, ist für den Rest des Abends
-unsichtbar.
+1. *Network Match → Nickname* setzen. Er bleibt gespeichert und steht in der Lobby des
+   anderen — im lokalen Spiel bleiben die zufälligen Namen.
+2. Einer wählt *Spiel hosten*. Seine Lobby zeigt seine LAN-Adresse groß an.
+3. Der andere wählt *Spiel suchen*, sieht die Lobby in der Liste, verbindet mit `ENTER`
+   und meldet sich bereit. Der Host startet.
+
+Der Host simuliert und spielt mit; der Gast schickt seine Eingaben und zeigt an, was
+zurückkommt (host-autoritative Snapshots, ADR-002). `F3` blendet Ping, Paketverlust und
+Puffertiefe ein. Reißt die Verbindung, wartet das Match 30 Sekunden — wer zurückkommt,
+steigt in den laufenden Satz ein, auch nach einem Neustart.
+
+**Die manuelle IP-Eingabe steht gleichwertig daneben**, als letzter Eintrag der
+Serverliste. In fremden Netzen schluckt regelmäßig eine Firewall den Broadcast: Unter
+Windows ist beim ersten Start die Freigabe für **private Netzwerke** anzuhaken, unter macOS
+die Rückfrage nach Verbindungen aus dem lokalen Netzwerk zu erlauben. Wer sie wegklickt, ist
+für den Rest des Abends unsichtbar — und tippt dann die Adresse ab.
 
 Die Architektur dahinter steht in [`docs/04_NETCODE_SPEC.md`](docs/04_NETCODE_SPEC.md).
 

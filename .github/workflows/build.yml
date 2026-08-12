@@ -200,13 +200,17 @@ jobs:
       # Der Release entsteht als ENTWURF. Das ist Absicht: Schritt 7 in
       # `12_OPENSOURCE` §7 ist ein Start auf einem FREMDEN Rechner, nicht ein
       # gruener Haken in der CI. Veroeffentlicht wird von Hand.
+      # Der Text kommt aus dem CHANGELOG und den beiden Startanleitungen
+      # (`12_OPENSOURCE` §7.6), nicht aus `--generate-notes`: eine Liste
+      # englischer Commit-Titel hilft niemandem, der nur spielen will.
       - name: Entwurf anlegen und Pakete anhaengen
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF_NAME}"
+          bash tools/release_notes.sh "${tag#v}" > notes.md
           gh release create "$tag" \
             --draft \
             --title "Volley Dash $tag" \
-            --generate-notes \
+            --notes-file notes.md \
             $(find artifacts -name '*.zip')

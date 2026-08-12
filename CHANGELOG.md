@@ -7,7 +7,10 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
 deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
-## [Unreleased]
+## [0.2.0] — 2026-08-12
+
+LAN-Spiel. Zwei Rechner finden sich im Netz und spielen ein Match 1v1 —
+ohne IP-Eingabe, wenn das Netz mitspielt, und mit IP-Eingabe, wenn nicht.
 
 ### Hinzugefügt — M2 (LAN 1v1)
 

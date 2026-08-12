@@ -42,8 +42,37 @@ Was drin ist
 ------------
 
 Lokales Spiel zu zweit an einer Tastatur oder gegen den Bot in drei Stufen.
-Netzwerkspiel im LAN ist in Arbeit und noch NICHT enthalten -- der Menuepunkt
-"Network Match" traegt deshalb ein [WIP].
+Seit 0.2.0 ausserdem NETZWERKSPIEL 1v1 IM LAN.
+
+Im LAN spielen
+--------------
+
+1. Beide Rechner ins selbe Netz, moeglichst per Kabel.
+
+2. Menue -> "Network Match" -> "Nickname" und einen Namen eintippen.
+   Der Name steht in der Lobby des anderen und bleibt gespeichert.
+
+3. Einer waehlt "Spiel hosten". Er sieht seine Lobby und darin GROSS seine
+   eigene IP-Adresse.
+
+4. Der andere waehlt "Spiel suchen". Die Lobby taucht in der Liste auf.
+   ENTER verbindet, ENTER meldet bereit. Der Host startet dann mit ENTER.
+
+Wenn Windows beim ersten Start nach einer Freigabe fragt: ERLAUBEN. Und zwar
+fuer das Netz, in dem der Rechner gerade ist -- meist "Privat". Wer diese
+Abfrage wegklickt, ist fuer den Rest des Abends unsichtbar.
+
+Bleibt die Liste trotzdem leer, ist das kein Beinbruch: Der LETZTE Eintrag der
+Liste heisst "Direkt verbinden (IP eingeben)". Dort die Adresse eintippen, die
+beim Host gross in der Lobby steht. Das geht immer, auch quer durch Firewalls
+und getrennte Netze.
+
+F3 blendet im Match die Netzwerkwerte ein (Ping, Verlust, Puffer). Wer einen
+Fehler meldet, macht davon ein Bild.
+
+Reisst die Verbindung mitten im Satz ab, wartet das Spiel 30 Sekunden. Wer in
+dieser Zeit zurueckkommt, steigt in den laufenden Satz ein -- auch nach einem
+Neustart des Spiels.
 
 Wenn etwas nicht laeuft
 -----------------------

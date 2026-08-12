@@ -85,12 +85,24 @@ mkdir -p "$BUILD"
 # Geht dem Erzeugen von build_info_gen.lua voraus, sonst haengt der Hash von
 # sich selbst ab. Der Hash dient ab M2 dem Versionsabgleich im Netz
 # (`06_BUILD` §6): Abweichung ist eine Warnung, kein Abbruch.
+#
+# Zwei Feinheiten, beide notwendig, damit derselbe Stand auf verschiedenen
+# Maschinen denselben Hash ergibt -- sonst warnt die Lobby zwischen dem
+# Windows- und dem macOS-Paket EINES Tags, und die Warnung waere Rauschen
+# statt Auskunft:
+#
+#   LC_ALL=C   Die Sortierreihenfolge haengt sonst an der Locale, und das
+#              Windows-Paket entsteht auf einem Linux-, das macOS-Paket auf
+#              einem BSD-artigen Laeufer.
+#   tests/     wird nicht ausgeliefert und gehoert deshalb nicht in einen
+#              Hash, der beschreibt, was laeuft (wie tools/ auch).
 rm -f src/build_info_gen.lua
 BUILDHASH=$(find . -name '*.lua' \
                 -not -path './build/*' \
                 -not -path './tools/*' \
+                -not -path './tests/*' \
                 -not -path './.git/*' \
-            | sort | xargs cat | hash_stdin | cut -c1-16)
+            | LC_ALL=C sort | xargs cat | hash_stdin | cut -c1-16)
 
 cat > src/build_info_gen.lua <<EOF
 -- Erzeugt von tools/build.sh -- nicht von Hand aendern, nicht committen.
