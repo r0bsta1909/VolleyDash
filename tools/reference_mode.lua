@@ -18,6 +18,7 @@
 --   --screenshot[=seite] ein Bild in den Save-Ordner, dann beenden
 --   --test              Testsuiten laufen lassen und beenden
 --   --test-no-love      dasselbe ohne die Bibliothek im Namensraum
+--   --resize=datei:BxH  Bild verkleinern und beenden (tools/resize_image.lua)
 -- ============================================================================
 
 local World   = require("src.sim.world")
@@ -49,6 +50,8 @@ function M.parse(args)
         if probe then flags.probeId = probe end
         local page = a:match("^%-%-screenshot=(.+)$")
         if page then flags.shot, flags.shotPage = 0, page end
+        local resize = a:match("^%-%-resize=(.+)$")
+        if resize then flags.resize = resize end
     end
 
     -- Alles, was Referenzdaten erzeugt, laeuft im festen 800x600-Fenster und
@@ -76,6 +79,20 @@ function M.runTests()
     local _, failed = runner()
     love.event.quit(failed > 0 and 1 or 0)
     return true
+end
+
+-- Alles, was statt des Spiels laeuft und danach beendet. Gibt true zurueck,
+-- wenn main.lua nichts mehr zu tun hat.
+function M.runTools()
+    if M.runTests() then return true end
+
+    if flags.resize then
+        local ok = require("tools.resize_image").run(flags.resize)
+        love.event.quit(ok and 0 or 1)
+        return true
+    end
+
+    return false
 end
 
 -- ---------------------------------------------------------------------------

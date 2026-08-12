@@ -27,7 +27,7 @@ local ok, ReferenceMode = pcall(require, "tools.reference_mode")
 if not ok then
     ReferenceMode = {
         parse    = function() end,
-        runTests = function() return false end,
+        runTools = function() return false end,
         refMode  = function() return false end,
         install  = function() end,
     }
@@ -36,8 +36,8 @@ end
 ReferenceMode.parse(arg)
 
 function love.load()
-    -- Ein Testlauf braucht weder Fenster noch Spiel.
-    if ReferenceMode.runTests() then return end
+    -- Ein Testlauf oder ein Werkzeuglauf braucht kein Spiel.
+    if ReferenceMode.runTools() then return end
 
     -- Titel, Groesse, Identity und die abgeschalteten Module stehen in
     -- conf.lua (M0-01). Hier bleibt nur der Sonderfall:

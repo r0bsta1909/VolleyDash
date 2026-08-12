@@ -209,6 +209,7 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Referenzen prüfen | `python tools/verify_replays.py` (muss „OK" melden) |
 | Szenenparameter messen | `/d/love2d/LOVE/love.exe . --scene-probe=R-11` |
 | Aufzeichnung selbst testen | `/d/love2d/LOVE/love.exe . --record-selftest` |
+| Bild verkleinern | `/d/love2d/LOVE/lovec.exe . --resize=assets/bg.png:1600x1200` (überschreibt die Quelle) |
 | Build (alles, was die Maschine kann) | `LOVE_WIN=/d/love2d/LOVE ./tools/build.sh` |
 | Nur die `.love` | `./tools/build.sh love` |
 | Gebautes Paket testen | `/d/love2d/LOVE/love.exe build/VolleyDash.love` — **nie den Quellordner** |
