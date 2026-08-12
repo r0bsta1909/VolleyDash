@@ -51,21 +51,30 @@ Gegenüber Fassung 1.0 um rund 15–20 h gestiegen: Open-Source-Repo-Aufbau (ADR
 **Ziel:** Eine ZIP pro Plattform, die überall startet.
 **Abnahme:** `06_BUILD` §8.
 
-| ID | Aufgabe | h |
-|----|---------|---|
-| M1-01 | `build.sh`, `.love`-Erzeugung, Ausschlusslisten | 2 |
-| M1-02 | Windows-Fusion + DLL-Bundle + `license.txt` | 2 |
-| M1-03 | macOS-`.app`, `patch_plist.py`, `zip -y` | 3 |
-| M1-04 | `build_info.lua`-Injektion (Version + Build-Hash) | 1 |
-| M1-05 | `LIESMICH.txt` beide Plattformen inkl. Gatekeeper-/SmartScreen-Weg | 1 |
-| M1-06 | Icon in `love.exe`, Icon in `.app` | 1 |
-| M1-07 | Test auf Fremdrechnern (Win 11, Intel-Mac, Apple Silicon) | 2 |
-| M1-3b | **Ad-hoc-Signatur + `codesign --verify` als Abbruchbedingung** (ADR-012) | 1 |
-| M1-08 | `LICENSE`, `LICENSE-THIRD-PARTY.md`, `docs/references.md` | 1 |
-| M1-09 | `assets/CREDITS.md` + prozeduraler Fallback als Standard | 2 |
-| M1-10 | Öffentliches README inkl. Gameplay-GIF | 2 |
-| M1-11 | GitHub Actions: Tests bei Push, Vollbuild bei Tag | 3 |
-| M1-12 | Issue-Vorlagen, `CONTRIBUTING.md`, `.gitignore` | 1 |
+| ID | Aufgabe | h | Stand 2026-08-12 (CC-02) |
+|----|---------|---|---|
+| M1-01 | `build.sh`, `.love`-Erzeugung, Ausschlusslisten | 2 | ✅ `.love` gebaut und gestartet |
+| M1-02 | Windows-Fusion + DLL-Bundle + `license.txt` | 2 | ✅ ZIP gebaut, EXE spielt ein Match |
+| M1-03 | macOS-`.app`, `patch_plist.py`, `zip -y` | 3 | ⚠️ geschrieben, **ungetestet** (kein Mac, kein Runner) |
+| M1-04 | `build_info.lua`-Injektion (Version + Build-Hash) | 1 | ✅ steht unten rechts im Menü |
+| M1-05 | `LIESMICH.txt` beide Plattformen inkl. Gatekeeper-/SmartScreen-Weg | 1 | ✅ `dist/LIESMICH_{win,mac}.txt` |
+| M1-06 | Icon in `love.exe`, Icon in `.app` | 1 | ◐ Fenster- und `.app`-Symbol automatisch, **EXE-Symbol bleibt Handgriff** (`06_BUILD` §3) |
+| M1-07 | Test auf Fremdrechnern (Win 11, Intel-Mac, Apple Silicon) | 2 | ❌ offen, braucht fremde Hardware |
+| M1-3b | **Ad-hoc-Signatur + `codesign --verify` als Abbruchbedingung** (ADR-012) | 1 | ⚠️ im Skript und im Workflow, unbelegt bis zum ersten Tag-Build |
+| M1-08 | `LICENSE`, `LICENSE-THIRD-PARTY.md`, `docs/references.md` | 1 | ✅ |
+| M1-09 | `assets/CREDITS.md` + prozeduraler Fallback als Standard | 2 | ✅ Assets nach `assets/`, Hintergrund verkleinert |
+| M1-10 | Öffentliches README inkl. Gameplay-GIF | 2 | ◐ README steht, **statt GIF zwei Bildschirmfotos** |
+| M1-11 | GitHub Actions: Tests bei Push, Vollbuild bei Tag | 3 | ⚠️ geschrieben, läuft erst mit dem ersten Push |
+| M1-12 | Issue-Vorlagen, `CONTRIBUTING.md`, `.gitignore` | 1 | ✅ |
+
+**Zum prozeduralen Fallback in M1-09:** Er ist nicht „umgestellt worden", er war schon da.
+Jede Zeichenstelle hat ihren `else`-Zweig, jeder Lader gibt `nil` zurück statt zu werfen
+(`ASSET_INVENTORY` §3). Da die Herkunft aller Dateien geklärt ist, bleiben die Bilder der
+Normalfall und der Fallback die Absicherung — das ist die Umkehrung dessen, was
+`10_LEGAL` §4 vorsah, und sie ist zulässig, weil der Grund für die Vorsicht entfallen ist.
+
+**Was M1 nicht abschließt:** M1-07 hängt an fremder Hardware, M1-03/M1-3b/M1-11 hängen am
+ersten Push. Bis dahin gilt für den macOS-Pfad: geschrieben, nicht bewiesen.
 
 ### M2 — LAN 1v1 (25–35 h)
 

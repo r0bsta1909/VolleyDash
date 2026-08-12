@@ -28,8 +28,10 @@ oder gegen den Bot. **Kein Netzwerk** — LAN kommt mit M2.
 
 - Bilder und Klänge liegen jetzt unter `assets/` statt im Wurzelverzeichnis.
 - Der Hintergrund ist von 2752 × 1536 auf 1600 × 1200 verkleinert und heißt jetzt
-  `assets/bg.png` statt `bg.jpg` — die Datei war nie ein JPEG. Spart rund 4,5 MB im Paket
-  und zwei Drittel des Texturspeichers auf der Zielhardware.
+  `assets/bg.png` statt `bg.jpg` — die Datei war nie ein JPEG. Spart 3,4 MB im Paket und
+  senkt den Texturspeicher von rund 16 MB auf 7,7 MB.
+- `main.lua` lädt das Aufzeichnungswerkzeug nur noch, wenn es da ist. Ohne diese Änderung
+  wäre jede gebaute `.love` beim Start gescheitert, weil `tools/` nicht ausgeliefert wird.
 
 ### Hinzugefügt — M0 (Fundament)
 

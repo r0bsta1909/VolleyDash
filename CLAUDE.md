@@ -209,7 +209,14 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Referenzen prüfen | `python tools/verify_replays.py` (muss „OK" melden) |
 | Szenenparameter messen | `/d/love2d/LOVE/love.exe . --scene-probe=R-11` |
 | Aufzeichnung selbst testen | `/d/love2d/LOVE/love.exe . --record-selftest` |
-| Build Windows | _noch nicht vorhanden — M1-02_ |
+| Build (alles, was die Maschine kann) | `LOVE_WIN=/d/love2d/LOVE ./tools/build.sh` |
+| Nur die `.love` | `./tools/build.sh love` |
+| Gebautes Paket testen | `/d/love2d/LOVE/love.exe build/VolleyDash.love` — **nie den Quellordner** |
+
+`tools/build.sh` braucht Info-ZIP im PATH. Git Bash bringt kein `zip` mit:
+`winget install --id GnuWin32.Zip --exact --source winget`, danach
+`export PATH="$PATH:/c/Program Files (x86)/GnuWin32/bin"` (oder `ZIP_BIN` setzen).
+Der macOS-Zweig läuft nur auf einem macOS-Runner — `codesign` gibt es lokal nicht.
 
 Alle Aufzeichnungs- und Wiedergabe-Flags sind **temporär** und gehen mit M0-13 im
 Headless-Testrunner auf. `--fixed-dt` gibt es seit M0-05 nicht mehr — der feste Schritt
