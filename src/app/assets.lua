@@ -24,13 +24,18 @@ local pool = {}
 
 local FONT_SIZES = { 12, 13, 14, 16, 24, 32, 48 }
 
+-- Seit M1-09 liegen alle Dateien unter assets/ statt in der Wurzel
+-- (12_OPENSOURCE §2). Der Pfad steht genau hier einmal.
+Assets.DIR = "assets/"
+
 local function loadImage(name)
-    if love.filesystem.getInfo(name) then return love.graphics.newImage(name) end
+    local path = Assets.DIR .. name
+    if love.filesystem.getInfo(path) then return love.graphics.newImage(path) end
     return nil
 end
 
 local function loadSound(name)
-    local base = name:gsub("%.%w+$", "")
+    local base = Assets.DIR .. name:gsub("%.%w+$", "")
     if love.filesystem.getInfo(base .. ".wav") then
         return love.audio.newSource(base .. ".wav", "static")
     end
@@ -41,7 +46,9 @@ local function loadSound(name)
 end
 
 function Assets.load()
-    Assets.images.bg   = loadImage("bg.jpg") or loadImage("bg.png")
+    -- bg.jpg war nie ein JPEG, sondern ein PNG mit falscher Endung
+    -- (ASSET_INVENTORY §4). Seit M1-09 heisst die Datei, was sie ist.
+    Assets.images.bg   = loadImage("bg.png")
     Assets.images.blob = loadImage("blob.png")
     Assets.images.ball = loadImage("ball.png")
 

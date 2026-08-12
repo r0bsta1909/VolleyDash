@@ -28,7 +28,13 @@ deutlich kleiner als WAV.
 - Titel werden **gestreamt**, nicht in den Speicher geladen (RAM-Ziel 150 MB).
 - Im Aufzeichnungsmodus (`--record`, `--replay-all`, …) bleibt die Musik aus.
 
-## Bevor hier eine Datei landet
+## Stand
+
+Sieben Titel liegen hier: einer im Menü, sechs im Match, zusammen rund 14 MB.
+**Herkunft geklärt** (Roberto, 2026-08-12), Lizenz zlib wie das Projekt, aufgeführt in
+`assets/CREDITS.md`. Sie werden mit ausgeliefert.
+
+## Bevor hier eine weitere Datei landet
 
 **Herkunft klären.** Für die elf vorhandenen Assets ist das erledigt (alle von
 Roberto, siehe `docs/ASSET_INVENTORY.md`) — für Musik gilt `10_LEGAL` §4 neu:

@@ -31,6 +31,11 @@ function love.conf(t)
     t.window.vsync     = 1
     t.window.highdpi   = true    -- Retina-Macs
 
+    -- Fenster- und Taskleistensymbol (M1-06). Das Symbol der EXE selbst steckt
+    -- in deren Ressourcen und wird beim Build gesetzt, nicht hier -- siehe
+    -- `06_BUILD` §3.
+    t.window.icon      = "assets/icon.png"
+
     -- Nicht benutzte Module abschalten: schnellerer Start, weniger Speicher.
     -- Zielhardware sind acht Jahre alte Laptops (CLAUDE.md §7).
     t.modules.physics = false    -- Box2D; die Physik ist handgeschrieben

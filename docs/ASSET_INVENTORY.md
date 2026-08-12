@@ -106,14 +106,28 @@ die SHA-256 unterscheiden sich. Gleiche Länge und gleiches Format (rund 0,87 s 
 
 ---
 
-## 6. Offen für M1-09
+## 6. Erledigt in M1-09 (2026-08-12)
 
-Nur noch Technik, keine Rechtsfragen:
+Alle drei Punkte sind abgearbeitet:
 
-1. `bg.jpg` auf Zielauflösung verkleinern und als `.png` benennen. Spart rund 4,9 MB im
-   Repo und 16 MB VRAM auf der Zielhardware.
-2. `assets/CREDITS.md` anlegen (`10_LEGAL` §4, ADR-011): elf Dateien, Urheber Roberto,
-   Lizenz zlib wie das Projekt.
-3. Entscheiden, ob die Dateien nach `assets/` umziehen. Dann ändern sich die Ladepfade in
-   `main.lua:438–455`; die wurzelgebundenen Muster in `.gitignore` sind dafür schon
-   vorbereitet.
+1. **`bg.jpg` → `assets/bg.png`, 2752 × 1536 → 1600 × 1200.** Aus 5 040 745 Bytes wurden
+   1 642 578 — rund 3,4 MB weniger im Paket, und der Texturspeicher fällt von etwa 16 MB
+   auf 7,7 MB. 1600 × 1200 ist die doppelte Auflösung dessen, was das Spiel zeigt: der
+   Hintergrund wird ohnehin auf 800 × 600 gezerrt (`src/render/game_view.lua:76`), das
+   Seitenverhältnis der Quelle war nie maßgeblich.
+   Verkleinert mit LÖVE selbst (Canvas → `ImageData:encode`), um keine Bildbibliothek als
+   Abhängigkeit aufzunehmen. Das C2PA-Manifest der Ursprungsdatei ist damit aus der
+   ausgelieferten Fassung verschwunden — **in der Git-Historie bleibt es**.
+2. **`assets/CREDITS.md` angelegt.** Enthält die elf Dateien, das neue `icon.png` und die
+   sieben Musiktitel. Herkunft für alle: Roberto, Lizenz zlib.
+3. **Umzug nach `assets/` durchgeführt.** Die Ladepfade stehen jetzt an genau einer Stelle
+   (`Assets.DIR` in `src/app/assets.lua`). `music/` bleibt in der Wurzel, weil
+   `src/app/music.lua` die Ordner `music/menu` und `music/match` abtastet.
+
+**Neu hinzugekommen:** `assets/icon.png` (512 × 512) als Fenstersymbol und
+`dist/icon-256.png` als Vorlage für das EXE-Symbol. Beide sind aus `blob.png` und
+`ball.png` zusammengesetzt und teilen deren Herkunft.
+
+**Musik:** sieben `.ogg` unter `music/`, rund 14 MB, seit 2026-08-11 im Repo. Herkunft
+bestätigt (Roberto, 2026-08-12), Lizenz zlib. Damit ist die Bedingung aus `music/README.md`
+erfüllt und die Musik darf mit ausgeliefert werden.
