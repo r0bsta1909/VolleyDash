@@ -398,6 +398,28 @@ function M.installAutopilot(App, role, address)
                 top.beaconChecked = true
                 print("[auto] Bake im Match: " .. (top.beacon and "ja" or "NEIN"))
             end
+            -- Revanche pruefen (gemeldet aus dem LAN-Test, 0.2.2): Nach dem
+            -- Abpfiff muss `R` beim Host ein neues Match anpfeifen und den
+            -- Gast mitnehmen. Der Autopilot zwingt das Ende herbei, statt auf
+            -- 15 Punkte zu warten.
+            if not top.rematchProbe and frames > 60 * 4 then
+                top.rematchProbe = true
+                if role == "host" then
+                    top.state.match.score[1] = 1
+                    top.state.match.score[2] = 0
+                    top.state.match.phase = "gameover"
+                    top.host:endMatch(1, 0, 0)
+                    top.result = "Match beendet."
+                    print("[auto] Abpfiff erzwungen, druecke R")
+                    top:keypressed("r")
+                end
+            end
+            if top.rematchProbe and frames % 120 == 0 then
+                print(string.format("[auto] nach R: Phase %s, Stand %d:%d, Tick %d",
+                    top.state.match.phase, top.state.match.score[1],
+                    top.state.match.score[2], top.simTick))
+            end
+
             if role == "client" and not self_probe then
                 self_probe = Discovery.newBrowser({})
                 if self_probe then self_probe:probe() end

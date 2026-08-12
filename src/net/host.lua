@@ -180,6 +180,9 @@ function Host:receive(peer, data)
         if record.slot then
             self.lobby:setReady(record.slot, payload.ready)
             self:sendLobbyState()
+            -- Nach dem Abpfiff ist dasselbe Signal der Revanchewunsch: der
+            -- Gast kann kein Match starten, also meldet er sich bereit.
+            self.onEvent("ready", record.slot, payload.ready)
         end
 
     elseif msgType == Protocol.MSG.INPUT then

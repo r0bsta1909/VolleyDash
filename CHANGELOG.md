@@ -7,6 +7,22 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
 deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
+## [0.2.2] — 2026-08-12
+
+Zweite Nachbesserung aus dem LAN-Test. Die Discovery-Fehler aus 0.2.1 sind bestätigt behoben —
+Suche und Wiedereinstieg laufen jetzt in beiden Richtungen ohne IP-Eingabe.
+
+### Behoben
+
+- **`R` im Abpfiff-Bild war im Netzspiel ohne Wirkung**, auf beiden Seiten. Der Text versprach
+  eine Revanche, die es nicht gab: die Taste war nur im lokalen Spiel belegt. Jetzt pfeift der
+  **Host** mit `R` ein neues Match an; der Gast setzt automatisch mit zurück. Beim **Gast**
+  meldet `R` den Revanchewunsch an — er kann kein Match starten, es gibt nur eine Wahrheit
+  (ADR-002), und beide Seiten sehen jetzt, worauf sie warten.
+- Beim Verlassen des Matches gab die Spielszene die Rückrufe der Netzschicht nicht an die
+  Lobby zurück. Wer nach dem Abpfiff zur Lobby ging, hätte dort einen Abbruch oder einen
+  neuen Anpfiff verschluckt.
+
 ## [0.2.1] — 2026-08-12
 
 Nachbesserung aus dem ersten LAN-Test mit zwei Rechnern (Windows gegen macOS).

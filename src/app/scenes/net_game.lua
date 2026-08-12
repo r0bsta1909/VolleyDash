@@ -64,12 +64,18 @@ function NetGame.new(app, opts)
     -- (CLAUDE.md §1).
     self.source = LocalSource.new(1, app.bindings[1])
 
+    -- Die Szene borgt sich die Ereignisse der Netzschicht und gibt sie beim
+    -- Verlassen zurueck. Ein no-op an dieser Stelle waere eine Falle: Die
+    -- Lobby liegt darunter und braucht ihre Rueckrufe wieder -- sonst
+    -- verschluckt sie den naechsten MATCH_START oder einen Abbruch.
     if self.role == "host" then
+        self.previousOnEvent = self.host.onEvent
         self.host.onEvent = function(kind, a, b, c) self:onHostEvent(kind, a, b, c) end
         Rules.resetBall(self.state, self.ruleset, 1, self.events)
         self.state.match.score[1], self.state.match.score[2] = 0, 0
         self.state.match.inProgress = true
     else
+        self.previousOnEvent = self.client.onEvent
         self.client.onEvent = function(kind, a, b, c) self:onClientEvent(kind, a, b, c) end
         self.state.match.inProgress = true
     end
@@ -104,6 +110,11 @@ function NetGame:onHostEvent(kind, a, b, c)
 
     elseif kind == "end" then
         self.result = self.result or "Match beendet."
+
+    elseif kind == "ready" then
+        -- Der Gast hat nach dem Abpfiff `R` gedrueckt. Er kann kein Match
+        -- starten -- das kann nur der Host (ADR-002) -- also fragt er.
+        self.rematchAsked = b
     end
 end
 
@@ -112,6 +123,11 @@ function NetGame:onClientEvent(kind, a, b, c)
         self.paused = a
         self.pauseText = c or "Warte ..."
         self.pauseLeft = b or 0
+
+    elseif kind == "start" then
+        -- Der Host hat eine Revanche angepfiffen. Derselbe Weg wie beim
+        -- ersten Match: der Gast setzt zurueck und wartet auf Snapshots.
+        self:resetMatch()
 
     elseif kind == "end" then
         self.state.match.phase = "gameover"
@@ -123,6 +139,51 @@ function NetGame:onClientEvent(kind, a, b, c)
         self.result = a
         self.state.match.phase = "gameover"
     end
+end
+
+-- ---------------------------------------------------------------------------
+-- Revanche (`R` im Abpfiff-Bild)
+--
+-- Im lokalen Spiel setzt `R` einfach den Stand zurueck (`local_game.lua`).
+-- Ueber das Netz geht das nicht: es gibt zwei Rechner und genau eine
+-- Wahrheit. Der HOST pfeift an, der Gast fragt danach.
+--
+-- Bis 0.2.1 war die Taste hier ohne Wirkung -- gemeldet aus dem LAN-Test am
+-- 2026-08-12. Der Abpfiff-Text versprach eine Revanche, die es nicht gab.
+-- ---------------------------------------------------------------------------
+
+function NetGame:resetMatch()
+    for i = #self.events, 1, -1 do self.events[i] = nil end
+    self.state.match.score[1], self.state.match.score[2] = 0, 0
+    self.state.match.inProgress = true
+    Rules.resetBall(self.state, self.ruleset, 1, self.events)
+
+    self.result = nil
+    self.paused = false
+    self.rematchAsked = false
+    self.simTick = 0
+    self.accumulator = 0
+
+    Fx.reset()
+    GameView.capture(self.state)
+end
+
+function NetGame:rematch()
+    if self.state.match.phase ~= "gameover" then return end
+
+    if self.role == "host" then
+        -- Startet ein neues Match mit neuer matchId und schickt MATCH_START
+        -- an den Gast; der setzt daraufhin selbst zurueck.
+        self.host:startMatch()
+        self:resetMatch()
+        return
+    end
+
+    -- Gast: Wunsch anmelden. `SET_READY` sagt genau das aus -- "ich will
+    -- spielen" -- und es gibt die Nachricht bereits. Eine eigene fuer den
+    -- Revanchewunsch waere ein Protokollfeld fuer ein Gefuehl.
+    self.client:setReady(true)
+    self.rematchAsked = true
 end
 
 -- ---------------------------------------------------------------------------
@@ -201,13 +262,33 @@ function NetGame:draw()
 
     if self.state.match.phase == "gameover" then
         Hud.drawGameOver(self.state, self.names)
+
         if self.result then
             Assets.setFont(18)
             love.graphics.setColor(1, 1, 1, 0.7)
             love.graphics.printf(self.result, 0, World.HEIGHT / 2 + 70,
                 World.WIDTH, "center")
-            love.graphics.setColor(1, 1, 1, 1)
         end
+
+        -- Wer was tun kann, steht da. Der Gast kann kein Match anpfeifen --
+        -- das zu verschweigen waere die zweite Fassung desselben Fehlers.
+        local hint, note
+        if self.role == "host" then
+            hint = "R startet die Revanche      ESC zurueck zur Lobby"
+            note = self.rematchAsked and "Der Gegner wartet auf die Revanche." or nil
+        else
+            hint = "R fragt nach einer Revanche      ESC zurueck zur Lobby"
+            note = self.rematchAsked and "Angefragt -- der Host pfeift an." or nil
+        end
+
+        Assets.setFont(16)
+        love.graphics.setColor(1, 1, 1, 0.5)
+        love.graphics.printf(hint, 0, World.HEIGHT / 2 + 100, World.WIDTH, "center")
+        if note then
+            love.graphics.setColor(0.4, 1, 0.6, 0.9)
+            love.graphics.printf(note, 0, World.HEIGHT / 2 + 126, World.WIDTH, "center")
+        end
+        love.graphics.setColor(1, 1, 1, 1)
     end
 
     if self.overlay then Netstat.draw(self:stats()) end
@@ -241,6 +322,9 @@ function NetGame:keypressed(key)
     if key == "f3" then
         self.overlay = not self.overlay
 
+    elseif key == "r" then
+        self:rematch()
+
     elseif key == "escape" then
         -- Nach dem Abpfiff geht es zurueck in die Lobby: das naechste Match
         -- kostet dann keinen neuen Handschlag. Mitten im Satz ist ESC dagegen
@@ -254,8 +338,9 @@ function NetGame:keypressed(key)
 end
 
 function NetGame:leave()
-    if self.role == "host" then self.host.onEvent = function() end end
-    if self.role == "client" then self.client.onEvent = function() end end
+    local back = self.previousOnEvent or function() end
+    if self.role == "host" then self.host.onEvent = back end
+    if self.role == "client" then self.client.onEvent = back end
 end
 
 return NetGame
