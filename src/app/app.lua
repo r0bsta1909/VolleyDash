@@ -26,6 +26,11 @@ App.bindings = Bindings.new()
 local LocalGame  -- verzoegert geladen: das Spiel kennt die App, nicht umgekehrt
 local MenuScene
 
+-- Szenen, die zu einer Netzwerksitzung gehoeren. Sie liegen uebereinander
+-- (Serverliste -> Lobby -> Match) und halten jede fuer sich Sockets, die in
+-- `leave` zugehen muessen.
+local NET_SCENES = { serverlist = true, lobby = true, net_game = true }
+
 function App.boot(deterministic)
     -- Kosmetischer Zufall: Namen, Staub, Kamera. Im Aufzeichnungsmodus fest,
     -- damit der Header ehrlich ist (die Simulation selbst ist seit M0-08
@@ -108,6 +113,60 @@ end
 
 function App.refreshBindings()
     App.game:refreshBindings()
+end
+
+-- ---------------------------------------------------------------------------
+-- Netzwerk (M2)
+-- ---------------------------------------------------------------------------
+
+-- Kennung fuer den Wiedereinstieg nach einer Trennung (`04_NETCODE_SPEC` §12).
+-- Sie liegt in den Prefs, weil sie einen Neustart ueberleben muss: T-N-05
+-- schiesst den Prozess ab und startet ihn neu, und der Host erkennt den
+-- Rueckkehrer ausschliesslich hieran.
+function App.clientId()
+    -- Zwei Instanzen auf DEMSELBEN Rechner teilen sich die Prefs-Datei und
+    -- damit die Kennung. Fuer den Harness aus M2-10 laesst sie sich deshalb
+    -- ueberschreiben (`--client-id=N`); im Spiel gibt es dafuer keinen Weg,
+    -- weil es dort keinen Grund gibt.
+    if App.clientIdOverride then return App.clientIdOverride end
+
+    if not App.prefs.clientId or App.prefs.clientId < 1 then
+        App.prefs.clientId = math.random(1, 2147483647)
+        Prefs.save(App.prefs)
+    end
+    return App.prefs.clientId
+end
+
+function App.setClientId(id)
+    App.clientIdOverride = tonumber(id)
+end
+
+function App.openServerList()
+    Scene.push(require("src.app.scenes.serverlist").new(App))
+end
+
+function App.hostLobby()
+    Scene.push(require("src.app.scenes.lobby").new(App, { role = "host" }))
+end
+
+function App.joinLobby(address, port)
+    Scene.push(require("src.app.scenes.lobby").new(App,
+        { role = "client", address = address, port = port }))
+end
+
+function App.enterNetMatch(opts)
+    Scene.push(require("src.app.scenes.net_game").new(App, opts))
+end
+
+-- Nur das Match verlassen. Die Lobby darunter bleibt bestehen -- damit kostet
+-- das naechste Match keinen neuen Handschlag (CLAUDE.md §3.5).
+function App.leaveMatch()
+    Scene.popWhile(function(scene) return scene.name == "net_game" end)
+end
+
+-- Die ganze Sitzung beenden: alle Netzszenen abraeumen, Sockets zu.
+function App.leaveNet()
+    Scene.popWhile(function(scene) return NET_SCENES[scene.name] == true end)
 end
 
 function App.hasMatch()

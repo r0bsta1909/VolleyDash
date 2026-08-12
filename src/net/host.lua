@@ -381,6 +381,15 @@ function Host:update(dt)
     end
 end
 
+-- Gemessen ueber PING/PONG (§5) und damit inklusive der Zeit, die die
+-- Gegenseite in ihrer eigenen Schleife braucht. Das ist die Zahl, die der
+-- Spieler spuert -- nicht die, die ENet ueber seine Pakete fuehrt.
+function Host:appRttFor(slot)
+    local peer = self.slotPeer[slot]
+    local record = peer and self.peers[peer]
+    return record and record.rtt or nil
+end
+
 function Host:rttFor(slot)
     local peer = self.slotPeer[slot]
     if not peer then return nil end

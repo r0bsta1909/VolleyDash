@@ -294,6 +294,92 @@ function M.selftest(App)
 end
 
 -- ---------------------------------------------------------------------------
+-- Autopilot: das ECHTE Spiel, beide Rollen, ohne Hand am Gerät
+--
+--   love . --net-auto-host
+--   love . --net-auto-client[=IP]
+--
+-- Fuehrt Menue, Lobby und Match durch, speist beiden Seiten einen festen
+-- Eingabeplan ein und legt am Ende einen Screenshot in den Save-Ordner. Damit
+-- laesst sich der Weg vom Klick bis zum fliegenden Ball pruefen, ohne dass
+-- jemand zwei Fenster nebeneinander bedient -- und der Beweis ist ein Bild,
+-- keine Behauptung.
+-- ---------------------------------------------------------------------------
+
+local Frame = require("src.input.frame")
+
+-- Fester Eingabeplan. Tick 1 ist ein Sprung, damit der Aufschlag zustande
+-- kommt; danach laeuft der Blob hin und her, damit im Bild etwas passiert.
+local function scriptedMask(slot, tick)
+    if slot == 1 then
+        if tick < 4 then return Frame.JUMP end
+        if tick % 120 < 60 then return Frame.RIGHT end
+        return Frame.LEFT
+    end
+    if tick % 90 < 45 then return Frame.LEFT end
+    return Frame.RIGHT
+end
+
+function M.installAutopilot(App, role, address)
+    local Scene = require("src.app.scene")
+    local baseUpdate = love.update
+    local frames, ticks, shot = 0, 0, false
+
+    print("[auto] Rolle " .. role .. (address and (" -> " .. address) or ""))
+    if role == "host" then
+        App.hostLobby()
+    else
+        App.joinLobby(address or "127.0.0.1", Protocol.PORT_ENET)
+    end
+
+    love.update = function(dt)
+        baseUpdate(dt)
+        frames = frames + 1
+
+        local top = Scene.top()
+        if not top then return end
+
+        if top.name == "lobby" then
+            if role == "host" then
+                if top.host and top.host.lobby:isStartable() then top:keypressed("return") end
+            elseif top.client and top.client.state == "lobby" and not top.ready then
+                top:keypressed("return")
+            end
+
+        elseif top.name == "net_game" then
+            if not top.overlay then top:keypressed("f3") end
+            -- Eingabeplan statt Tastatur: die Quelle ist austauschbar, genau
+            -- dafuer gibt es sie (ADR-014).
+            if not top.scripted then
+                top.scripted = true
+                local slot = (role == "host") and 1 or 2
+                top.source = { poll = function()
+                    ticks = ticks + 1
+                    return scriptedMask(slot, ticks)
+                end }
+            end
+        end
+
+        if frames == 60 * 8 and not shot then
+            shot = true
+            love.graphics.captureScreenshot("net-" .. role .. ".png")
+            print("[auto] Screenshot: " .. love.filesystem.getSaveDirectory()
+                  .. "/net-" .. role .. ".png")
+            if top.name == "net_game" then
+                print(string.format("[auto] Stand %d:%d, Phase %s, Tick %d",
+                    top.state.match.score[1], top.state.match.score[2],
+                    top.state.match.phase, top.simTick))
+            else
+                print("[auto] steht in Szene: " .. tostring(top.name)
+                      .. " -- Fehler: " .. tostring(top.error))
+            end
+        end
+
+        if frames > 60 * 9 then love.event.quit() end
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- Zwei Prozesse
 -- ---------------------------------------------------------------------------
 

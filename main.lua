@@ -67,6 +67,13 @@ function love.draw()
     Viewport.release()
 end
 
+-- Gebraucht wird das nur an einer Stelle: die manuelle IP-Eingabe in der
+-- Serverliste (M2-05). Ohne sie muesste die Ziffern aus `keypressed`
+-- zusammenbauen, wer eine andere Tastaturbelegung hat als der Entwickler.
+function love.textinput(text)
+    Scene.textinput(text)
+end
+
 function love.keypressed(key)
     if key == "f11" or (key == "return" and love.keyboard.isDown("lalt", "ralt")) then
         love.window.setFullscreen(not love.window.getFullscreen())

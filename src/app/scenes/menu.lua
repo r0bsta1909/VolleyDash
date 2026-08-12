@@ -24,6 +24,8 @@ function MenuScene.new(app)
         bindings = app.bindings,
         ruleset  = app.ruleset,
         onLaunch = function(vsBot) app.startMatch(vsBot) end,
+        onHost   = function() app.hostLobby() end,
+        onBrowse = function() app.openServerList() end,
         onTweaker = function() app.openTweaker() end,
         onClose  = function() app.closeMenu() end,
         onBindings = function() app.refreshBindings() end,

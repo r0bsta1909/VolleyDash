@@ -170,7 +170,9 @@ function Client:receive(data)
         self.latest = payload
 
     elseif msgType == Protocol.MSG.MATCH_END then
-        self.state = "ended"
+        -- Zurueck in die Lobby, nicht "ended": die Verbindung steht weiter,
+        -- und das naechste Match soll keinen neuen Handschlag kosten.
+        self.state = "lobby"
         self.onEvent("end", payload.scoreA, payload.scoreB, payload.reason)
 
     elseif msgType == Protocol.MSG.MATCH_PAUSE then

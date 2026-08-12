@@ -63,9 +63,21 @@ end
 -- Slots
 -- ---------------------------------------------------------------------------
 
+-- Sucht den Slot zu einer Kennung -- den HOST-Slot ausdruecklich nicht.
+--
+-- Gemessener Fall aus M2-10: Zwei Instanzen auf demselben Rechner teilen sich
+-- die Prefs-Datei und damit die `clientId`. Der Gast wurde dadurch als
+-- Rueckkehrer auf Platz 1 erkannt und uebernahm den Platz des Hosts -- die
+-- Lobby zeigte danach den Namen des Gastes als Host an und blieb fuer immer
+-- "nicht startbereit".
+--
+-- Der Host ist strukturell kein Rueckkehrer: er ist der Prozess, in dem diese
+-- Lobby lebt. Verliert er die Verbindung, gibt es keine Lobby mehr (§12).
 function Lobby:slotOf(clientId)
     for i, slot in ipairs(self.slots) do
-        if slot.occupied and slot.clientId == clientId then return i end
+        if slot.occupied and not slot.isHost and slot.clientId == clientId then
+            return i
+        end
     end
     return nil
 end

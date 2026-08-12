@@ -50,4 +50,24 @@ function Scene.keypressed(key)
     if top and top.keypressed then top:keypressed(key) end
 end
 
+-- Getippter Text (M2-05). Nur die manuelle IP-Eingabe braucht das; `keypressed`
+-- allein wuerde Tastaturbelegungen ausserhalb von US-QWERTY falsch abbilden.
+function Scene.textinput(text)
+    local top = stack[#stack]
+    if top and top.textinput then top:textinput(text) end
+end
+
+-- Alle Szenen abraeumen, auf die `predicate` zutrifft. Wird beim Verlassen
+-- eines Netzspiels gebraucht: dort liegen bis zu drei Szenen uebereinander
+-- (Serverliste, Lobby, Match), und jede von ihnen haelt Sockets, die in
+-- `leave` zugehen muessen.
+function Scene.popWhile(predicate)
+    local removed = 0
+    while stack[#stack] and predicate(stack[#stack]) do
+        Scene.pop()
+        removed = removed + 1
+    end
+    return removed
+end
+
 return Scene

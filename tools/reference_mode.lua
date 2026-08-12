@@ -55,6 +55,12 @@ function M.parse(args)
 
         -- Netzwerk-Harness (M2-10). Ohne Fenster, ohne Spiel.
         if a == "--net-selftest" then flags.netSelftest = true end
+        if a == "--net-auto-host" then flags.autoHost = true end
+        if a == "--net-auto-client" then flags.autoClient = "127.0.0.1" end
+        local autoClient = a:match("^%-%-net%-auto%-client=(.+)$")
+        if autoClient then flags.autoClient = autoClient end
+        local clientId = a:match("^%-%-client%-id=(%d+)$")
+        if clientId then flags.clientId = tonumber(clientId) end
         if a == "--net-host" then flags.netHost = "R-05" end
         if a == "--net-client" then flags.netClient = "127.0.0.1" end
         local netHost = a:match("^%-%-net%-host=(.+)$")
@@ -124,6 +130,18 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.install(App)
+    -- Zwei Instanzen auf einem Rechner teilen sich die Prefs und damit die
+    -- Spielerkennung (M2-10).
+    if flags.clientId then App.setClientId(flags.clientId) end
+
+    -- Der Netz-Autopilot braucht das laufende Spiel mit Bild, aber keinen
+    -- Recorder (M2-10).
+    if flags.autoHost or flags.autoClient then
+        require("tools.net_selftest").installAutopilot(App,
+            flags.autoHost and "host" or "client", flags.autoClient)
+        return
+    end
+
     if not flags.active then return end
 
     Recorder = require("tools.record_replay")

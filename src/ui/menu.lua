@@ -123,7 +123,7 @@ function Menu:buildPages()
             selection = 1,
             items = {
                 { name = "Local Match", target = "start" },
-                { name = "Network Match [WIP]", target = "main" },
+                { name = "Network Match", target = "network" },
                 { name = "Player Profiles", target = "profiles" },
                 { name = "Settings", target = "settings" },
                 { name = "Quit", action = function() self:save(); love.event.quit() end },
@@ -146,6 +146,28 @@ function Menu:buildPages()
                     -- Wirkt erst beim naechsten Matchstart: waehrend eines
                     -- Matches ist das Ruleset unveraenderlich (ADR-005).
                     name = "Ruleset",
+                    getValue = function() return prefs.preset end,
+                    onLeft = function() self:cyclePreset(-1) end,
+                    onRight = function() self:cyclePreset(1) end,
+                },
+                { name = "Back", target = "main" },
+            },
+        },
+
+        -- LAN-Spiel (M2). Zwei Eintraege, kein drittes Untermenue: wer hostet,
+        -- weiss es, und wer sucht, sucht. Alles andere braeuchte eine
+        -- Erklaerung (CLAUDE.md §1).
+        network = {
+            title = "NETWORK MATCH",
+            selection = 1,
+            items = {
+                { name = "Spiel hosten", action = function() ctx.onHost() end },
+                { name = "Spiel suchen", action = function() ctx.onBrowse() end },
+                {
+                    -- Der Host verteilt das Regelwerk (ADR-005); beim Gast ist
+                    -- die Einstellung wirkungslos und steht deshalb hier, nicht
+                    -- in der Lobby.
+                    name = "Ruleset (nur als Host)",
                     getValue = function() return prefs.preset end,
                     onLeft = function() self:cyclePreset(-1) end,
                     onRight = function() self:cyclePreset(1) end,

@@ -250,4 +250,31 @@ function Discovery:close()
     self.udp = nil
 end
 
+-- ---------------------------------------------------------------------------
+-- Die eigene LAN-Adresse
+--
+-- Der Host zeigt sie gross in der Lobby an (§11): wenn der Broadcast nicht
+-- durchkommt -- Firewall, WLAN-Client-Isolation, zwei Subnetze -- ist die
+-- manuelle Eingabe der Weg, und dafuer muss jemand die Zahl vorlesen koennen.
+--
+-- `setpeername` auf UDP schickt kein Paket. Es waehlt nur die Route, und
+-- danach steht in `getsockname` die Adresse der Schnittstelle, die das
+-- Betriebssystem dafuer nehmen wuerde. Kein DNS, kein Verkehr, kein Warten --
+-- `socket.dns.gethostname` liefert auf Rechnern mit mehreren Adaptern gern
+-- die falsche.
+-- ---------------------------------------------------------------------------
+function Discovery.localAddress(socketLib)
+    local socket = socketLib or require("socket")
+    local udp = (socket.udp4 or socket.udp)()
+    if not udp then return "?" end
+
+    local ip
+    local ok = pcall(function() udp:setpeername("8.8.8.8", 53) end)
+    if ok then ip = udp:getsockname() end
+    pcall(function() udp:close() end)
+
+    if not ip or ip == "" or ip == "0.0.0.0" then return "?" end
+    return ip
+end
+
 return Discovery

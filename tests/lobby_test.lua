@@ -76,6 +76,18 @@ case("dieselbe clientId bekommt ihren Slot zurueck -- das ist der Reconnect", fu
     assertEq(lobby:occupiedCount(), 2, "kein zweiter Platz verbraucht")
 end)
 
+case("der Host-Slot ist kein Rueckkehrer-Ziel (M2-10)", function()
+    -- Zwei Instanzen auf einem Rechner teilen sich die Prefs-Datei und damit
+    -- die clientId. Ohne diese Regel uebernimmt der Gast den Platz des Hosts,
+    -- und die Lobby wird nie startbereit -- gemessen, nicht ausgedacht.
+    local lobby = Lobby.new({ hostName = "Wobble", buildHash = "abc123", clientId = 1 })
+    local slot, how = lobby:claim(1, "Slime", "abc123")
+    assertEq(slot, 2, "der Gast bekommt Platz 2")
+    assertEq(how, "join", "und zwar als Beitritt, nicht als Rueckkehr")
+    assertEq(lobby.slots[1].name, "Wobble", "der Name des Hosts bleibt stehen")
+    assertTrue(lobby.slots[1].isHost, "Platz 1 bleibt der Host")
+end)
+
 case("release gibt den Slot frei, den Host aber nicht", function()
     local lobby = newLobby()
     local slot = lobby:claim(4711, "Slime", "abc123")
