@@ -58,6 +58,8 @@ function ServerListScene:update(dt)
         self.ui.status = count == 1 and "1 Lobby gefunden"
                                      or (count .. " Lobbys gefunden")
     end
+
+    self.ui.diagnostics = self.browser:diagnostics()
 end
 
 function ServerListScene:draw()

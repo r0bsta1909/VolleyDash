@@ -162,6 +162,15 @@ function ServerList:draw()
             0, World.HEIGHT - 130, World.WIDTH, "center")
     end
 
+    -- Die Zahlen, die den Fehler eingrenzen: gesendet, aber nichts empfangen
+    -- heisst, dass entweder die Frage nicht ankommt oder die Antwort nicht
+    -- zurueck. Ohne sie ist die Ursache Ratesache (D2, 2026-08-12).
+    if self.diagnostics then
+        Assets.setFont(12)
+        love.graphics.setColor(1, 1, 1, 0.3)
+        love.graphics.printf(self.diagnostics, 0, World.HEIGHT - 76, World.WIDTH, "center")
+    end
+
     Assets.setFont(14)
     love.graphics.setColor(1, 1, 1, 0.4)
     love.graphics.printf(

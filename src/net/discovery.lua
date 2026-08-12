@@ -33,6 +33,10 @@ Discovery.BROADCAST = "255.255.255.255"
 -- auf demselben Rechner zurueckkommt, haengt am Betriebssystem. 30 Byte.
 Discovery.LOCAL = "127.0.0.1"
 
+-- Wie lange die eigene Adresse gilt, bevor sie neu ermittelt wird. Sie aendert
+-- sich, wenn jemand das Kabel umsteckt oder das WLAN wechselt.
+Discovery.ADDRESS_TTL = 10
+
 -- AUSDRUECKLICH udp4, nicht udp.
 --
 -- `socket.udp()` liefert unter LuaSocket 3.0 (das in LOEVE 11.5 steckt) einen
@@ -75,6 +79,7 @@ function Discovery.newHost(opts)
     return setmetatable({
         role       = "host",
         udp        = udp,
+        socketLib  = socket,
         port       = opts.port or Protocol.PORT_DISCOVERY,
         clock      = opts.clock or function() return love.timer.getTime() end,
         info       = opts.info or {},
@@ -108,6 +113,69 @@ function Discovery:sendTo(data, ip, port)
 end
 
 -- ---------------------------------------------------------------------------
+-- Wohin ein Rundruf geht
+--
+-- GEMESSEN im D2-Lauf am 2026-08-12: Ein Windows-Rechner fand den Mac als Host
+-- nicht, umgekehrt klappte es. Der Unterschied liegt beim SENDER, nicht beim
+-- Empfaenger -- in beiden Faellen war der Mac an derselben Buchse.
+--
+-- Die wahrscheinliche Ursache ist der eingeschraenkte Rundruf 255.255.255.255:
+-- Er ist an keine Schnittstelle gebunden, und Windows waehlt die Schnittstelle
+-- nach der Routentabelle. Auf einem Rechner mit VPN, Hyper-V, VirtualBox oder
+-- WSL sind das gern vier Kandidaten, und das Paket verlaesst die falsche.
+--
+-- Deshalb geht jeder Rundruf ZUSAETZLICH an die Rundrufadresse des eigenen
+-- Netzes (192.168.1.155 -> 192.168.1.255). Die ist an ein Netz gebunden und
+-- wird von der Routentabelle richtig zugeordnet. Kosten: ein Paket von 30 Byte
+-- mehr je Runde.
+--
+-- Angenommen wird dabei ein /24-Netz. Das ist bei jedem Heimrouter und jedem
+-- LAN-Party-Switch so; wer in einem /16 spielt, hat den eingeschraenkten
+-- Rundruf und die IP-Eingabe als Rueckfallebenen.
+local function subnetBroadcast(address)
+    local a, b, c = address:match("^(%d+)%.(%d+)%.(%d+)%.%d+$")
+    if not a then return nil end
+    if a == "127" then return nil end
+    return a .. "." .. b .. "." .. c .. ".255"
+end
+
+function Discovery:targets()
+    local now = self.clock()
+    if not self.targetsAt or now - self.targetsAt > Discovery.ADDRESS_TTL then
+        self.targetsAt = now
+        self.address = Discovery.localAddress(self.socketLib)
+
+        local list = { Discovery.BROADCAST, Discovery.LOCAL }
+        local subnet = subnetBroadcast(self.address or "")
+        if subnet then table.insert(list, 2, subnet) end
+        self.targetList = list
+    end
+    return self.targetList
+end
+
+function Discovery:sendToAll(data, port)
+    local count = 0
+    for _, ip in ipairs(self:targets()) do
+        if self:sendTo(data, ip, port) then count = count + 1 end
+    end
+    return count
+end
+
+-- Kurzfassung fuer die Anzeige. Wenn die Liste leer bleibt, ist das die Zahl,
+-- die den Fehler eingrenzt: gesendet, aber nichts empfangen heisst, dass die
+-- Frage nicht ankommt oder die Antwort nicht zurueck.
+function Discovery:diagnostics()
+    if self.role == "host" then
+        return string.format("%s | %d Ankuendigungen, %d Anfragen beantwortet",
+            tostring(self.address or "?"), self.stats.sent, self.stats.probes)
+    end
+    return string.format("%s | %d Anfragen, %d Antworten, %d fremd, %d Fehler, Port %s",
+        tostring(self.address or "?"), self.stats.sent, self.stats.received,
+        self.stats.foreign or 0, self.stats.failed,
+        self.listener and tostring(self.port) or "nur fluechtig")
+end
+
+-- ---------------------------------------------------------------------------
 -- Browser
 -- ---------------------------------------------------------------------------
 
@@ -119,9 +187,28 @@ function Discovery.newBrowser(opts)
     local udp, err = newSocket(socket, 0)
     if not udp then return nil, err end
 
+    -- ZWEITER Socket auf dem Discovery-Port, nur zum Zuhoeren.
+    --
+    -- GEMESSEN im D2-Lauf am 2026-08-12: Windows fand den Mac als Host nicht,
+    -- umgekehrt schon. Aus den Daten folgt, dass der Rundruf des Macs den
+    -- Windows-Rechner sehr wohl erreicht -- in der umgekehrten Rolle hat er
+    -- ihn dort als Host beantwortet. Nur HOERTE der suchende Windows-Rechner
+    -- nicht hin: er lauschte allein auf seinem fluechtigen Port und war damit
+    -- auf die Unicast-Antwort angewiesen.
+    --
+    -- Mit diesem zweiten Socket bekommt der Browser auch die Ankuendigung, die
+    -- der Host ohnehin jede Sekunde in die Runde schickt. Zwei unabhaengige
+    -- Wege statt einem: faellt einer aus, traegt der andere.
+    --
+    -- Der Bind darf scheitern -- etwa, wenn auf diesem Rechner schon eine
+    -- Lobby offen ist. Dann bleibt es beim fluechtigen Port.
+    local listener = newSocket(socket, opts.port or Protocol.PORT_DISCOVERY)
+
     return setmetatable({
         role      = "browser",
         udp       = udp,
+        listener  = listener,
+        socketLib = socket,
         port      = opts.port or Protocol.PORT_DISCOVERY,
         clock     = opts.clock or function() return love.timer.getTime() end,
         entries   = {},
@@ -131,9 +218,7 @@ function Discovery.newBrowser(opts)
 end
 
 function Discovery:probe()
-    local data = Protocol.encodeDiscovery(Protocol.MSG.PROBE, {})
-    self:sendTo(data, Discovery.BROADCAST, self.port)
-    self:sendTo(data, Discovery.LOCAL, self.port)
+    self:sendToAll(Protocol.encodeDiscovery(Protocol.MSG.PROBE, {}), self.port)
     self.lastProbe = self.clock()
 end
 
@@ -168,10 +253,10 @@ end
 
 -- Alles abholen, was da ist -- nicht ein Paket je Frame. Dieselbe Regel wie
 -- bei ENet (§4): eine Queue, die langsamer geleert als gefuellt wird, waechst.
-function Discovery:poll()
+function Discovery:pollSocket(udp)
     local count = 0
     while true do
-        local data, ip, port = self.udp:receivefrom()
+        local data, ip, port = udp:receivefrom()
         if not data then break end
         count = count + 1
         self:handle(data, ip, port)
@@ -179,6 +264,14 @@ function Discovery:poll()
         -- nicht auffressen.
         if count > 64 then break end
     end
+    return count
+end
+
+function Discovery:poll()
+    local count = self:pollSocket(self.udp)
+    -- Der Browser hoert zusaetzlich auf dem Discovery-Port mit, falls der
+    -- Bind geklappt hat.
+    if self.listener then count = count + self:pollSocket(self.listener) end
     return count
 end
 
@@ -237,7 +330,7 @@ function Discovery:update()
     if self.role == "host" then
         if now - self.lastAnnounce >= Discovery.ANNOUNCE_INTERVAL then
             self.lastAnnounce = now
-            self:sendTo(self:announcePacket(), Discovery.BROADCAST, self.port)
+            self:sendToAll(self:announcePacket(), self.port)
         end
     else
         if now - self.lastProbe >= Discovery.PROBE_INTERVAL then self:probe() end
@@ -247,7 +340,8 @@ end
 
 function Discovery:close()
     if self.udp then pcall(function() self.udp:close() end) end
-    self.udp = nil
+    if self.listener then pcall(function() self.listener:close() end) end
+    self.udp, self.listener = nil, nil
 end
 
 -- ---------------------------------------------------------------------------

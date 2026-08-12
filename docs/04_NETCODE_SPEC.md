@@ -261,20 +261,36 @@ Zusätzlich wird `buildHash` (Hash über alle `.lua`-Dateien, zur Buildzeit erze
 ## 11. Zero-Config Discovery
 
 ```
-Client:  UDP-Socket auf einen FLUECHTIGEN Port binden ("*", 0)
-         setoption("broadcast", true)
-         PROBE an 255.255.255.255:21213 und an 127.0.0.1:21213 senden,
-         alle 2 s wiederholen
-         Antworten sammeln, Liste nach 5 s ohne ANNOUNCE bereinigen
+Client:  Socket A auf einen FLUECHTIGEN Port ("*", 0)  -- fragen und Antwort empfangen
+         Socket B auf 21213, falls frei                -- Ankuendigungen mithoeren
+         beide mit broadcast = true, reuseaddr = true
+
+         PROBE an ALLE Rundrufziele senden, alle 2 s wiederholen
+         Antworten auf BEIDEN Sockets sammeln
+         Liste nach 5 s ohne ANNOUNCE bereinigen
 
 Host:    UDP-Socket auf 21213, setoption("reuseaddr", true)
-         ANNOUNCE an 255.255.255.255:21213 alle 1 s
+         ANNOUNCE an ALLE Rundrufziele, alle 1 s
          auf PROBE sofort mit ANNOUNCE an die Absenderadresse antworten (unicast)
+
+Rundrufziele (beide Rollen):
+         255.255.255.255      eingeschraenkter Rundruf
+         <eigenes Netz>.255   z. B. 192.168.1.255, aus der eigenen Adresse
+         127.0.0.1            derselbe Rechner
 ```
 
 **Der suchende Client bindet 21213 nicht.** Fassung 1.0 sah das vor; damit können Host und Client nicht auf demselben Rechner laufen — genau der Aufbau, mit dem M2-10 das Netzspiel reproduzierbar testet, und genau der Aufbau, in dem jemand am Partyabend „mal kurz schaut, ob die Liste geht". Der Host antwortet deshalb auf `PROBE` **unicast an die Absenderadresse**; die Antwort landet auf dem flüchtigen Port des Fragenden. Das periodische Broadcast-`ANNOUNCE` bleibt, es bedient passive Zuhörer und macht die Ersterkennung unabhängig vom Probe-Takt.
 
 **Das `PROBE` geht zusätzlich an `127.0.0.1`.** Ob eine Broadcast-Nachricht auf demselben Rechner zurückkommt, hängt am Betriebssystem; das zweite Paket kostet 30 Byte und macht den lokalen Fall unabhängig davon.
+
+### Zwei Empfangswege beim Suchenden, zwei Rundrufziele beim Sender
+
+Beides ist aus dem D2-Lauf vom 2026-08-12 hervorgegangen. Befund: **Ein Windows-Rechner fand den Mac als Host nicht; umgekehrt klappte es sofort.** Aus denselben Messungen folgt, dass der Rundruf des Macs den Windows-Rechner sehr wohl erreicht — in der umgekehrten Rollenverteilung hat der Windows-Rechner ihn als Host beantwortet.
+
+- **Der Suchende hört auf zwei Sockets.** Fassung 1.1 ließ ihn nur auf einem flüchtigen Port lauschen; damit war er allein auf die Unicast-Antwort angewiesen. Der zweite Socket auf 21213 nimmt die Ankündigung entgegen, die der Host ohnehin jede Sekunde in die Runde schickt. Der Bind darf scheitern (etwa, wenn auf demselben Rechner schon eine Lobby offen ist) — dann bleibt es beim flüchtigen Port.
+- **Jeder Rundruf geht zusätzlich an die Rundrufadresse des eigenen Netzes.** `255.255.255.255` ist an keine Schnittstelle gebunden; die Auswahl trifft die Routentabelle. Auf einem Rechner mit VPN, Hyper-V, VirtualBox oder WSL stehen dort mehrere Kandidaten, und das Paket verlässt die falsche Schnittstelle. Die abgeleitete Adresse (`192.168.1.155` → `192.168.1.255`) ist an ein Netz gebunden und wird richtig zugeordnet. Angenommen wird ein /24-Netz; wer in einem größeren spielt, hat den eingeschränkten Rundruf und die IP-Eingabe als Rückfallebenen.
+
+**Die Bake läuft auch während eines Matches weiter.** Fassung 1.1 sagte das nicht ausdrücklich, und die Umsetzung tat es nicht: Die Bake lag in der Lobbyszene, und die bekommt unterhalb der Spielszene keinen Takt mehr. Ein Gast, dem mitten im Satz die Verbindung abriss, fand den Host deshalb nicht mehr in der Liste und musste die IP abtippen — **genau im Wiedereinstieg nach §12 ist die Discovery am nötigsten.**
 
 **Die Sockets werden mit `socket.udp4()` erzeugt, nicht mit `socket.udp()`.** Das ist gemessen, nicht vorsorglich: LuaSocket 3.0 — die Fassung in LÖVE 11.5 — liefert bei `socket.udp()` einen **IPv6**-Socket. Ein `sendto` an `255.255.255.255` scheitert darauf mit „Der angegebene Host ist unbekannt", und die Discovery findet schlicht nichts. IPv4-Broadcast gibt es unter IPv6 nicht; das Gegenstück wäre Multicast an `ff02::1` und damit eine andere Baustelle. Für ein LAN-Party-Segment ist IPv4 die richtige und einzige Wahl (Annahme A1 im Charter).
 

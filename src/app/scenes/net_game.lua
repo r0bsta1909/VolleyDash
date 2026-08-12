@@ -43,6 +43,7 @@ function NetGame.new(app, opts)
         role        = opts.role,
         host        = opts.host,
         client      = opts.client,
+        beacon      = opts.beacon,
         ruleset     = opts.ruleset,
         names       = opts.names or { "Host", "Gast" },
         slot        = opts.slot or 1,
@@ -168,6 +169,11 @@ end
 
 function NetGame:update(dt)
     if self.role == "host" then self.host:update(dt) else self.client:update(dt) end
+
+    -- Die Bake laeuft waehrend des Matches weiter. Wer die Verbindung
+    -- verliert, soll den Host in der Liste wiederfinden und nicht eine IP
+    -- abtippen muessen (D2, 2026-08-12).
+    if self.beacon then self.beacon:update() end
     if self.role == "client" then self.pauseLeft = math.max(0, self.pauseLeft - dt) end
 
     self.accumulator = math.min(self.accumulator + dt, World.MAX_FRAME_DT)

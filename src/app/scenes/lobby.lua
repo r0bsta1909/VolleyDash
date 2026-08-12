@@ -177,6 +177,15 @@ function LobbyScene:enterMatch(slot)
         role    = self.role,
         host    = self.host,
         client  = self.client,
+        -- Die Bake wandert MIT ins Match (D2, 2026-08-12).
+        --
+        -- Gemessen am Partyabend: Nur die oberste Szene bekommt `update`
+        -- (`scene.lua`), und waehrend des Matches liegt die Lobby darunter.
+        -- Die Bake schwieg damit ab dem Anpfiff -- ein Gast, dem die
+        -- Verbindung abriss, fand den Host nicht mehr in der Liste und musste
+        -- die IP abtippen. Genau im Wiedereinstieg (§12) ist die Discovery am
+        -- noetigsten.
+        beacon  = self.beacon,
         ruleset = self.role == "host" and self.app.ruleset or self.client.ruleset,
         names   = self:names(),
         slot    = slot or 1,
@@ -232,6 +241,7 @@ function LobbyScene:draw()
             rulesetHash = self.host and self.host:rulesetHash() or "?",
             error       = self.error,
             findings    = {},
+            diagnostics = self.beacon and self.beacon:diagnostics() or nil,
             hint        = self.host and (self.host.lobby:isStartable()
                 and "ENTER startet das Match"
                 or "Warte auf einen Gast ...") or "",

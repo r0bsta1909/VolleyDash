@@ -365,6 +365,7 @@ function M.installAutopilot(App, role, address)
     local Scene = require("src.app.scene")
     local baseUpdate = love.update
     local frames, ticks, shot = 0, 0, false
+    local self_probe   -- Browser, der waehrend des Matches sucht
 
     print("[auto] Rolle " .. role .. (address and (" -> " .. address) or ""))
     if role == "host" then
@@ -389,6 +390,25 @@ function M.installAutopilot(App, role, address)
 
         elseif top.name == "net_game" then
             if not top.overlay then top:keypressed("f3") end
+
+            -- Der Fall aus D2: Findet ein Suchender den Host noch, waehrend
+            -- dieser spielt? Bis 2026-08-12 nicht -- die Bake lag in der
+            -- Lobbyszene und die bekommt waehrend des Matches kein `update`.
+            if role == "host" and not top.beaconChecked then
+                top.beaconChecked = true
+                print("[auto] Bake im Match: " .. (top.beacon and "ja" or "NEIN"))
+            end
+            if role == "client" and not self_probe then
+                self_probe = Discovery.newBrowser({})
+                if self_probe then self_probe:probe() end
+            end
+            if self_probe then
+                self_probe:update()
+                if frames % 120 == 0 then
+                    print(string.format("[auto] Suche waehrend des Matches: %d Lobbys (%s)",
+                        #self_probe:list(), self_probe:diagnostics()))
+                end
+            end
             -- Eingabeplan statt Tastatur: die Quelle ist austauschbar, genau
             -- dafuer gibt es sie (ADR-014).
             if not top.scripted then

@@ -102,6 +102,15 @@ function LobbyView.draw(info)
         y = y + 40
     end
 
+    -- Beim Host die Zahlen der Bake: beantwortete Anfragen sind der Beleg,
+    -- dass der Rundruf des Gastes ueberhaupt ankommt. Bleiben sie bei null,
+    -- waehrend der Gast sucht, liegt es am Weg hin -- nicht am Weg zurueck.
+    if info.diagnostics then
+        Assets.setFont(12)
+        love.graphics.setColor(1, 1, 1, 0.3)
+        love.graphics.printf(info.diagnostics, 0, World.HEIGHT - 78, World.WIDTH, "center")
+    end
+
     Assets.setFont(14)
     love.graphics.setColor(1, 1, 1, 0.45)
     love.graphics.printf(info.hint or "", 0, World.HEIGHT - 58, World.WIDTH, "center")

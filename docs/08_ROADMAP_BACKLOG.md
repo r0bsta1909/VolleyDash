@@ -94,10 +94,15 @@ ersten Push. Bis dahin gilt für den macOS-Pfad: geschrieben, nicht bewiesen.
 | M2-09 | F3-Debug-Overlay (RTT, Verlust, Tick, Korrekturen) | 2 | **fertig** |
 | M2-10 | Integrationstest-Harness (2 Prozesse), Paketverlust-Tests | 3 | **teilweise** — Harness läuft (`tools/net_test.sh`), Paketverlust braucht `clumsy` von Hand |
 
-**Offen aus M2:** D2 (zwei Rechner) und die Paketverlustfälle T-N-02/T-N-03 — beides braucht
-Hardware, keinen Code. Ebenso N-04 (ENet auf einem frischen Mac) und N-05 (Broadcast durch
-eine Windows-Firewall im öffentlichen Profil). Einzelheiten in `docs/handoffs/CC-03_REPORT.md`;
-die Prüfreihenfolge für den Abend steht dort in §6.
+**D2 ist gelaufen (2026-08-12, Windows gegen macOS) und bestanden.** T-N-01 in beiden
+Richtungen, T-N-04 und T-N-05 abgenommen; **N-04 damit ebenfalls beantwortet** — ENet nimmt
+auf macOS eingehende Verbindungen an. Zwei Discovery-Fehler gefunden und in 0.2.1 behoben
+(B-N-08, B-N-09 im Report). Die manuelle IP-Eingabe hat den Abend zweimal gerettet.
+**M1-07 ist damit erledigt.**
+
+**Offen aus M2:** T-N-02 und T-N-03 (Paketverlust, braucht `clumsy` von Hand), T-N-09 (drei
+Hosts gleichzeitig, braucht drei Rechner) und die Gegenprobe zur Discovery-Nachbesserung mit
+zwei Rechnern. Einzelheiten in `docs/handoffs/CC-03_REPORT.md`.
 
 **Geschlossen in M2:** N-03 (gleiche Bytes auf Windows und macOS) — beantwortet durch T-N-07
 in der CI, mit einer gefundenen Ausnahme beim Vorzeichen der Null (`04_NETCODE` §6).

@@ -7,6 +7,31 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
 deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
+## [0.2.1] — 2026-08-12
+
+Nachbesserung aus dem ersten LAN-Test mit zwei Rechnern (Windows gegen macOS).
+Das Netzspiel lief; gefunden wurden zwei Fehler in der Discovery.
+
+### Behoben
+
+- **Die Bake schwieg, sobald das Match lief.** Nur die oberste Szene bekommt einen Takt, und
+  während des Matches liegt die Lobby darunter — mitsamt der Discovery. Wem mitten im Satz
+  die Verbindung abriss, der fand den Host nicht mehr in der Serverliste und musste die IP
+  abtippen. Ausgerechnet beim Wiedereinstieg war die Suche also blind.
+- **Der Suchende hörte nur auf einem Ohr.** Er lauschte allein auf seinem flüchtigen Port und
+  war damit auf die Unicast-Antwort angewiesen. Jetzt hört er zusätzlich auf Port 21213 und
+  bekommt die Ankündigung mit, die der Host ohnehin jede Sekunde sendet. Das war der Grund,
+  warum ein Mac als Host von einem Windows-Rechner nicht gefunden wurde.
+- Jeder Rundruf geht zusätzlich an die Rundrufadresse des eigenen Netzes
+  (`192.168.1.155` → `192.168.1.255`). `255.255.255.255` ist an keine Schnittstelle gebunden
+  und verlässt auf Rechnern mit VPN, Hyper-V oder WSL gern die falsche.
+
+### Hinzugefügt
+
+- Serverliste und Host-Lobby zeigen unten klein die eigene Adresse und die Zähler der
+  Discovery. Bleibt die Liste leer, sagt der Zähler beim Host, ob die Anfrage überhaupt
+  ankommt — das trennt den Hinweg vom Rückweg, statt beides zu raten.
+
 ## [0.2.0] — 2026-08-12
 
 LAN-Spiel. Zwei Rechner finden sich im Netz und spielen ein Match 1v1 —

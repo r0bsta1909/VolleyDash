@@ -8,6 +8,49 @@
 
 ---
 
+## 0a. D2 gelaufen — 2026-08-12, Windows gegen macOS
+
+**Zwei echte Rechner, beide Rollen durchgespielt. Ergebnis: das Netzspiel funktioniert.**
+Protokoll aus dem Feld:
+
+| Aufbau | Ergebnis |
+|---|---|
+| Windows hostet, Mac tritt bei | **automatisch gefunden**, Match läuft |
+| Mac hostet, Windows tritt bei | **nicht automatisch gefunden**, mit IP-Eingabe sofort verbunden |
+| Windows hostet, Gast trennt mitten im Satz | Host wartet, Zähler läuft, nach 30 s Sieg. Gast findet den Host **nicht** mehr in der Liste, kommt per IP zurück, Spiel läuft weiter |
+| Mac hostet, Gast trennt mitten im Satz | dasselbe |
+
+**Damit sind abgenommen:** T-N-01 (in beiden Richtungen), T-N-04, T-N-05 und die manuelle
+IP-Eingabe als Pflichtfeature — die hat den Abend zweimal gerettet und rechtfertigt jede
+Zeile, die in sie geflossen ist. **M1-07** (Start auf fremden Rechnern) ist damit ebenfalls
+erledigt: beide Pakete sind auf Fremdhardware gestartet.
+
+**Zwei Fehler, beide in meinem Code, beide behoben:**
+
+**B-N-08 — Die Bake schweigt während des Matches.** Das erklärt Zeile 3 und 4 der Tabelle
+vollständig. `scene.lua` gibt nur der obersten Szene einen Takt, und während des Matches
+liegt die Lobby darunter — mitsamt der Discovery-Bake. Ab dem Anpfiff war der Host
+unsichtbar. Ausgerechnet im Wiedereinstieg nach einer Trennung (§12) ist die Discovery am
+nötigsten, und ausgerechnet dort fehlte sie. Die Bake wandert jetzt mit ins Match.
+
+**B-N-09 — Der Suchende hörte nur auf einem Ohr.** Zeile 2. Aus den Messungen folgt, dass
+der Rundruf des Macs den Windows-Rechner erreicht — in der umgekehrten Rolle hat dieser ihn
+als Host beantwortet. Der suchende Windows-Rechner lauschte aber allein auf seinem
+flüchtigen Port und war damit auf die Unicast-Antwort angewiesen. Er hört jetzt zusätzlich
+auf 21213 und bekommt damit die Ankündigung, die der Host ohnehin jede Sekunde sendet.
+Dazu geht jeder Rundruf zusätzlich an die Rundrufadresse des eigenen Netzes — `255.255.255.255`
+verlässt auf einem Rechner mit VPN, Hyper-V oder WSL gern die falsche Schnittstelle.
+
+**Damit die nächste Runde misst statt rät:** Serverliste und Host-Lobby zeigen unten klein
+die eigene Adresse und die Zähler (gesendete Anfragen, empfangene Antworten, beantwortete
+Anfragen). Bleibt die Liste leer, sagt der Zähler beim Host, ob die Frage überhaupt ankommt
+— das trennt den Hinweg vom Rückweg.
+
+**Noch offen aus D2:** T-N-02 und T-N-03 (Paketverlust mit `clumsy`) und T-N-09 (drei Hosts
+gleichzeitig).
+
+---
+
 ## 0. Nachtrag nach dem Push
 
 **Offener Punkt N-03 ist beantwortet: ja.** Der vollständige 72-Byte-Snapshot ist auf
