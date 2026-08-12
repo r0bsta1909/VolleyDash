@@ -81,18 +81,22 @@ ersten Push. Bis dahin gilt für den macOS-Pfad: geschrieben, nicht bewiesen.
 **Ziel:** Zwei Rechner, ein Match, keine IP-Eingabe nötig.
 **Abnahme:** T-N-01…T-N-10 + D2.
 
-| ID | Aufgabe | h |
-|----|---------|---|
-| M2-01 | `protocol.lua`: Header, pack/unpack, alle Nachrichtentypen | 4 |
-| M2-02 | `host.lua`: ENet-Host, Sim-Ansteuerung, Snapshot-Versand | 5 |
-| M2-03 | `client.lua`: Input-Versand, Snapshot-Empfang, Interpolationspuffer | 5 |
-| M2-04 | `discovery.lua`: UDP-Broadcast Announce/Probe | 4 |
-| M2-05 | Serverliste-UI + manuelle IP-Eingabe als Pflicht-Fallback | 3 |
-| M2-06 | `lobby.lua`: Slots, Ready, Ruleset-Verteilung, Host-Einstellungen | 4 |
-| M2-07 | Ruleset-/Proto-/Build-Hash-Abgleich mit Klartextfehlern | 2 |
-| M2-08 | Trennung, Reconnect, Timeouts | 3 |
-| M2-09 | F3-Debug-Overlay (RTT, Verlust, Tick, Korrekturen) | 2 |
-| M2-10 | Integrationstest-Harness (2 Prozesse), Paketverlust-Tests | 3 |
+| ID | Aufgabe | h | Stand (CC-03, 2026-08-12) |
+|----|---------|---|---|
+| M2-01 | `protocol.lua`: Header, pack/unpack, alle Nachrichtentypen | 4 | **fertig** — dazu `snapshot.lua`, `input_queue.lua`, `lobby.lua` als `love`-freie Hälfte; 30 Protokolltests |
+| M2-02 | `host.lua`: ENet-Host, Sim-Ansteuerung, Snapshot-Versand | 5 | **fertig** |
+| M2-03 | `client.lua`: Input-Versand, Snapshot-Empfang, Interpolationspuffer | 5 | **fertig** — ohne Vorhersage, die ist M3-01 |
+| M2-04 | `discovery.lua`: UDP-Broadcast Announce/Probe | 4 | **fertig** — im LAN erst mit D2 belegt (N-05) |
+| M2-05 | Serverliste-UI + manuelle IP-Eingabe als Pflicht-Fallback | 3 | **fertig** |
+| M2-06 | `lobby.lua`: Slots, Ready, Ruleset-Verteilung, Host-Einstellungen | 4 | **fertig** |
+| M2-07 | Ruleset-/Proto-/Build-Hash-Abgleich mit Klartextfehlern | 2 | **fertig** — drei Konsequenzen, mit Tests |
+| M2-08 | Trennung, Reconnect, Timeouts | 3 | **fertig** — Pause, 30-s-Fenster, Walkover |
+| M2-09 | F3-Debug-Overlay (RTT, Verlust, Tick, Korrekturen) | 2 | **fertig** |
+| M2-10 | Integrationstest-Harness (2 Prozesse), Paketverlust-Tests | 3 | **teilweise** — Harness läuft (`tools/net_test.sh`), Paketverlust braucht `clumsy` von Hand |
+
+**Offen aus M2:** D2 (zwei Rechner) und die Paketverlustfälle T-N-02/T-N-03 — beides braucht
+Hardware, keinen Code. Ebenso N-04 (ENet auf einem frischen Mac) und N-05 (Broadcast durch
+eine Windows-Firewall im öffentlichen Profil). Einzelheiten in `docs/handoffs/CC-03_REPORT.md`.
 
 ### M3 — Netzwerk-Politur (10–15 h)
 

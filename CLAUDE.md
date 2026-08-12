@@ -210,6 +210,9 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Szenenparameter messen | `/d/love2d/LOVE/love.exe . --scene-probe=R-11` |
 | Aufzeichnung selbst testen | `/d/love2d/LOVE/love.exe . --record-selftest` |
 | Bild verkleinern | `/d/love2d/LOVE/lovec.exe . --resize=assets/bg.png:1600x1200` (überschreibt die Quelle) |
+| Netz-Selbsttest (ein Prozess) | `/d/love2d/LOVE/lovec.exe . --net-selftest` |
+| Netztest, zwei Prozesse | `LOVE_BIN=/d/love2d/LOVE/lovec.exe ./tools/net_test.sh loopback` |
+| Netztest mit Bild und Screenshots | `LOVE_BIN=/d/love2d/LOVE/lovec.exe ./tools/net_test.sh auto` |
 | Build (alles, was die Maschine kann) | `LOVE_WIN=/d/love2d/LOVE ./tools/build.sh` |
 | Nur die `.love` | `./tools/build.sh love` |
 | Gebautes Paket testen | `/d/love2d/LOVE/love.exe build/VolleyDash.love` — **nie den Quellordner** |
@@ -218,6 +221,11 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 `winget install --id GnuWin32.Zip --exact --source winget`, danach
 `export PATH="$PATH:/c/Program Files (x86)/GnuWin32/bin"` (oder `ZIP_BIN` setzen).
 Der macOS-Zweig läuft nur auf einem macOS-Runner — `codesign` gibt es lokal nicht.
+
+Im Netzspiel zeigt **F3** RTT, Verlust, Tick und Puffer (M2-09) — genau die Werte, nach denen
+die Fehlervorlage fragt. Zwei Instanzen auf **einem** Rechner teilen sich die Prefs-Datei und
+damit die Spielerkennung; die Testflags nehmen deshalb `--client-id=N`. Paketverlust wird unter
+Windows mit `clumsy` erzeugt, Filter und Begründung stehen im Kopf von `tools/net_test.sh`.
 
 Alle Aufzeichnungs- und Wiedergabe-Flags sind **temporär** und gehen mit M0-13 im
 Headless-Testrunner auf. `--fixed-dt` gibt es seit M0-05 nicht mehr — der feste Schritt

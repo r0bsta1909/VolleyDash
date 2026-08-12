@@ -123,9 +123,16 @@ function LobbyScene:startClient(opts)
     self.address = opts.address
 end
 
+-- Nach einem Abbruch bleibt die Meldung stehen und die Szene raeumt sich dann
+-- selbst ab (T-N-10). Sofort ins Menue zurueckzuspringen waere "sauber" im
+-- Sinne des Testfalls und trotzdem falsch: niemand liest eine Meldung, die
+-- eine Zehntelsekunde zu sehen ist.
+LobbyScene.ERROR_LINGER = 6
+
 function LobbyScene:onClientEvent(kind, a, b, c)
     if kind == "failed" then
         self.error = a
+        self.errorUntil = love.timer.getTime() + LobbyScene.ERROR_LINGER
     elseif kind == "ruleset" then
         -- Das Regelwerk des Hosts gilt (ADR-005). Es ersetzt das eigene fuer
         -- die Dauer des Matches.
@@ -188,6 +195,13 @@ function LobbyScene:update(dt)
         if self.client.state == "playing" and not self.started then
             self:enterMatch(self.client.slot)
         end
+    end
+
+    -- Der Host hat die Lobby geschlossen oder ist weg (T-N-10): Meldung
+    -- stehen lassen, dann zurueck ins Menue.
+    if self.errorUntil and love.timer.getTime() >= self.errorUntil then
+        self.errorUntil = nil
+        self.app.leaveNet()
     end
 end
 

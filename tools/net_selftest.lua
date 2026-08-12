@@ -263,7 +263,30 @@ function M.selftest(App)
     pump(0.2, host, client)
     check(client:service() == 0, "danach ist die Queue leer")
 
+    -- --- Abweichendes Regelwerk (T-N-06) ----------------------------------
+    --
+    -- Der Gast hat das Regelwerk des Hosts empfangen. Wir verbiegen seine
+    -- Kopie und lassen den Host das Match erneut ansagen: der Hashvergleich
+    -- aus §10 muss das merken und den Start verhindern -- mit Klartext.
+    local blocked, blockText = false, nil
+    local savedGravity = client.ruleset.gravity
+    client.ruleset.gravity = savedGravity + 1
+    client.onEvent = function(kind, text)
+        if kind == "failed" then blocked, blockText = true, text end
+    end
+    client:onMatchStart({ matchId = 99, startTick = 0,
+        rulesetHash = host:rulesetHash(), slot = 2 })
+    check(blocked, "abweichendes Regelwerk verhindert den Start (T-N-06)")
+    check(blockText ~= nil and blockText:find("Regelwerk") ~= nil,
+        "und zwar im Klartext: " .. tostring(blockText))
+    client.ruleset.gravity = savedGravity
+    client.onEvent = function() end
+    client.state = "playing"
+
     -- --- Trennung (T-N-04) ------------------------------------------------
+    local sawWalkover = false
+    host.onEvent = function(kind) if kind == "walkover" then sawWalkover = true end end
+
     client:close()
     local paused = waitFor(8, function() return host.paused end, host)
     check(paused, "der Host pausiert nach der Trennung (T-N-04)")
@@ -272,6 +295,14 @@ function M.selftest(App)
             "das 30-s-Fenster laeuft: " .. host:secondsLeft() .. " s")
         check(host.lobby.slots[2].occupied,
             "der Slot bleibt belegt -- die clientId ist der Schluessel")
+
+        -- Das Fenster vorstellen, statt 30 s zu warten: gemessen wird, ob der
+        -- Ablauf die Meldung ausloest, nicht ob die Uhr geht.
+        host.pauseUntil = host:now() - 1
+        pump(0.1, host)
+        check(sawWalkover, "nach Ablauf des Fensters meldet der Host Walkover")
+        host.pauseUntil = host:now() + Host.RECONNECT_SECONDS
+        host.onEvent = function() end
     end
 
     -- --- Wiedereinstieg (T-N-05) ------------------------------------------
@@ -284,11 +315,21 @@ function M.selftest(App)
     check(back, "derselbe clientId steigt in das laufende Match ein (T-N-05)")
     check(not host.paused, "das Match laeuft weiter")
 
-    if again then again:close() end
-    pump(0.2, host)
+    -- --- Der Host schliesst die Lobby (T-N-10) ----------------------------
+    local lost = false
+    if again then
+        again.onEvent = function(kind) if kind == "failed" then lost = true end end
+    end
     beacon:close()
-    browser:close()
     host:close()
+    if again then
+        waitFor(6, function() return lost end, again)
+        check(lost, "der Gast erfaehrt das Ende der Lobby (T-N-10)")
+        check(again.message ~= "", "mit Klartext: " .. tostring(again.message))
+        again:close()
+    end
+
+    browser:close()
 
     return failures
 end
@@ -381,7 +422,30 @@ end
 
 -- ---------------------------------------------------------------------------
 -- Zwei Prozesse
+--
+-- Beide Seiten spielen die aufgezeichnete Rallye ab und schlagen selbst auf,
+-- wenn sie an der Reihe sind. Ohne diesen Zusatz endet der Lauf nach dem
+-- ersten Seitenaus mit 0:0 -- ein Endstand, der auf beiden Seiten gleich ist,
+-- ohne dass jemals etwas passiert waere. Ein Test, der nichts geschehen
+-- laesst, prueft nichts.
 -- ---------------------------------------------------------------------------
+
+-- Aufschlagen heisst springen UND sich dabei zum Netz bewegen. Die Simulation
+-- leitet die Sprungflanke aus dem Pegel ab (ADR-014), also muss der Pegel
+-- zwischendurch fallen. Die Richtung bleibt waehrend des Aufstiegs anliegen:
+-- ohne sie geht der Ball senkrecht hoch und faellt auf die eigene Seite --
+-- gemessen, das Ergebnis war ein endloser Wechsel von Seitenaus bei 0:0.
+local function serveAssist(state, slot, tick, baseMask)
+    if state.match.phase ~= "serve" or state.match.servingPlayer ~= slot then
+        return baseMask
+    end
+
+    local toNet = (slot == 1) and Frame.RIGHT or Frame.LEFT
+    local phase = tick % 40
+    if phase < 2 then return Frame.JUMP + toNet end
+    if phase < 14 then return toNet end
+    return 0
+end
 
 function M.runHost(replayId)
     print("[net] Host auf Port " .. Protocol.PORT_ENET .. ", warte auf einen Gast")
@@ -415,16 +479,22 @@ function M.runHost(replayId)
     state.blobs[1].y = state.ball.y + ruleset.blobRadius
 
     local events = {}
-    local ticks = math.min(1200, replay and replay.count or 600)
+    local ticks = 3600            -- eine Minute Spielzeit als Obergrenze
+    local target = 3              -- oder drei Punkte, was zuerst kommt
+
     for tick = 0, ticks - 1 do
         host:update(0)
         if not host.paused then
             local pair = inputs and inputs[(tick % #inputs) + 1] or { 0, 0 }
-            Step.tick(state, pair[1], host:inputFor(2), ruleset, events)
+            local mine = serveAssist(state, 1, tick, pair[1])
+            Step.tick(state, mine, host:inputFor(2), ruleset, events)
             host:publishSnapshot(state, tick)
         end
         beacon:update()
         love.timer.sleep(1 / 60)
+
+        if state.match.score[1] + state.match.score[2] >= target then break end
+        if state.match.phase == "gameover" then break end
     end
 
     print(string.format("[net] Host fertig: %d:%d, Phase %s",
@@ -462,16 +532,19 @@ function M.runClient(address)
 
     local ruleset = client.ruleset
     local state = State.new(ruleset)
-    local applied = 0
+    local applied, tick = 0, 0
 
     while client.state == "playing" do
         client:update(0)
-        client:pushInput(0)
+        -- Der Gast schlaegt auf, wenn er an der Reihe ist -- er sieht die
+        -- Phase im Snapshot, den der Host ihm schickt.
+        client:pushInput(serveAssist(state, 2, tick, 0))
         local snap = client:nextSnapshot()
         if snap then
             Snapshot.apply(snap, state, ruleset)
             applied = applied + 1
         end
+        tick = tick + 1
         love.timer.sleep(1 / 60)
     end
 
