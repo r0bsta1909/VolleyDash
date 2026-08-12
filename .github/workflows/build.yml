@@ -49,7 +49,7 @@ jobs:
       - name: .love bauen
         run: bash tools/build.sh love
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: love-package
           path: build/VolleyDash.love
@@ -78,7 +78,7 @@ jobs:
           LOVE_WIN: tools/prebuilt/love-win64
         run: bash tools/build.sh win
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-package
           path: build/*-win64.zip
@@ -116,7 +116,7 @@ jobs:
           spctl --assess --type execute --verbose "$app" || \
             echo "spctl meldet 'rejected' -- erwartet ohne Notarisierung (ADR-012)"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-package
           path: build/*-macos.zip
@@ -131,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
