@@ -183,6 +183,29 @@ Optimierung herhält.
 
 ## 6. Nächster Schritt
 
+### Der Release liegt bereit
+
+**`v0.2.0` ist gebaut und als Entwurf angelegt**, mit dem Windows- und dem macOS-Paket daran
+(CI-Lauf 17, alle Jobs grün, einschließlich `codesign --verify --deep --strict` auf dem
+macOS-Läufer). Veröffentlicht wird **nicht** — Schritt 7 des Release-Prozesses aus
+`12_OPENSOURCE` §7 ist der Start auf einem fremden Rechner, und genau das ist der heutige
+Abend. Der Entwurf liegt unter *Releases* im Repo; die Pakete lassen sich von dort auf beide
+Maschinen laden.
+
+Der Release-Text wird von `tools/release_notes.sh` aus dem CHANGELOG und den beiden
+Startanleitungen zusammengesetzt, nicht aus Commit-Titeln. Beide `LIESMICH`-Dateien und das
+README behaupteten bis eben, LAN sei nicht enthalten; sie beschreiben jetzt Hosten,
+Beitreten, die Firewall-Rückfrage und die IP-Eingabe.
+
+**Ein Detail, das sonst heute Abend aufgefallen wäre:** Der Build-Hash entstand mit
+`sort` ohne feste Locale und schloss `tests/` ein. Das Windows-Paket entsteht auf einem
+Linux-, das macOS-Paket auf einem BSD-artigen Läufer — dieselbe Fassung hätte damit zwei
+verschiedene Hashes bekommen, und die Lobby hätte zwischen zwei Paketen **desselben Tags**
+einen Build-Unterschied gewarnt. Jetzt `LC_ALL=C sort` und ohne `tests/`. Ob beide Pakete
+tatsächlich denselben Hash tragen, ist mit Bordmitteln nicht prüfbar (Entwurfs-Artefakte
+brauchen zum Herunterladen eine Anmeldung): **Der Vergleich der beiden Zeichenketten unten
+rechts im Menü ist der Test.** Stimmen sie überein, erscheint keine Warnung.
+
 ### D2 am Abend — was in welcher Reihenfolge zu prüfen ist
 
 Die Reihenfolge ist nicht beliebig. Jeder Schritt setzt den vorigen voraus, und der erste,
@@ -209,6 +232,13 @@ der scheitert, erklärt die folgenden.
    Stand bleibt. Danach einmal ablaufen lassen: Walkover.
 7. **`clumsy` auf dem Windows-Rechner** für T-N-02 und T-N-03. Filter im Kopf von
    `tools/net_test.sh`.
+
+**Läuft alles:** Damit ist zugleich **M1-07** erledigt (Start auf fremden Rechnern) — der
+letzte offene Punkt aus M1. Dann kann `v0.2.0` von Hand veröffentlicht werden, und mit ihm
+`v0.1.0` verfallen: eine Fassung ohne Netzwerk braucht niemand mehr.
+
+**Läuft es nicht:** Das F3-Overlay und die Zeichenkette unten rechts im Menü sind die zwei
+Angaben, aus denen sich der Fehler rekonstruieren lässt. Beides fotografieren.
 
 **Zu deiner Frage: Nein, Windows↔Windows folgt nicht automatisch, aber fast.** Was der
 gemischte Test zusätzlich beweist, deckt den gleichnamigen Fall mit ab — Protokoll,
