@@ -136,8 +136,10 @@ Header:  u8 protoVersion | u8 msgType | u8 flags
 
 | Typ | Richtung | Inhalt |
 |-----|----------|--------|
-| `PROBE` | Client → 255.255.255.255:21213 | magic „VLYD", protoVersion |
-| `ANNOUNCE` | Host → Broadcast, alle 1 s | magic, protoVersion, hostName, lobbyName, players/maxPlayers, mode (`free`/`tournament`), buildHash, enetPort |
+| `PROBE` (0x70) | Client → 255.255.255.255:21213 und 127.0.0.1:21213 | magic „VLYD", Kopf |
+| `ANNOUNCE` (0x71) | Host → Broadcast alle 1 s, **und unicast als Antwort auf `PROBE`** | magic, Kopf, hostId(4), hostName(≤24), lobbyName(≤32), buildHash(≤16), players(1), maxPlayers(1), mode(1: `free`/`tournament`), enetPort(2) |
+
+`hostId` ist die Kennung der **Lobby**, nicht der Maschine, und wird beim Öffnen einmal gezogen. Sie löst ein gemessenes Problem: Ein Host auf demselben Rechner antwortet zweimal — einmal über die Loopback-Adresse, einmal über die LAN-Adresse — und stünde ohne sie zweimal in der Serverliste. Der Browser führt Einträge mit gleicher `hostId` zusammen und bevorzugt dabei `127.0.0.1`: diese Adresse kann nur von einem Host auf demselben Rechner stammen und ist dann der kürzeste Weg.
 
 ## 6. Snapshot-Format (69 Byte Nutzlast)
 
@@ -261,6 +263,8 @@ Host:    UDP-Socket auf 21213, setoption("reuseaddr", true)
 **Der suchende Client bindet 21213 nicht.** Fassung 1.0 sah das vor; damit können Host und Client nicht auf demselben Rechner laufen — genau der Aufbau, mit dem M2-10 das Netzspiel reproduzierbar testet, und genau der Aufbau, in dem jemand am Partyabend „mal kurz schaut, ob die Liste geht". Der Host antwortet deshalb auf `PROBE` **unicast an die Absenderadresse**; die Antwort landet auf dem flüchtigen Port des Fragenden. Das periodische Broadcast-`ANNOUNCE` bleibt, es bedient passive Zuhörer und macht die Ersterkennung unabhängig vom Probe-Takt.
 
 **Das `PROBE` geht zusätzlich an `127.0.0.1`.** Ob eine Broadcast-Nachricht auf demselben Rechner zurückkommt, hängt am Betriebssystem; das zweite Paket kostet 30 Byte und macht den lokalen Fall unabhängig davon.
+
+**Die Sockets werden mit `socket.udp4()` erzeugt, nicht mit `socket.udp()`.** Das ist gemessen, nicht vorsorglich: LuaSocket 3.0 — die Fassung in LÖVE 11.5 — liefert bei `socket.udp()` einen **IPv6**-Socket. Ein `sendto` an `255.255.255.255` scheitert darauf mit „Der angegebene Host ist unbekannt", und die Discovery findet schlicht nichts. IPv4-Broadcast gibt es unter IPv6 nicht; das Gegenstück wäre Multicast an `ff02::1` und damit eine andere Baustelle. Für ein LAN-Party-Segment ist IPv4 die richtige und einzige Wahl (Annahme A1 im Charter).
 
 Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die Datenmengen sind winzig, und `t.modules.thread` ist in `conf.lua` ausgeschaltet.
 

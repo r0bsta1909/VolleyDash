@@ -52,6 +52,15 @@ function M.parse(args)
         if page then flags.shot, flags.shotPage = 0, page end
         local resize = a:match("^%-%-resize=(.+)$")
         if resize then flags.resize = resize end
+
+        -- Netzwerk-Harness (M2-10). Ohne Fenster, ohne Spiel.
+        if a == "--net-selftest" then flags.netSelftest = true end
+        if a == "--net-host" then flags.netHost = "R-05" end
+        if a == "--net-client" then flags.netClient = "127.0.0.1" end
+        local netHost = a:match("^%-%-net%-host=(.+)$")
+        if netHost then flags.netHost = netHost end
+        local netClient = a:match("^%-%-net%-client=(.+)$")
+        if netClient then flags.netClient = netClient end
     end
 
     -- Alles, was Referenzdaten erzeugt, laeuft im festen 800x600-Fenster und
@@ -85,6 +94,23 @@ end
 -- wenn main.lua nichts mehr zu tun hat.
 function M.runTools()
     if M.runTests() then return true end
+
+    if flags.netSelftest or flags.netHost or flags.netClient then
+        local Net = require("tools.net_selftest")
+        local code
+        if flags.netSelftest then
+            local failed = Net.selftest()
+            print(failed == 0 and "[net] alles bestanden"
+                  or ("[net] " .. failed .. " gescheitert"))
+            code = failed > 0 and 1 or 0
+        elseif flags.netHost then
+            code = Net.runHost(flags.netHost)
+        else
+            code = Net.runClient(flags.netClient)
+        end
+        love.event.quit(code)
+        return true
+    end
 
     if flags.resize then
         local ok = require("tools.resize_image").run(flags.resize)

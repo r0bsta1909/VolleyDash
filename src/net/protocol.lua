@@ -384,9 +384,14 @@ CODEC[Protocol.MSG.PROBE] = {
     unpack = function() return {} end,
 }
 
+-- `hostId` ist die Kennung der Lobby, nicht der Maschine. Sie loest ein
+-- gemessenes Problem: ein Host auf demselben Rechner antwortet zweimal --
+-- einmal ueber 127.0.0.1, einmal ueber die LAN-Adresse -- und stuende sonst
+-- zweimal in der Liste.
 CODEC[Protocol.MSG.ANNOUNCE] = {
     pack = function(t)
-        return dpack("string", "<s1s1s1BBBI2",
+        return dpack("string", "<I4s1s1s1BBBI2",
+            t.hostId or 0,
             clip(t.hostName, Protocol.MAX.name),
             clip(t.lobbyName, Protocol.MAX.lobby),
             clip(t.buildHash, Protocol.MAX.buildHash),
@@ -395,10 +400,10 @@ CODEC[Protocol.MSG.ANNOUNCE] = {
             t.enetPort or Protocol.PORT_ENET)
     end,
     unpack = function(data, pos)
-        local hostName, lobbyName, buildHash, players, maxPlayers, mode, enetPort =
-            dunpack("<s1s1s1BBBI2", data, pos)
-        return { hostName = hostName, lobbyName = lobbyName, buildHash = buildHash,
-                 players = players, maxPlayers = maxPlayers,
+        local hostId, hostName, lobbyName, buildHash, players, maxPlayers, mode, enetPort =
+            dunpack("<I4s1s1s1BBBI2", data, pos)
+        return { hostId = hostId, hostName = hostName, lobbyName = lobbyName,
+                 buildHash = buildHash, players = players, maxPlayers = maxPlayers,
                  mode = mode == 1 and "tournament" or "free", enetPort = enetPort }
     end,
 }

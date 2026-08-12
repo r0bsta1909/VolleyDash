@@ -316,12 +316,14 @@ end)
 
 case("Discovery-Pakete tragen die Magic vor dem Kopf", function()
     local data = Protocol.encodeDiscovery(Protocol.MSG.ANNOUNCE, {
-        hostName = "Wobble", lobbyName = "Kellerparty", buildHash = "abc123",
-        players = 1, maxPlayers = 2, mode = "free", enetPort = 21212 })
+        hostId = 987654, hostName = "Wobble", lobbyName = "Kellerparty",
+        buildHash = "abc123", players = 1, maxPlayers = 2, mode = "free",
+        enetPort = 21212 })
 
     assertEq(data:sub(1, 4), "VLYD", "Magic")
     local kind, out = Protocol.decodeDiscovery(data)
     assertEq(kind, Protocol.MSG.ANNOUNCE, "Typ")
+    assertEq(out.hostId, 987654, "hostId")
     assertEq(out.lobbyName, "Kellerparty", "lobbyName")
     assertEq(out.players, 1, "players")
     assertEq(out.mode, "free", "mode")

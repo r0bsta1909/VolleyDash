@@ -9,10 +9,18 @@
 -- `love . --test` eine Grafikausgabe, und damit laesst sich der Lauf auf
 -- einem CI-Laeufer ohne Bildschirm nicht starten -- genau das ist aber
 -- noetig, um T-N-07 (gleiche Bytes auf Windows und macOS) zu beantworten.
+-- Dasselbe gilt fuer den Netzwerk-Harness aus M2-10: er faehrt Simulation und
+-- Transport, aber nichts, was jemand ansehen muesste.
 -- `arg` steht in love.conf bereits zur Verfuegung.
+local HEADLESS = {
+    "--test", "--test-no-love", "--net-selftest", "--net-host", "--net-client",
+}
+
 local function isTestRun()
     for _, a in ipairs(arg or {}) do
-        if a == "--test" or a == "--test-no-love" then return true end
+        for _, flag in ipairs(HEADLESS) do
+            if a == flag or a:sub(1, #flag + 1) == flag .. "=" then return true end
+        end
     end
     return false
 end
