@@ -1,6 +1,17 @@
 # 04 — Netcode-Spezifikation
 
-**Version:** 1.0 · **Stand:** 2026-08-11 · **Bezug:** ADR-002, ADR-003
+**Version:** 1.1 · **Stand:** 2026-08-12 · **Bezug:** ADR-002, ADR-003, ADR-016
+
+**Änderungen gegenüber 1.0** (alle in M2-01, vor der ersten Zeile Netzcode; Regel aus
+`CLAUDE.md` §2 — erst die Spec, dann der Code):
+
+| § | Was | Warum |
+|---|---|---|
+| 5, 10 | `rulesetHash` ist djb2 mit 8 ASCII-Hexstellen, nicht MD5 mit 16 Byte | ADR-016; gebaut ist `Ruleset.hash`, und `src/sim/` muss `love`-frei bleiben |
+| 5 | `RULESET_FULL` überträgt eine binäre Schlüssel-Wert-Folge, kein JSON | ADR-016; es gibt keinen JSON-Leser und soll keinen geben |
+| 6 | Snapshot-Feldliste gegen `src/sim/state.lua` berichtigt: Phasen, Sätze, Neigung, Cooldown, Fehlerwurf | 1.0 kodierte zwei Phasen, die es nicht gibt, und ließ drei Werte weg, die der Client zum Zeichnen braucht |
+| 11 | Der suchende Client bindet einen flüchtigen Port; der Host antwortet auf `PROBE` unicast | Zwei Instanzen auf einem Rechner können denselben Port nicht portabel binden — genau der Testaufbau aus M2-10 |
+| 3 | Bandbreite auf die tatsächliche Snapshot-Größe nachgerechnet | Folge der Korrektur in §6 |
 
 ---
 
@@ -46,11 +57,13 @@ Das Ausgangs-GDD forderte „deterministische 2D-Physik mit Lockstep-Architektur
 
 | Richtung | Größe | Rate | Bandbreite |
 |----------|-------|------|-----------|
-| Client → Host: InputFrame | 8 B (Header 7 + Maske 1) | 60/s | 0,5 KB/s |
-| Host → Client: Snapshot | 48 B + ENet-Overhead ≈ 76 B | 60/s | 4,6 KB/s |
-| Host → Spectator | wie Client | 30/s | 2,3 KB/s |
+| Client → Host: `INPUT` | 10 B (Header 3 + Tick 4 + 3 Masken) + Overhead ≈ 38 B | 60/s | 2,3 KB/s |
+| Host → Client: `SNAPSHOT` | 72 B (Header 3 + 69 B Nutzlast) + Overhead ≈ 100 B | 60/s | 6,0 KB/s |
+| Host → Spectator | wie Client | 30/s | 3,0 KB/s |
 
 Bei 4 parallelen Matches plus 8 Zuschauern liegt die Gesamtlast im zweistelligen KB/s-Bereich. Auf 100-MBit-LAN irrelevant, auf WLAN unkritisch.
+
+Fassung 1.0 rechnete mit 48 B je Snapshot. Nach der Berichtigung der Feldliste in §6 sind es 69 B Nutzlast. An der Aussage ändert das nichts: der Unterschied zwischen 4,6 und 6,0 KB/s ist auf jedem Netz dieses Jahrtausends nicht messbar. Er ist trotzdem hier korrigiert, weil eine Zahl, die niemand nachrechnet, irgendwann als Begründung für eine Optimierung herhält.
 
 **Snapshot-Rate 60 Hz statt 20 Hz mit Interpolation:** Bei diesen Größen ist die volle Tickrate billiger als jede Optimierung. Delta-Kompression, Snapshot-Interpolation über größere Lücken, Eingabe-Redundanz — alles nicht nötig. Das ist der eigentliche Gewinn der Snapshot-Architektur bei kleinem Zustand.
 
@@ -91,24 +104,33 @@ Header:  u8 protoVersion | u8 msgType | u8 flags
 
 `protoVersion` = 1. Ein Client mit abweichender Version wird beim Join abgewiesen — mit einer Klartextmeldung, nicht mit einem Timeout. (Auf einer LAN-Party hat garantiert jemand eine ältere ZIP.)
 
+`flags` ist in v1 durchgehend 0 und reserviert. Ein Empfänger prüft es **nicht** — sonst ist das Feld für seinen Zweck (später etwas hinzufügen, ohne die Version zu heben) wertlos.
+
+**Zeichenketten** werden mit `s1` gepackt: ein Längenbyte, dann die Bytes. Damit ist jede Zeichenkette auf 255 Byte begrenzt; die Sender kürzen vorher auf das jeweilige Feldmaß. Kein `z`, keine feste Breite — eine nicht terminierte Zeichenkette aus einer fremden Version würde sonst den Rest der Nachricht verschieben.
+
 ### Nachrichtentypen
 
 | ID | Name | Richtung | Kanal | Nutzlast |
 |----|------|----------|-------|----------|
-| 0x01 | `HELLO` | C→H | 0 | buildHash(16), playerName(≤24), clientId(4) |
-| 0x02 | `WELCOME` | H→C | 0 | slot(1), lobbyState, rulesetHash(16) |
+| 0x01 | `HELLO` | C→H | 0 | clientId(4), buildHash(≤16), playerName(≤24) |
+| 0x02 | `WELCOME` | H→C | 0 | slot(1), clientId(4), rulesetHash(8), hostName(≤24), lobbyName(≤32) |
 | 0x03 | `REJECT` | H→C | 0 | reasonCode(1), text(≤64) |
-| 0x10 | `LOBBY_STATE` | H→C | 0 | slots[], readyFlags, hostSettings |
+| 0x10 | `LOBBY_STATE` | H→C | 0 | count(1), je Slot: occupied(1), ready(1), isHost(1), name(≤24), buildHash(≤16) |
 | 0x11 | `SET_READY` | C→H | 0 | ready(1) |
-| 0x12 | `RULESET_FULL` | H→C | 0 | vollständiges Ruleset als JSON |
-| 0x20 | `MATCH_START` | H→C | 0 | matchId(4), startTick(4), rulesetHash(16), seed(4), slotsAssignment |
+| 0x12 | `RULESET_FULL` | H→C | 0 | count(1), je Feld: name(≤32), typ(1), wert (`d` oder `u1`) — ADR-016 |
+| 0x20 | `MATCH_START` | H→C | 0 | matchId(4), startTick(4), rulesetHash(8), slot(1) |
 | 0x21 | `INPUT` | C→H | 2 | tick(4), masks(3) — siehe §7 |
 | 0x22 | `SNAPSHOT` | H→C | 1 | siehe §6 |
 | 0x23 | `MATCH_END` | H→C | 0 | matchId(4), scoreA(1), scoreB(1), reason(1) |
+| 0x24 | `MATCH_PAUSE` | H→C | 0 | paused(1), secondsLeft(1), text(≤64) — §12 |
 | 0x30 | `SPECTATE_REQ` | C→H | 0 | matchId(4) |
 | 0x40 | `TOURNAMENT_STATE` | H→C | 0 | JSON, siehe `05_TOURNAMENT` |
 | 0x50 | `PING` / 0x51 `PONG` | beidseitig | 0 | timestamp(4) |
 | 0x60 | `CHECKSUM` | H→C | 0 | tick(4), hash(4) — Desync-Detektor, §9 |
+
+**`seed` ist in `MATCH_START` gestrichen.** Die Simulation ist seit M0-08 zufallsfrei (`03_TECH` §3, `CLAUDE.md` §3.2), und `src/sim/rng.lua` aus dem Modulschnitt wurde nie gebraucht. Ein Feld zu übertragen, das keine Seite benutzt, erzeugt nur die Erwartung, es gäbe Zufall in der Simulation.
+
+**`MATCH_PAUSE` (0x24) ist neu in 1.1.** Fassung 1.0 beschrieb in §12 „Host pausiert das Match, zeigt *Warte auf {Name} … 30 s*", ohne eine Nachricht dafür vorzusehen — der verbleibende Client hätte den Grund seines Stillstands nicht erfahren.
 
 ### Discovery-Nachrichten (UDP-Broadcast, separat)
 
@@ -117,34 +139,66 @@ Header:  u8 protoVersion | u8 msgType | u8 flags
 | `PROBE` | Client → 255.255.255.255:21213 | magic „VLYD", protoVersion |
 | `ANNOUNCE` | Host → Broadcast, alle 1 s | magic, protoVersion, hostName, lobbyName, players/maxPlayers, mode (`free`/`tournament`), buildHash, enetPort |
 
-## 6. Snapshot-Format (48 Byte)
+## 6. Snapshot-Format (69 Byte Nutzlast)
+
+**Diese Liste ist gegen `src/sim/state.lua` erhoben, nicht entworfen.** Fassung 1.0 kodierte fünf Phasen, von denen es zwei nicht gibt, und Satzstände, die der Zustand nicht führt. Ein Encoder, der das nicht merkt, überträgt stillschweigend Unsinn. Wer diese Liste ändert, prüft sie erneut gegen `state.lua` — der Test `tests/snapshot_test.lua` erzwingt das für die Phasen.
 
 ```
-Feld              Typ     Bytes   Anmerkung
-─────────────────────────────────────────────────────────────
-tick              i4        4     Simulationstick des Hosts
-ballX, ballY      f,f       8
-ballVX, ballVY    f,f       8
-ballRot           f         4
-blob1X, blob1Y    f,f       8
-blob2X, blob2Y    f,f       8
-blob1VY,blob2VY   f,f       8     für Render-Interpolation nötig
-scoreA, scoreB    u1,u1     2
-setsA, setsB      u1,u1     2
-phase             u1        1     0 serve, 1 play, 2 fault, 3 setover, 4 matchover
-servingPlayer     u1        1
-touchCount        u1        1
-lastTouchPlayer   u1        1
-flags             u1        1     bit0 blob1Grounded, bit1 blob2Grounded,
-                                  bit2 blob1Dashing,  bit3 blob2Dashing
-ackInputTick      i4        4     zuletzt vom Host verarbeiteter Input-Tick des Empfängers
-─────────────────────────────────────────────────────────────
-                            61 B  (+3 B Header = 64 B, ENet-Overhead separat)
+Feld                    Typ     Bytes   Quelle in state.lua
+──────────────────────────────────────────────────────────────────────────
+tick                    i4        4     Tickzähler des Hosts (nicht im State)
+ballX, ballY            f,f       8     ball.x, ball.y
+ballVX, ballVY          f,f       8     ball.vx, ball.vy      (§8, M3-02)
+ballRot                 f         4     ball.rotation
+blob1X, blob1Y          f,f       8     blobs[1].x, .y
+blob2X, blob2Y          f,f       8     blobs[2].x, .y
+blob1VY, blob2VY        f,f       8     blobs[n].vy           (M3-01)
+blob1Tilt, blob2Tilt    f,f       8     blobs[n].tiltAngle
+blob1Cd, blob2Cd        u1,u1     2     blobs[n].cooldownTimer, quantisiert
+scoreA, scoreB          u1,u1     2     match.score[1], [2]
+phase                   u1        1     match.phase, siehe Tabelle
+servingPlayer           u1        1     match.servingPlayer
+touchCount              u1        1     rally.touchCount
+lastTouchPlayer         u1        1     rally.lastTouchPlayer
+flags                   u1        1     siehe unten
+ackInputTick            i4        4     zuletzt verarbeiteter Input-Tick des Empfängers
+──────────────────────────────────────────────────────────────────────────
+                                 69 B  (+3 B Header = 72 B, ENet-Overhead separat)
 ```
 
-Die Zahl korrigiert die Überschlagsrechnung nach oben auf 64 B — an der Bandbreitenaussage ändert das nichts.
+### Phasen
 
-**Kosmetische Ereignisse werden nicht übertragen.** Der Client leitet Partikel, Kamera-Shake und Sounds aus Zustandsübergängen zwischen zwei Snapshots ab (Ball war rechts von der Wand, jetzt links + VX-Vorzeichenwechsel → Wandtreffer). Das spart Bandbreite und ist robust gegen Paketverlust. Auslöserkennung gehört in `render/fx.lua`, nicht in die Simulation.
+| Wert | Phase | |
+|---|---|---|
+| 0 | `serve` | Aufschlag steht aus |
+| 1 | `play` | Ball ist im Spiel |
+| 2 | `gameover` | Satz entschieden |
+| 3 | `menu` | kein Match; kommt im Netzspiel nicht vor, ist aber der Anfangswert von `State.new` und deshalb kodierbar |
+
+`fault` und `setover` aus Fassung 1.0 **gibt es nicht**. Ein Fehler ist keine Phase, sondern `rally.faultTimer > 0` während `play` (siehe `flags`). Sätze führt der Zustand nicht: `match.score` ist ein Paar, mehr nicht. Satzzählung ist **kein** Gegenstand von M2 (Entscheidung r0btoshi, 2026-08-12) — sie wäre eine Änderung an `src/sim/`, und die ist im Handoff CC-03 §4 ausgeschlossen.
+
+### `flags`
+
+| Bit | Wert | Bedeutung |
+|---|---|---|
+| 0 | 1 | `blobs[1].isGrounded` |
+| 1 | 2 | `blobs[2].isGrounded` |
+| 2 | 4 | `blobs[1].dashTimer > 0` |
+| 3 | 8 | `blobs[2].dashTimer > 0` |
+| 4–5 | 16/32 | `rally.faultPlayer`, 0 = kein Fehler, 1 = P1, 2 = P2 (`faultTimer > 0`) |
+| 6–7 | 64/128 | reserviert, müssen 0 sein |
+
+### Was **nicht** übertragen wird und warum
+
+- **`net`**, **`ball.radius`**: leiten sich aus dem Ruleset ab, das beide Seiten haben (`Step.tick` setzt sie in jedem Tick aus demselben Ruleset).
+- **`rally.timer`, `serveTimer`, `ballSide`, `touchCooldown`, `dashGrace`, `input.prev`**: reine Simulationsbuchführung. Der Client simuliert nicht und zeigt nichts davon an.
+- **`blob.vx`**: die Neigung wird direkt übertragen, und für die Darstellung ist `vx` sonst ohne Wirkung.
+
+**Neigung, Cooldown und Fehlerwurf standen in Fassung 1.0 nicht in der Liste.** Alle drei sind sichtbar: die Neigung ist die Blob-Animation beim Seitwärts-Dash (`02_CODE_AUDIT` §4 — „Blob-Neigung" ist ausdrücklich unveränderlich), der Cooldown ist der rote Balken im HUD, der Fehlerwurf ist die Einblendung „FAULT!". Ohne sie sähe der Client ein anderes Spiel als der Host.
+
+**`blobNCd` ist quantisiert:** `round(cooldownTimer / ruleset.dashCooldown × 255)`, ein Byte. Der HUD-Balken zeichnet genau dieses Verhältnis; ein Float dafür wäre drei Byte für nichts. Auf der Empfängerseite wird zurückgerechnet — der Wert ist Anzeige, keine Simulationsgröße.
+
+**Kosmetische Ereignisse werden nicht übertragen.** Der Client leitet Partikel, Kamera-Shake und Sounds aus Zustandsübergängen zwischen zwei Snapshots ab (Ball war rechts von der Wand, jetzt links + VX-Vorzeichenwechsel → Wandtreffer). Das spart Bandbreite und ist robust gegen Paketverlust. Auslöserkennung gehört in `render/fx.lua`, nicht in die Simulation. **Umgesetzt wird das in M3-02**; in M2 zeigt der Client den Zustand ohne Partikel und ohne Klang.
 
 ## 7. Eingabe-Redundanz und Verzögerung
 
@@ -182,7 +236,9 @@ Das erkennt nicht Desync im Lockstep-Sinne (den es nicht geben kann), sondern **
 
 ## 10. Ruleset-Abgleich
 
-Beim `MATCH_START` sendet der Host `rulesetHash` (MD5 über das kanonisch serialisierte Ruleset). Der Client vergleicht mit dem Hash des Rulesets, das er per `RULESET_FULL` empfangen hat. Bei Abweichung: Match wird nicht gestartet, Klartextfehler.
+Beim `MATCH_START` sendet der Host `rulesetHash` — **acht ASCII-Hexstellen aus `Ruleset.hash`, djb2 über die kanonische Form** (ADR-016, nicht MD5). Der Client rechnet den Hash über das Ruleset, das er per `RULESET_FULL` empfangen hat, und vergleicht die Zeichenketten. Bei Abweichung: Match wird nicht gestartet, Klartextfehler.
+
+Der Hash erkennt abweichende Rulesets. Er sichert nichts ab, und er soll es nicht — im LAN gibt es kein Angreifermodell, gegen das ein stärkerer Hash in derselben `.love` helfen würde.
 
 **Kanonische Serialisierung** heißt: Schlüssel alphabetisch sortiert, Zahlen mit `%.6f` formatiert. Ohne diese Festlegung liefert `pairs()` je nach Lua-Instanz unterschiedliche Reihenfolgen und damit unterschiedliche Hashes für identische Rulesets — ein Fehler, der sich erst am Partyabend zeigt.
 
@@ -191,16 +247,24 @@ Zusätzlich wird `buildHash` (Hash über alle `.lua`-Dateien, zur Buildzeit erze
 ## 11. Zero-Config Discovery
 
 ```
-Client:  UDP-Socket auf 21213 binden, setoption("broadcast", true)
-         PROBE an 255.255.255.255:21213 senden, alle 2 s wiederholen
-         Antworten sammeln, Liste nach Ablauf von 5 s ohne ANNOUNCE bereinigen
+Client:  UDP-Socket auf einen FLUECHTIGEN Port binden ("*", 0)
+         setoption("broadcast", true)
+         PROBE an 255.255.255.255:21213 und an 127.0.0.1:21213 senden,
+         alle 2 s wiederholen
+         Antworten sammeln, Liste nach 5 s ohne ANNOUNCE bereinigen
 
-Host:    UDP-Socket auf 21213
+Host:    UDP-Socket auf 21213, setoption("reuseaddr", true)
          ANNOUNCE an 255.255.255.255:21213 alle 1 s
-         auf PROBE sofort mit ANNOUNCE antworten (schnellere Ersterkennung)
+         auf PROBE sofort mit ANNOUNCE an die Absenderadresse antworten (unicast)
 ```
 
-Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die Datenmengen sind winzig.
+**Der suchende Client bindet 21213 nicht.** Fassung 1.0 sah das vor; damit können Host und Client nicht auf demselben Rechner laufen — genau der Aufbau, mit dem M2-10 das Netzspiel reproduzierbar testet, und genau der Aufbau, in dem jemand am Partyabend „mal kurz schaut, ob die Liste geht". Der Host antwortet deshalb auf `PROBE` **unicast an die Absenderadresse**; die Antwort landet auf dem flüchtigen Port des Fragenden. Das periodische Broadcast-`ANNOUNCE` bleibt, es bedient passive Zuhörer und macht die Ersterkennung unabhängig vom Probe-Takt.
+
+**Das `PROBE` geht zusätzlich an `127.0.0.1`.** Ob eine Broadcast-Nachricht auf demselben Rechner zurückkommt, hängt am Betriebssystem; das zweite Paket kostet 30 Byte und macht den lokalen Fall unabhängig davon.
+
+Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die Datenmengen sind winzig, und `t.modules.thread` ist in `conf.lua` ausgeschaltet.
+
+**Format beider Nachrichten:** dieselben 3 Header-Byte wie bei ENet (`protoVersion`, `msgType`, `flags`), damit ein fremdes Paket auf demselben Port nicht als Lobby erscheint. `PROBE` = 0x70, `ANNOUNCE` = 0x71. Davor steht die Magic `VLYD` (4 Byte, `CLAUDE.md` §1). Wer eines der beiden nicht liefert, wird still verworfen.
 
 ### Bekannte Grenzen (und die Pflicht-Fallbacks)
 
@@ -229,5 +293,6 @@ Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die
 |----|-------|--------------|
 | N-01 | Verhalten bei WLAN mit RTT > 30 ms: Reicht Vorhersage des eigenen Blobs, oder braucht der Client eine Ball-Extrapolation? | M3, Playtest über WLAN |
 | N-02 | Spectator-Snapshot-Rate: 30 Hz mit Interpolation testen, ob am Beamer sichtbar schlechter | M5 |
-| N-03 | Ob `love.data.pack` mit `f` (float32) auf beiden Plattformen bitidentisch schreibt/liest — praktisch sicher, aber vor M2 einmal explizit verifizieren | M2, Testfall T-N-07 |
-| N-04 | Ob ENet auf macOS ohne zusätzliche Firewall-Freigabe funktioniert (ausgehende Verbindungen ja, eingehende als Host?) | M2, Test auf frischem Mac |
+| N-03 | Ob `love.data.pack` mit `f` (float32) auf beiden Plattformen bitidentisch schreibt/liest — praktisch sicher, aber vor M2 einmal explizit verifizieren | **M2-01: Testfall T-N-07 vergleicht gepackte Bytes gegen eine im Test stehende Referenz. Läuft unter `love . --test` und damit auf beiden CI-Läufern.** |
+| N-04 | Ob ENet auf macOS ohne zusätzliche Firewall-Freigabe funktioniert (ausgehende Verbindungen ja, eingehende als Host?) | M2, Test auf frischem Mac — **bleibt offen**, ein CI-Image beantwortet das nicht |
+| N-05 | Ob der UDP-Broadcast auf einem Windows-Rechner mit „öffentlichem" Netzwerkprofil überhaupt hinausgeht, oder ob die Firewall ihn ohne Rückfrage verwirft | M2-04, Test auf zwei Rechnern (D2) |

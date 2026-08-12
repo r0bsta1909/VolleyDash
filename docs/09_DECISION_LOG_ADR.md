@@ -303,6 +303,41 @@ Format: Kontext → Entscheidung → Begründung → Konsequenzen → Verworfene
 
 ---
 
+## ADR-016 — Das Protokoll überträgt den vorhandenen djb2-Hash und das Ruleset binär, kein MD5 und kein JSON
+
+**Status:** angenommen · 2026-08-12 · **Bezug:** ADR-003, ADR-005, M0-09, M2-01
+
+**Kontext:** `04_NETCODE_SPEC` 1.0 wurde geschrieben, bevor `src/sim/ruleset.lua` existierte. Sie verlangte an zwei Stellen etwas, das der gebaute Code nicht liefert und nach den Invarianten aus `CLAUDE.md` §4 auch nicht liefern kann:
+
+1. §5 und §10 forderten `rulesetHash` als **MD5 über die kanonische Form**, 16 Byte. Gebaut ist djb2 mit acht Hexstellen (`Ruleset.hash`). Das ist kein Versehen: `love.data.hash` hätte `love` unterhalb von `src/sim/` gebracht, und damit wären die Testebenen A und B nicht mehr headless lauffähig — die in `CLAUDE.md` §7 ausdrücklich protokollierte Ausnahme aus M0-09.
+2. §5 übertrug `RULESET_FULL` (0x12) als **JSON**. `12_OPENSOURCE` §3 führte dafür `src/lib/json.lua` (MIT) als Fremdkomponente. Diese Datei existiert nicht, und seit M1-08 hält `LICENSE-THIRD-PARTY.md` fest, dass das Projekt ohne Fremdbibliothek auskommt.
+
+**Entscheidung:** Das Protokoll überträgt `rulesetHash` als **acht ASCII-Hexstellen** aus `Ruleset.hash` und das vollständige Ruleset als **selbstbeschreibende Schlüssel-Wert-Folge** über `love.data.pack` (`s1` Name, `u1` Typkennung, `d` bzw. `u1` Wert). Kein MD5, kein JSON, keine Fremdbibliothek.
+
+**Begründung:**
+- Der Hash hat genau eine Aufgabe: **abweichende Rulesets erkennen**. Er sichert nichts ab — im LAN gibt es kein Angreifermodell, das er abwehren könnte, und wer die `.love` verändern kann, verändert auch den Vergleich. Für die Erkennung reicht djb2. Die `love`-Freiheit der Simulation ist die deutlich teurere Eigenschaft.
+- Zwei Hashes über dieselbe Sache wären der schlechteste Ausgang: `Ruleset.hash` würde für die Tests bleiben und MD5 für das Netz dazukommen. Beim ersten Auseinanderlaufen wäre nicht mehr entscheidbar, welcher recht hat.
+- Das Ruleset ist eine **flache Tabelle aus 24 Zahlen und 4 Wahrheitswerten**. JSON löst hier ein Problem, das es nicht gibt, und kostet die erste Fremdabhängigkeit des Projekts.
+- **Zahlen gehen als `d` (float64), nicht als `f`.** Die kanonische Form formatiert mit `%.17g`; ein Umweg über float32 würde die Zahl verändern und damit den Hash der empfangenen Kopie vom gesendeten Hash abweichen lassen. Der Abgleich aus §10 schlüge dann grundlos fehl.
+- **Selbstbeschreibend statt festes Layout:** Ein festes Feldlayout müsste bei jeder Ruleset-Änderung in `protocol.lua` mitgezogen werden — und ein vergessener Nachzug fällt erst am Partyabend auf, als stiller Zahlendreher. Die Namen kosten rund 200 Byte, einmal je Match, auf dem zuverlässigen Kanal 0. Unbekannte Schlüssel werden verworfen; die Abweichung erscheint dann als Hash-Fehler mit Klartext, nicht als Absturz.
+
+**Konsequenzen:**
+- `04_NETCODE_SPEC` §5 führt `rulesetHash(8)`, §10 nennt djb2 statt MD5. Beide Stellen sind mit M2-01 berichtigt.
+- Das Nachrichtenfeld ist eine Zeichenkette, kein Zahlenwert. Wer es vergleicht, vergleicht Zeichenketten.
+- `12_OPENSOURCE` §3 verliert den Eintrag `src/lib/json.lua`. Das Projekt bleibt fremdbibliotheksfrei.
+- **Für M4 offen:** `TOURNAMENT_STATE` (0x40) ist in `05_TOURNAMENT` als JSON spezifiziert und trägt verschachtelte Daten. Dieser ADR entscheidet darüber **nicht**. Wenn M4 JSON braucht, ist das eine eigene Entscheidung mit eigenem ADR — und dann für genau diese eine Nachricht.
+- Der Desync-Detektor (§9) rechnet weiter mit `love.data.hash("md5", …)`. Er sitzt in `src/net/`, nicht in `src/sim/`, und darf `love` benutzen.
+
+**Verworfen:**
+- *`love.data.hash` in `src/sim/ruleset.lua`:* bricht die `love`-Freiheit der Simulation und damit die Testebenen A und B. Der teuerste denkbare Weg für den geringsten Gewinn.
+- *MD5 zusätzlich im Netzcode über dieselbe kanonische Form:* zwei Wahrheiten für eine Frage.
+- *`json.lua` aufnehmen:* braucht ADR, Eintrag in `LICENSE-THIRD-PARTY.md` und Pflege — für eine flache Tabelle aus 28 Werten.
+- *Festes Feldlayout ohne Namen:* spart 200 Byte einmal je Match und erkauft das mit einer Datei, die bei jeder Ruleset-Änderung stillschweigend falsch wird.
+
+**Revisionsauslöser:** Wenn zwei verschiedene Rulesets denselben djb2-Hash liefern (Kollision im echten Betrieb) oder wenn `Ruleset` verschachtelte Werte bekommt — dann ist nicht die Serialisierung falsch, sondern die Annahme „flache Tabelle".
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

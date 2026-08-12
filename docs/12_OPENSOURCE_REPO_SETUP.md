@@ -18,7 +18,7 @@ Formulierungsvorschlag fürs README:
 volley-dash/
 ├── README.md                 # ÖFFENTLICH — nicht der interne Doc-Index
 ├── LICENSE                   # zlib, dein Copyright
-├── LICENSE-THIRD-PARTY.md    # LÖVE, ENet, LuaSocket, LuaJIT, json.lua
+├── LICENSE-THIRD-PARTY.md    # LÖVE, ENet, LuaSocket, LuaJIT
 ├── CHANGELOG.md              # Keep-a-Changelog-Format
 ├── CONTRIBUTING.md           # kurz: Scope, Codestil, Tests
 ├── CLAUDE.md                 # Anweisungen für Claude Code
@@ -59,8 +59,9 @@ Tabelle aller mitgelieferten Komponenten mit Lizenz und Fundstelle:
 |------------|--------|-----------|
 | LÖVE 11.5 | zlib | Wird nicht im Repo mitgeliefert, nur in den Release-Artefakten. `license.txt` liegt jedem Build bei |
 | ENet, LuaSocket, LuaJIT, SDL2, OpenAL, mpg123 | MIT / zlib / LGPL | Teil der LÖVE-Distribution, abgedeckt durch deren `license.txt` |
-| `src/lib/json.lua` | MIT | Header-Kommentar unverändert lassen |
 | Assets | siehe `assets/CREDITS.md` | **Kein Asset ohne Nachweis** |
+
+`src/lib/json.lua` (MIT) stand hier bis M2-01. Die Datei existiert nicht und wird nicht aufgenommen: `RULESET_FULL` überträgt seit ADR-016 eine binäre Schlüssel-Wert-Folge über `love.data.pack`, und das Projekt bleibt damit fremdbibliotheksfrei (`LICENSE-THIRD-PARTY.md`, M1-08). Sollte `TOURNAMENT_STATE` in M4 JSON brauchen, ist das eine eigene Entscheidung mit eigenem ADR.
 
 ### `docs/references.md` — die GPL-Abgrenzung
 

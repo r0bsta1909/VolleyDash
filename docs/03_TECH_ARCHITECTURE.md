@@ -46,11 +46,13 @@ volley-dash/
 │   │   └── bindings.lua      # Tastenbelegung, persistent
 │   │
 │   ├── net/
-│   │   ├── protocol.lua      # Nachrichtentypen, pack/unpack, Versionsfeld
-│   │   ├── host.lua          # Autoritative Instanz: Sim + Snapshot-Versand
-│   │   ├── client.lua        # Input-Versand, Snapshot-Empfang, Interpolation
-│   │   ├── discovery.lua     # UDP-Broadcast Announce/Probe
-│   │   └── lobby.lua         # Lobby-Zustand, Slots, Ready-Status
+│   │   ├── protocol.lua      # Nachrichtentypen, pack/unpack, Versionsfeld   [love]
+│   │   ├── snapshot.lua      # State <-> flache Snapshot-Tabelle (M2-01)     [rein]
+│   │   ├── input_queue.lua   # Jitter-Puffer + Repeat-Last je Slot (M2-02)   [rein]
+│   │   ├── lobby.lua         # Lobby-Zustand, Slots, Ready-Status            [rein]
+│   │   ├── host.lua          # Autoritative Instanz: Sim + Snapshot-Versand  [enet]
+│   │   ├── client.lua        # Input-Versand, Snapshot-Empfang, Interpolation[enet]
+│   │   └── discovery.lua     # UDP-Broadcast Announce/Probe                  [socket]
 │   │
 │   ├── tournament/
 │   │   ├── model.lua         # Datenmodell (Turnier, Runde, Match, Teilnehmer)
@@ -79,8 +81,6 @@ volley-dash/
 │   │   ├── music.lua         # Shuffle-Playlist, gestreamt (Ergänzung M0-02)
 │   │   └── prefs.lua         # lokale Präferenzen, persistent
 │   │
-│   └── lib/
-│       └── json.lua
 │
 ├── assets/                   # bg, blob, ball, sounds, fonts
 ├── tests/
@@ -92,6 +92,10 @@ volley-dash/
 │   └── record_replay.lua
 └── docs/                     # dieses Doc-Set
 ```
+
+**Ergänzung M2-01 — warum `src/net/` sieben statt fünf Dateien hat.** Die Klammer hinter jeder Datei nennt, wovon sie abhängt. `protocol.lua` braucht `love.data.pack`, `host.lua`/`client.lua` brauchen `enet`, `discovery.lua` braucht `socket` — diese vier sind im Testrunner der Ebenen A und B nicht lauffähig. Alles, was **entscheidet** statt zu transportieren, ist deshalb herausgezogen und rein: die Abbildung Zustand ↔ Snapshot (`snapshot.lua`, dort sitzt die Phasenkodierung), der Jitter-Puffer mit Repeat-Last (`input_queue.lua`) und der Lobbyzustand (`lobby.lua`). Genau diese drei tragen die Fehler, die am Partyabend teuer sind, und genau sie laufen headless unter `luajit tests/run_headless.lua`.
+
+`src/lib/json.lua` stand hier bis M2-01 und ist gestrichen — ADR-016.
 
 ## 3. Die zentrale Regel: `src/sim/` ist rein
 
