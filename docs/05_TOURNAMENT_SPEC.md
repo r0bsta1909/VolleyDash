@@ -204,7 +204,14 @@ Standard: `random` mit sichtbarem Seed. Klassische Bracket-Position: 1 gegen n, 
 
 Pro Turnier und Spieler: Matches, Sätze, Punkte für/gegen, längste Rallye, schnellster Ball. Diese fünf reichen für die Siegerehrung und kosten fast nichts, weil die Werte ohnehin in der Simulation anfallen. Alles darüber (Heatmaps, Trefferquoten) ist M6.
 
-## 12. Abnahmekriterien M4
+## 12. Offene Punkte (aufgenommen 2026-08-12, vor M2)
+
+| ID | Punkt | Zu klären in |
+|----|-------|--------------|
+| T-01 | **Die Match-Host-Wahl ist noch eine Absichtserklärung.** §8 sagt „der mit der besseren Verbindung zum Turnier-Host", nennt aber weder das Maß (RTT woraus? über welchen Zeitraum?) noch das Verhalten bei Gleichstand. Ein Gleichstand ohne Regel wäre ein Münzwurf im Turnierbetrieb, und den schließt die Anti-Zufalls-Doktrin aus. **Vorschlag: gemessene RTT über die letzten 5 s, bei Gleichstand gewinnt die niedrigere `participantId`** — deterministisch und im Log nachprüfbar | M4-09 |
+| T-02 | **Der Turnier-Host ist der einzige Punkt, an dem Stillstand entsteht.** Die Recovery in §7 ist ein Neustart, kein Failover auf einen anderen Rechner: solange das Gerät aus ist, geht nichts weiter. Für v1.0 ist das die richtige Abwägung — die Konsequenz ist aber betrieblich und gehört ins Runbook: **der Turnier-Host darf nicht der Laptop von jemandem sein, der um Mitternacht nach Hause fährt** | `11_OPS`, vor dem ersten Turnierabend |
+
+## 13. Abnahmekriterien M4
 
 1. 8er Single Elim vollständig ohne manuellen Eingriff durchspielbar.
 2. Turnier-Host wird während Runde 2 hart beendet (Prozess-Kill) → nach Neustart läuft das Turnier ab dem letzten abgeschlossenen Match weiter.

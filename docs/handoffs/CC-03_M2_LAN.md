@@ -44,9 +44,9 @@ Zielstruktur.
 
 ---
 
-## 2. Zwei Widersprüche zwischen Spec und Code — vor dem ersten Byte klären
+## 2. Drei Widersprüche zwischen Spec und Code — vor dem ersten Byte klären
 
-Beide sind beim Schreiben dieses Handoffs aufgefallen. Nach der Regel aus `CLAUDE.md` §2
+Alle drei sind beim Schreiben dieses Handoffs aufgefallen. Nach der Regel aus `CLAUDE.md` §2
 wird **erst die Spec geändert, dann der Code** — also entscheide das zuerst und schreib es
 in `04_NETCODE_SPEC`, bevor du `protocol.lua` anlegst.
 
@@ -77,6 +77,27 @@ merkt, überträgt stillschweigend Unsinn.
 §6 entsprechend berichtigen. Prüfe bei der Gelegenheit die **gesamte** Feldliste des
 Snapshots gegen `state.lua` — `setsA`/`setsB` und `lastTouchPlayer` sind die nächsten
 Kandidaten. Das ist die erste Aufgabe von M2-01, nicht eine Nacharbeit.
+
+### W-03 — `RULESET_FULL` ist als JSON spezifiziert, es gibt keinen JSON-Leser
+
+`04_NETCODE` §5 überträgt Nachricht `0x12` als „vollständiges Ruleset als JSON".
+`12_OPENSOURCE` §3 führt dazu `src/lib/json.lua` (MIT) in der Fremdkomponententabelle auf.
+
+**Diese Datei existiert nicht**, und `LICENSE-THIRD-PARTY.md` hält seit M1-08 fest, dass das
+Projekt keine Fremdbibliothek benutzt. Der Punkt trifft **M2**, nicht erst den Turniermodus:
+`RULESET_FULL` gehört zu AP-5. Drei Wege:
+
+| Weg | Kosten |
+|---|---|
+| `json.lua` aufnehmen | braucht **ADR**, Eintrag in `LICENSE-THIRD-PARTY.md`, erste Fremdabhängigkeit des Projekts |
+| Ruleset mit `love.data.pack` als festes Feldlayout übertragen | kein neuer Code außerhalb von `protocol.lua`, dafür muss das Layout bei jeder Ruleset-Änderung mitgezogen werden |
+| Eigener Kleinstserialisierer für die flache Tabelle | rund 30 Zeilen, kein ADR |
+
+**Empfehlung: der zweite Weg.** Das Ruleset ist eine flache Tabelle aus Zahlen und
+Wahrheitswerten, die kanonische Form existiert bereits für den Hash (`Ruleset.canonical`),
+und `protocol.lua` packt ohnehin schon Felder. JSON löst hier ein Problem, das es nicht gibt.
+Wenn M4 später wirklich strukturiertes JSON braucht (`TOURNAMENT_STATE`, 0x40), ist das eine
+eigene Entscheidung mit eigenem ADR — und dann für genau diese eine Nachricht.
 
 ---
 
