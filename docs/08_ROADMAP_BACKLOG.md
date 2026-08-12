@@ -76,7 +76,7 @@ Normalfall und der Fallback die Absicherung — das ist die Umkehrung dessen, wa
 **Was M1 nicht abschließt:** M1-07 hängt an fremder Hardware, M1-03/M1-3b/M1-11 hängen am
 ersten Push. Bis dahin gilt für den macOS-Pfad: geschrieben, nicht bewiesen.
 
-### M2 — LAN 1v1 (25–35 h)
+### M2 — LAN 1v1 (25–35 h) — **ABGESCHLOSSEN 2026-08-12, `v0.2.2` veröffentlicht**
 
 **Ziel:** Zwei Rechner, ein Match, keine IP-Eingabe nötig.
 **Abnahme:** T-N-01…T-N-10 + D2.
@@ -100,14 +100,18 @@ auf macOS eingehende Verbindungen an. Zwei Discovery-Fehler gefunden und in 0.2.
 (B-N-08, B-N-09 im Report). Die manuelle IP-Eingabe hat den Abend zweimal gerettet.
 **M1-07 ist damit erledigt.**
 
-**Offen aus M2:** T-N-02 und T-N-03 (Paketverlust, braucht `clumsy` von Hand), T-N-09 (drei
-Hosts gleichzeitig, braucht drei Rechner) und die Gegenprobe zur Discovery-Nachbesserung mit
-zwei Rechnern. Einzelheiten in `docs/handoffs/CC-03_REPORT.md`.
+**Gegenprobe mit 0.2.1 bestanden:** Suche und Wiedereinstieg laufen in beiden Richtungen ohne
+IP-Eingabe. In 0.2.2 kam die Revanche dazu (`R` war im Netzspiel ohne Wirkung, B-N-10).
+
+**Restschuld aus M2, ohne Codeanteil:** T-N-02 und T-N-03 (Paketverlust, braucht `clumsy` von
+Hand) und T-N-09 (drei Lobbys gleichzeitig, braucht drei Rechner). Sie sind in den
+M3-Auftrag `docs/handoffs/CC-04_M3_NETZPOLITUR.md` §3 übernommen, weil die WLAN-Messung aus
+M3-04 ohnehin Hardware zusammenbringt.
 
 **Geschlossen in M2:** N-03 (gleiche Bytes auf Windows und macOS) — beantwortet durch T-N-07
 in der CI, mit einer gefundenen Ausnahme beim Vorzeichen der Null (`04_NETCODE` §6).
 
-### M3 — Netzwerk-Politur (10–15 h)
+### M3 — Netzwerk-Politur (10–15 h) — **als Nächstes**, Auftrag: `docs/handoffs/CC-04_M3_NETZPOLITUR.md`
 
 | ID | Aufgabe | h |
 |----|---------|---|

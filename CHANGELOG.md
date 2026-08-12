@@ -9,7 +9,7 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [0.2.2] — 2026-08-12
 
-Zweite Nachbesserung aus dem LAN-Test. Die Discovery-Fehler aus 0.2.1 sind bestätigt behoben —
+**Erste öffentlich veröffentlichte Fassung.** Zweite Nachbesserung aus dem LAN-Test. Die Discovery-Fehler aus 0.2.1 sind bestätigt behoben —
 Suche und Wiedereinstieg laufen jetzt in beiden Richtungen ohne IP-Eingabe.
 
 ### Behoben

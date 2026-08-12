@@ -1,5 +1,10 @@
 # CC-03 — Rückmeldung (M2 LAN 1v1)
 
+> **M2 ist abgeschlossen.** `v0.2.2` ist als öffentlicher Release veröffentlicht, mit Paketen
+> für Windows und macOS. Der Nachfolgeauftrag liegt als `docs/handoffs/CC-04_M3_NETZPOLITUR.md`
+> bereit. Was aus M2 an Restschuld übrig ist, steht dort in §3 — drei Abnahmefälle, die
+> Hardware brauchen und keinen Code.
+
 **Datum:** 2026-08-12 · **Auftrag:** `docs/handoffs/CC-03_M2_LAN.md`
 **Ausgangsstand:** 968e35f · **Endstand:** siehe `git log` ab e69980d
 **Tests:** 179 bestanden, 0 gescheitert (vorher 83) · **Netz-Selbsttest:** 37 Prüfungen, alle grün
@@ -48,6 +53,31 @@ Anfragen). Bleibt die Liste leer, sagt der Zähler beim Host, ob die Frage über
 
 **Noch offen aus D2:** T-N-02 und T-N-03 (Paketverlust mit `clumsy`) und T-N-09 (drei Hosts
 gleichzeitig).
+
+### 0b. Gegenprobe mit 0.2.1 — bestanden
+
+Zweiter Lauf am selben Abend: **Suche und Wiedereinstieg laufen jetzt in beiden Richtungen
+ohne IP-Eingabe.** Beide Befunde B-N-08 und B-N-09 sind damit nicht nur behoben, sondern im
+Feld bestätigt.
+
+Dabei fiel der letzte Fehler auf:
+
+**B-N-10 — `R` war im Abpfiff-Bild ohne Wirkung, auf beiden Seiten.** Das Bild versprach eine
+Revanche; die Taste war aber nur im lokalen Spiel belegt (`local_game.lua`), und die Netzszene
+kannte sie nicht. Behoben in 0.2.2, und zwar entlang der Architektur statt daneben: Der
+**Host** pfeift mit `R` ein neues Match an — `startMatch` schickt `MATCH_START`, der Gast
+setzt damit von selbst zurück. Beim **Gast** meldet `R` den Wunsch an; er kann kein Match
+starten, weil es genau eine Wahrheit gibt (ADR-002). Dafür wurde kein neues Protokollfeld
+erfunden: `SET_READY` sagt bereits „ich will spielen". Beide Seiten sehen jetzt im Abpfiff-Bild,
+worauf sie warten.
+
+Beim Beheben fiel ein zweiter, stiller Fehler auf: Die Spielszene gab die Rückrufe der
+Netzschicht beim Verlassen nicht an die Lobby zurück, sondern setzte sie auf eine leere
+Funktion. Wer nach dem Abpfiff in die Lobby ging, hätte dort einen späteren Anpfiff oder
+einen Verbindungsabbruch verschluckt — ein Fehler, der erst beim dritten Match aufgefallen
+wäre.
+
+**Damit ist M2 fertig.** `v0.2.2` ist veröffentlicht.
 
 ---
 
