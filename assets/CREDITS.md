@@ -8,7 +8,7 @@ Was hier nicht steht, gehört nicht ins Repository.
 
 ## Grundsatz
 
-Alle Assets stammen von **Roberto** und stehen unter derselben Lizenz wie der Code
+Alle Assets stammen von **r0btoshi** und stehen unter derselben Lizenz wie der Code
 (zlib, siehe `LICENSE`). Es wurde **kein Material aus Blobby Volley oder Blobby Volley 2**
 übernommen — weder Grafik noch Klang noch Code. Zur Abgrenzung siehe `docs/references.md`.
 
@@ -52,7 +52,7 @@ Acht WAV-Dateien, 44,1 kHz / 16 Bit / Stereo, zuletzt mit FFmpeg geschrieben.
 ## Musik
 
 Sieben Titel, Ogg Vorbis, zusammen rund 14 MB. Sie werden gestreamt, nicht in den Speicher
-geladen. Herkunft wie oben: von Roberto, zlib.
+geladen. Herkunft wie oben: von r0btoshi, zlib.
 
 | Datei | Größe | Liste |
 |---|---|---|

@@ -98,10 +98,9 @@ Repo unter deinem Konto und die URL. Der erste Push löst zwei Dinge aus, die bi
 Behauptungen bleiben — der Testlauf unter echtem LuaJIT und, mit einem Tag `v0.1.0`, der
 macOS-Build inklusive Signatur. Vorher weiß niemand, ob beides trägt.
 
-**2. `LICENSE` nennt „Roberto" ohne Nachnamen**, `12_OPENSOURCE` §3 sieht „Roberto Versino"
-vor. Ob dein vollständiger Name in ein öffentliches Repo gehört, ist deine Entscheidung, und
-sie ist nach dem ersten Push praktisch nicht mehr rückgängig zu machen. Ich habe die Datei
-unverändert gelassen.
+**2. ~~`LICENSE` nennt den Vornamen~~ — entschieden am 2026-08-12:** Rechteinhaber ist das
+Pseudonym **`r0btoshi`**. `LICENSE`, `assets/CREDITS.md` und `12_OPENSOURCE` §3 sind
+entsprechend geändert. Der Klarname des Nachnamens steht nirgends mehr im Repo.
 
 **3. Der Schreibschutz auf den Spec-Dateien** — Absicht oder Nebenwirkung? Siehe B-M1-3.
 

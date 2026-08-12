@@ -45,7 +45,11 @@ volley-dash/
 
 ### `LICENSE` — zlib
 
-Standardtext der zlib-Lizenz mit `Copyright (c) 2026 Roberto Versino`. Begründung der Wahl in ADR-011.
+Standardtext der zlib-Lizenz mit `Copyright (c) 2026 r0btoshi`. Begründung der Wahl in ADR-011.
+
+**Nachtrag M1-08 (2026-08-12):** Als Rechteinhaber steht das Pseudonym **`r0btoshi`** in der
+Datei, nicht der Klarname. Das ist wirksam — die zlib-Lizenz verlangt keinen bürgerlichen
+Namen, und ein Pseudonym schließt die Urheberschaft nicht aus.
 
 ### `LICENSE-THIRD-PARTY.md`
 
