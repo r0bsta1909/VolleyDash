@@ -20,14 +20,27 @@ Runner.SUITES = {
     "tests.rules_test",
     "tests.bindings_test",
     "tests.replay_test",
+    "tests.snapshot_test",
+    "tests.input_queue_test",
+    "tests.lobby_test",
 }
 
--- Gibt bestandene und gescheiterte Faelle zurueck.
-function Runner.run(printf)
-    printf = printf or print
+-- Suiten, die LOEVE brauchen (M2-01).
+--
+-- `src/net/protocol.lua` serialisiert mit `love.data.pack`. Diese Suite unter
+-- reinem LuaJIT lauffaehig zu machen hiesse, die Serialisierung nachzubauen
+-- und dann die Nachbildung zu pruefen -- der Fehler, den T-N-07 finden soll
+-- (unterschiedliche Bytes auf Windows und macOS), waere damit systematisch
+-- unsichtbar. Also: hier ueberspringen, unter `love . --test` laufen lassen.
+-- Die CI tut beides.
+Runner.LOVE_SUITES = {
+    "tests.protocol_test",
+}
+
+local function runSuites(list, printf)
     local passed, failed = 0, 0
 
-    for _, suiteName in ipairs(Runner.SUITES) do
+    for _, suiteName in ipairs(list) do
         local ok, suite = pcall(require, suiteName)
         if not ok then
             printf(string.format("SUITE FEHLER  %s: %s", suiteName, tostring(suite)))
@@ -44,6 +57,23 @@ function Runner.run(printf)
                 end
             end
         end
+    end
+
+    return passed, failed
+end
+
+-- Gibt bestandene und gescheiterte Faelle zurueck.
+function Runner.run(printf)
+    printf = printf or print
+
+    local passed, failed = runSuites(Runner.SUITES, printf)
+
+    if love and love.data then
+        local p, f = runSuites(Runner.LOVE_SUITES, printf)
+        passed, failed = passed + p, failed + f
+    else
+        printf(string.format("-- %s uebersprungen (brauchen love.data, siehe Kopf)",
+            table.concat(Runner.LOVE_SUITES, ", ")))
     end
 
     printf(string.format("%d bestanden, %d gescheitert", passed, failed))

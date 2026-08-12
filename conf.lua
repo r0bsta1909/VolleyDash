@@ -5,6 +5,18 @@
 -- Laufzeit nicht mehr sauber nachgeholt werden.
 -- ============================================================================
 
+-- Ein Testlauf braucht kein Fenster (M2-01). Ohne diese Weiche startet
+-- `love . --test` eine Grafikausgabe, und damit laesst sich der Lauf auf
+-- einem CI-Laeufer ohne Bildschirm nicht starten -- genau das ist aber
+-- noetig, um T-N-07 (gleiche Bytes auf Windows und macOS) zu beantworten.
+-- `arg` steht in love.conf bereits zur Verfuegung.
+local function isTestRun()
+    for _, a in ipairs(arg or {}) do
+        if a == "--test" or a == "--test-no-love" then return true end
+    end
+    return false
+end
+
 function love.conf(t)
     -- Speicherordner. Kleingeschrieben und passend zum Bundle-Identifier
     -- games.4brain.volleydash (CLAUDE.md §1). `06_BUILD` §2 nennt hier noch
@@ -18,6 +30,17 @@ function love.conf(t)
     t.version = "11.5"
 
     t.console = false   -- fuer eine Konsole gibt es lovec.exe
+
+    -- Der Testlauf endet hier: kein Fenster, keine Grafik, kein Ton.
+    if isTestRun() then
+        t.window = false
+        t.modules.window   = false
+        t.modules.graphics = false
+        t.modules.audio    = false
+        t.modules.sound    = false
+        t.modules.joystick = false
+        return
+    end
 
     t.window.title     = "Volley Dash"
     -- 4:3 wie das logische Feld (800 x 600, ADR-004), damit im Fenster keine

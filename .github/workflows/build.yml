@@ -39,6 +39,51 @@ jobs:
       - name: Referenz-Rallyes pruefen
         run: python3 tools/verify_replays.py
 
+  # ---------------------------------------------------------------------------
+  # Protokolltests auf beiden Zielplattformen (M2-01, Testfall T-N-07)
+  #
+  # `src/net/protocol.lua` serialisiert mit `love.data.pack` und laeuft deshalb
+  # nicht im LuaJIT-Lauf oben. Genau diese Suite beantwortet aber den offenen
+  # Punkt N-03 aus `04_NETCODE_SPEC` §13: schreiben Windows-x86-64 und
+  # macOS-ARM64 dieselben Bytes? Die Referenz steht in tests/protocol_test.lua;
+  # laeuft der Fall hier auf beiden Laeufern durch, ist die Frage beantwortet.
+  #
+  # `love . --test` kommt seit M2-01 ohne Fenster aus (conf.lua), sonst waere
+  # der Lauf auf einem Laeufer ohne Bildschirm nicht moeglich.
+  # ---------------------------------------------------------------------------
+  protocol:
+    name: Protokoll-Bytes (${{ matrix.os }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: LOEVE laden (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL -o love.zip \
+            "https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-win64.zip"
+          unzip -q love.zip
+          echo "LOVE_BIN=$PWD/love-${LOVE_VERSION}-win64/lovec.exe" >> "$GITHUB_ENV"
+
+      - name: LOEVE laden (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -fsSL -o love.zip \
+            "https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-macos.zip"
+          unzip -q love.zip
+          echo "LOVE_BIN=$PWD/love.app/Contents/MacOS/love" >> "$GITHUB_ENV"
+
+      - name: Tests inklusive Protokoll
+        shell: bash
+        run: |
+          "$LOVE_BIN" . --test
+
   love:
     name: .love bauen
     runs-on: ubuntu-latest
