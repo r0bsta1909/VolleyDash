@@ -79,10 +79,23 @@ jobs:
           unzip -q love.zip
           echo "LOVE_BIN=$PWD/love.app/Contents/MacOS/love" >> "$GITHUB_ENV"
 
+      # Die Ausgabe wandert bei einem Fehlschlag in eine Annotation. Grund:
+      # Job-Logs lassen sich ueber die API nur mit Admin-Rechten abrufen,
+      # Annotationen von jedem. Wer den Fehler sucht, soll ihn sehen, ohne
+      # sich anmelden zu muessen.
       - name: Tests inklusive Protokoll
         shell: bash
         run: |
-          "$LOVE_BIN" . --test
+          set +e
+          "$LOVE_BIN" . --test > test.log 2>&1
+          code=$?
+          cat test.log
+          if [ $code -ne 0 ] || [ ! -s test.log ]; then
+            printf '::error title=%s::' "Protokolltest ${{ matrix.os }} (Code $code)"
+            tail -30 test.log | while IFS= read -r line; do printf '%s%%0A' "$line"; done
+            printf '\n'
+          fi
+          exit $code
 
   love:
     name: .love bauen
