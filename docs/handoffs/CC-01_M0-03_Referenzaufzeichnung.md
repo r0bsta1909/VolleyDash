@@ -119,7 +119,7 @@ an dem du **anhalten und fragen** musst.
    /*.ogg
    /*.wav
    ```
-4. `LICENSE` mit zlib-Lizenztext, Copyright „Roberto".
+4. `LICENSE` mit zlib-Lizenztext, Copyright „r0btoshi".
 5. **Halt. Noch kein Commit.** Der erste Commit erfolgt in AP-1b, nachdem die
    Namensbereinigung durch ist. Führe bis dahin kein `git add` aus.
 
@@ -147,7 +147,7 @@ Sie ist zugleich risikofrei: keine der Stellen berührt die Physik.
 **Nebenwirkung, die du erwähnen musst:** Durch die neue Identity und den neuen Dateinamen
 findet der Prototyp die bisherige gespeicherte Konfiguration nicht mehr und startet mit
 `defaults`. Das ist für die Aufzeichnung erwünscht — die Referenz soll auf Defaults laufen,
-nicht auf Robertos privaten Tweaks. Weise vor dem ersten Start darauf hin.
+nicht auf r0btoshis privaten Tweaks. Weise vor dem ersten Start darauf hin.
 
 Danach:
 
@@ -174,7 +174,7 @@ Größe, SHA-256, Verwendungsstelle im Code (Zeilennummer) und einer Spalte „H
 sowie „Entscheidung".
 
 **Die Spalte Herkunft füllst du nicht.** Du weißt nicht, woher diese Dateien stammen, und
-eine geratene Lizenzangabe ist schlimmer als eine leere. Trage `UNBEKANNT — von Roberto zu
+eine geratene Lizenzangabe ist schlimmer als eine leere. Trage `UNBEKANNT — von r0btoshi zu
 klären` ein.
 
 Ergänze eine Liste: welche Assets sind für den Spielbetrieb **funktional notwendig**, welche
@@ -183,7 +183,7 @@ Fallback in M1-09.
 
 > **Anhalten und fragen:** Wenn Assets gefunden werden, die erkennbar aus Blobby Volley oder
 > Blobby Volley 2 stammen (GPLv2), meldest du das sofort und arbeitest nicht weiter am
-> Inventar, bevor Roberto entschieden hat. Das ist der einzige Fund, der die
+> Inventar, bevor r0btoshi entschieden hat. Das ist der einzige Fund, der die
 > Projektlizenzierung berührt.
 
 **Abnahme:** Jede Datei in `assets/` steht in der Tabelle. Keine erfundene Herkunftsangabe.
@@ -263,7 +263,7 @@ Ohne Argument verhält sich das Spiel exakt wie vorher.
 
 ### AP-5 — `tools/record_replay.lua`
 
-Ein Aufzeichnungswerkzeug, das Roberto bedienen kann, während er spielt. Es wird per
+Ein Aufzeichnungswerkzeug, das r0btoshi bedienen kann, während er spielt. Es wird per
 `require` aus `main.lua` eingebunden und ist im Release-Build abschaltbar.
 
 **Bedienung im Spiel:**
@@ -334,7 +334,7 @@ Das Werkzeug aktualisiert die Datei nach jeder Aufzeichnung.
 
 ### AP-6 — Aufzeichnungsanleitung
 
-Roberto zeichnet selbst auf — das kann niemand automatisieren, es sind gespielte Rallyes.
+r0btoshi zeichnet selbst auf — das kann niemand automatisieren, es sind gespielte Rallyes.
 Schreibe `docs/handoffs/CC-01_AUFZEICHNUNGSANLEITUNG.md`:
 
 - Die 11 aufzunehmenden Rallyes R-01 bis R-11 aus `07_TEST_PLAN` §2, je mit einer
@@ -424,7 +424,7 @@ Schreibe am Ende `docs/handoffs/CC-01_REPORT.md` mit genau diesen Abschnitten:
 ## Spec-Änderungen
 [Welches Dokument, welcher Abschnitt, warum]
 
-## Entscheidungen, die Roberto treffen muss
+## Entscheidungen, die r0btoshi treffen muss
 [Nummerierte Liste, je mit Optionen und deiner Empfehlung]
 
 ## Nächster sinnvoller Schritt

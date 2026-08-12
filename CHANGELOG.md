@@ -61,7 +61,7 @@ Zwei gewollte Verhaltensänderungen, alles andere ist bitgleich nachgewiesen:
 
 ### Abnahme
 
-- **D1 (Spielgefühl) am 2026-08-12 als Product-Owner-Abnahme erteilt.** Roberto hat alte und
+- **D1 (Spielgefühl) am 2026-08-12 als Product-Owner-Abnahme erteilt.** r0btoshi hat alte und
   neue Fassung selbst gespielt. Das vorgesehene Verfahren aus `07_TEST_PLAN` §6 — drei
   Personen im Blindwechsel — wurde **nicht** durchlaufen; die Abnahme beruht auf einer
   Person. Das ist eine Entscheidung, keine Lücke, und steht deshalb hier.

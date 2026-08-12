@@ -290,7 +290,7 @@ Format: Kontext → Entscheidung → Begründung → Konsequenzen → Verworfene
 
 **Konsequenzen:**
 - Der Header jeder Aufzeichnung führt `driver` (`human`, `replay:…`, `scripted:…`). Das Manifest spiegelt das. Niemand muss raten, wie eine Referenz entstanden ist.
-- Der `fixed60`-Satz ist reproduzierbar: `--replay-all`, dann die vier Szenen. Der gespielte Satz ist es nicht — er bleibt deshalb im Repo (Entscheidung Roberto, 2026-08-11).
+- Der `fixed60`-Satz ist reproduzierbar: `--replay-all`, dann die vier Szenen. Der gespielte Satz ist es nicht — er bleibt deshalb im Repo (Entscheidung r0btoshi, 2026-08-11).
 - Wiedergegebene Rallyes laufen nach dem Ende der aufgezeichneten Eingaben mit Nulleingabe weiter, bis der Ballwechsel entschieden ist. Ohne Ausgang lässt sich die Bewertungstabelle aus `07_TEST_PLAN` §2 nicht anwenden.
 - `tools/replay_source.lua` und `tools/verify_replays.py` sind Vorarbeit für M0-13: die Wiedergabe wird dort zum Testtreiber gegen `sim.step()`.
 

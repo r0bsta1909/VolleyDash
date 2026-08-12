@@ -91,7 +91,7 @@ Berichtigungen an Stellen sind, die sich beim Bauen als undurchführbar erwiesen
 auszuweichen, hat den Entwurf aus `06_BUILD` §5 gerade bestätigt — das ist kein neuer
 Sachverhalt, sondern der geplante.
 
-## 5. Entscheidungen für Roberto
+## 5. Entscheidungen für r0btoshi
 
 **1. Wann kommt der erste Push?** Alles liegt bereit. Nötig sind: ein leeres öffentliches
 Repo unter deinem Konto und die URL. Der erste Push löst zwei Dinge aus, die bis dahin

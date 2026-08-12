@@ -64,7 +64,7 @@ GPLv2 ist eine Copyleft-Lizenz: Wer abgeleiteten Code verbreitet, muss das Gesam
 ## 4. Eigene Assets
 
 **Stand 2026-08-11 (CC-01):** Die Herkunft ist geklärt — **alle elf Assetdateien stammen von
-Roberto**. Risiko R-05 ist damit erledigt, die Bedingung aus `CLAUDE.md` §11 für den ersten
+r0btoshi**. Risiko R-05 ist damit erledigt, die Bedingung aus `CLAUDE.md` §11 für den ersten
 Push ist erfüllt. Vollständige Liste mit Hashes in `ASSET_INVENTORY.md`.
 
 | Asset | Status | Anforderung |
@@ -76,7 +76,7 @@ Push ist erfüllt. Vollständige Liste mit Hashes in `ASSET_INVENTORY.md`.
 | Fonts | LÖVE-Standardfont | Bei eigenem Font: nur OFL-lizenzierte verwenden |
 | **Musik** (`music/`) | **noch keine Datei im Repo** | Herkunft vor dem ersten Commit klären. Eigene Produktion oder ausdrücklich CC0 mit Nachweis in `assets/CREDITS.md`. Eine gelöschte Datei bleibt in der Historie — das ist der ganze Punkt |
 
-**Vor dem ersten öffentlichen Push (ADR-011):** Eine `assets/CREDITS.md` anlegen, die für jedes Asset Herkunft und Lizenz nennt — hier durchgehend „Roberto, zlib". Der Nachweis liegt vor; blockierend ist nur noch das Anlegen der Datei. Eine gelöschte Datei bleibt in der Git-Historie; ein nachträglicher History-Rewrite auf einem geforkten Repo ist praktisch nicht durchführbar.
+**Vor dem ersten öffentlichen Push (ADR-011):** Eine `assets/CREDITS.md` anlegen, die für jedes Asset Herkunft und Lizenz nennt — hier durchgehend „r0btoshi, zlib". Der Nachweis liegt vor; blockierend ist nur noch das Anlegen der Datei. Eine gelöschte Datei bleibt in der Git-Historie; ein nachträglicher History-Rewrite auf einem geforkten Repo ist praktisch nicht durchführbar.
 
 **Der prozedurale Fallback bleibt trotzdem interessant:** Der Prototyp funktioniert vollständig **ohne** externe Assets — der Zeichencode enthält Fallbacks für Blob und Ball (prozedurale Halbkreise, Augen mit Ballverfolgung), nachgewiesen in `ASSET_INVENTORY.md` §3. Das ist jetzt kein Lizenzargument mehr, sondern eines für Startzeit und Downloadgröße (M1-09).
 

@@ -33,7 +33,7 @@ D:\love2d\LOVE\lovec.exe . --test
 muss „83 bestanden, 0 gescheitert" melden, bevor du committest.
 
 **Offen aus M0, bevor M1-10 das öffentliche README schreibt:** Die Abnahme D1 ist formal
-nicht durch (`M0_REPORT.md` §4). Kläre mit Roberto, ob D1 nachgeholt oder als PO-Abnahme
+nicht durch (`M0_REPORT.md` §4). Kläre mit r0btoshi, ob D1 nachgeholt oder als PO-Abnahme
 protokolliert wird — ein öffentliches Repo mit „M0 abgenommen" im README wäre sonst
 unbelegt.
 
@@ -78,7 +78,7 @@ der `love.app`, und ohne erneutes Signieren startet die App auf Apple Silicon ga
 ### AP-4 — Assets und Recht (M1-08, M1-09)
 
 `LICENSE-THIRD-PARTY.md`, `docs/references.md`, `assets/CREDITS.md`. Für die elf
-vorhandenen Dateien ist die Herkunft geklärt (Roberto, siehe `ASSET_INVENTORY.md`) — die
+vorhandenen Dateien ist die Herkunft geklärt (r0btoshi, siehe `ASSET_INVENTORY.md`) — die
 CREDITS-Datei muss das nur noch festhalten.
 
 **Technikpunkt aus M0-02:** `bg.jpg` ist ein PNG mit falscher Endung, 2752 × 1536, 4,9 MB,
@@ -86,7 +86,7 @@ rund 16 MB VRAM. Verkleinern auf Zielauflösung und korrekt benennen. Das ist de
 Hebel für die Downloadgröße und damit für das Charter-Kriterium „Time-to-First-Match
 ≤ 90 s ab ZIP".
 
-> **Anhalten und fragen:** Wenn Roberto Musikdateien beisteuert, vor dem Commit Herkunft
+> **Anhalten und fragen:** Wenn r0btoshi Musikdateien beisteuert, vor dem Commit Herkunft
 > klären (`music/README.md`, `10_LEGAL` §4). Eine gelöschte Datei bleibt in der Historie.
 
 ### AP-5 — GitHub (M1-10, M1-11, M1-12)
@@ -120,4 +120,4 @@ Erwartung, die nebenberuflich nicht einlösbar ist.
 
 Am Ende `docs/handoffs/CC-02_REPORT.md` mit denselben Abschnitten wie CC-01:
 Erledigt · Nicht erledigt und warum · Befunde · Spec-Änderungen · Entscheidungen für
-Roberto · Nächster Schritt.
+r0btoshi · Nächster Schritt.

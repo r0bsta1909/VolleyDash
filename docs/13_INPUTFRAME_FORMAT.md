@@ -138,7 +138,7 @@ Die `and/or`-Kette wertet von links aus: Ist die Linkstaste gedrückt, ist das E
 `vx = 0` tritt nur ein, wenn **keine** der beiden Tasten anliegt.
 
 Das Handoff CC-01 schlug „beide gesetzt ergibt Stillstand (`vx = 0`)" vor. Das ist **nicht**
-das Verhalten des Prototyps und wird nicht übernommen (Entscheidung Roberto, 2026-08-11).
+das Verhalten des Prototyps und wird nicht übernommen (Entscheidung r0btoshi, 2026-08-11).
 Begründung: Die Referenz-Rallyes halten das jetzige Verhalten fest; eine Regeländerung an
 dieser Stelle würde die Aufzeichnung gegen eine Physik prüfen, die es zum Aufnahmezeitpunkt
 nicht gab.

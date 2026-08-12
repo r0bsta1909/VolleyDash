@@ -55,7 +55,7 @@ Vollständig; alles andere ist nachweislich unverändert.
 
 ## 4. Abnahme D1 — entschieden am 2026-08-12
 
-> **Nachtrag (2026-08-12, Beginn CC-02):** Roberto hat den zweiten Weg gewählt — **D1 ist als
+> **Nachtrag (2026-08-12, Beginn CC-02):** r0btoshi hat den zweiten Weg gewählt — **D1 ist als
 > Product-Owner-Abnahme erteilt**, auf Basis einer Person, ohne Blindverfahren. Der Vermerk
 > steht in `07_TEST_PLAN` §6 und im `CHANGELOG.md`. **M0 ist damit abgenommen.** Der
 > Abschnitt unten bleibt als Begründungslage stehen.
@@ -65,7 +65,7 @@ Vollständig; alles andere ist nachweislich unverändert.
 `07_TEST_PLAN` §6 verlangt: **drei Personen, je drei Sätze, alte gegen neue Fassung im
 Blindwechsel**, Frage „Welche war Nummer 1?".
 
-**Stand 2026-08-12:** Roberto hat beide Fassungen selbst gespielt und meldet
+**Stand 2026-08-12:** r0btoshi hat beide Fassungen selbst gespielt und meldet
 „fühlt sich soweit alles gut an", Musik läuft. Das ist ein **positiver Rauchtest, kein
 bestandenes D1** — es fehlen die zweite und dritte Person und das Blindverfahren.
 

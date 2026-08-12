@@ -86,7 +86,7 @@ Das Spiel soll sich **nicht modernisieren**. Kein Progression-System, keine Unlo
 
 | Rolle | Name | Freigabe |
 |-------|------|----------|
-| Product Owner / Design / Dev | Roberto | ☐ |
+| Product Owner / Design / Dev | r0btoshi | ☐ |
 
 **Angenommene Annahmen (bitte prüfen):**
 - A1: Die LAN-Party hat ein gemeinsames L2-Segment (ein Switch bzw. ein WLAN-AP), kein Routing zwischen Subnetzen. Broadcast-Discovery hängt daran.

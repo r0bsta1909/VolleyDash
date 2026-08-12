@@ -31,13 +31,13 @@ deutlich kleiner als WAV.
 ## Stand
 
 Sieben Titel liegen hier: einer im Menü, sechs im Match, zusammen rund 14 MB.
-**Herkunft geklärt** (Roberto, 2026-08-12), Lizenz zlib wie das Projekt, aufgeführt in
+**Herkunft geklärt** (r0btoshi, 2026-08-12), Lizenz zlib wie das Projekt, aufgeführt in
 `assets/CREDITS.md`. Sie werden mit ausgeliefert.
 
 ## Bevor hier eine weitere Datei landet
 
 **Herkunft klären.** Für die elf vorhandenen Assets ist das erledigt (alle von
-Roberto, siehe `docs/ASSET_INVENTORY.md`) — für Musik gilt `10_LEGAL` §4 neu:
+r0btoshi, siehe `docs/ASSET_INVENTORY.md`) — für Musik gilt `10_LEGAL` §4 neu:
 Ein Titel aus unklarer Quelle darf nicht in die Historie eines öffentlichen
 Repositorys geraten, denn gelöschte Dateien bleiben dort trotzdem stehen.
 

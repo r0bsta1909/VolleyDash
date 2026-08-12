@@ -2,11 +2,11 @@
 
 **Session:** 2026-08-11 · **Handoff:** `CC-01_M0-03_Referenzaufzeichnung.md` · **Aufgabe:** M0-03
 **Stand am Ende:** acht thematisch getrennte Commits, Tag `prototype-baseline`, Werkzeug einsatzbereit.
-Die eigentlichen elf Rallyes muss Roberto selbst spielen (AP-6).
+Die eigentlichen elf Rallyes muss r0btoshi selbst spielen (AP-6).
 
 ## Erledigt
 
-- **AP-1** — `git init -b main`, `.gitattributes` (um `*.jpg binary` ergänzt), `.gitignore` mit wurzelgebundenen Assetmustern, `LICENSE` (zlib, Copyright „Roberto"). `git status` zeigt alle elf Assets als ignoriert.
+- **AP-1** — `git init -b main`, `.gitattributes` (um `*.jpg binary` ergänzt), `.gitignore` mit wurzelgebundenen Assetmustern, `LICENSE` (zlib, Copyright „r0btoshi"). `git status` zeigt alle elf Assets als ignoriert.
 - **AP-1b** — Acht Stellen von „Blobby LAN" auf „Volley Dash" umgestellt. Zwei getrennte Commits, `prototype-baseline` auf den zweiten. `grep -ri blobby main.lua bot.lua` ist leer, keine Assetdatei in der Historie.
 - **AP-2** — `docs/ASSET_INVENTORY.md` mit elf Dateien, SHA-256, Verwendungsstelle, Herkunftsstatus und der Einordnung funktional/dekorativ.
 - **AP-3** — `docs/13_INPUTFRAME_FORMAT.md` geschrieben, **ADR-014** im Decision Log ergänzt, `08_ROADMAP` M0-06 verweist darauf.
@@ -64,7 +64,7 @@ Die `and/or`-Kette wertet von links: Liegt die Linkstaste an, ist das Ergebnis `
 unabhängig von der Rechtstaste. `vx = 0` gibt es nur, wenn keine der beiden Tasten anliegt.
 
 Das Handoff schlug „beide gesetzt ergibt Stillstand" vor. Das ist nicht das Verhalten des
-Prototyps. **Entscheidung Roberto (2026-08-11): Das gemessene Verhalten wird
+Prototyps. **Entscheidung r0btoshi (2026-08-11): Das gemessene Verhalten wird
 festgeschrieben**, `main.lua` bleibt unverändert, ADR-014 und
 `13_INPUTFRAME_FORMAT.md` §5 halten es fest.
 
@@ -96,7 +96,7 @@ Nicht geändert: `01_GDD`, `02_CODE_AUDIT` §4, `07_TEST_PLAN`. Die Befunde oben
 Audit, sind aber Sache der nächsten Session — `02_CODE_AUDIT` §4 ist unantastbar, §2/§3 wären
 zu ergänzen.
 
-## Entscheidungen, die Roberto treffen muss
+## Entscheidungen, die r0btoshi treffen muss
 
 1. **Herkunft von `blob.png`, `ball.png` und den acht `.wav`.**
    Optionen: (a) selbst erstellt → in `assets/CREDITS.md` eintragen und ins Repo aufnehmen; (b) fremd/unklar → draußen lassen und in M1-09 durch prozedurale Grafik und erzeugte Sounds ersetzen.
@@ -127,7 +127,7 @@ Elf Rallyes im Modus `--record` und danach elf im Modus `--fixed-dt` nach
 
 # CC-01 — Nachtrag (2026-08-11, zweite Sitzung)
 
-Roberto hat die elf Rallyes mit `--record` gespielt und entschieden: den `fixed60`-Satz
+r0btoshi hat die elf Rallyes mit `--record` gespielt und entschieden: den `fixed60`-Satz
 erzeuge ich selbst, die Assetherkunft ist geklärt, `bot.lua` wird gelöscht, der
 `variable`-Durchgang bleibt.
 
@@ -231,7 +231,7 @@ Ball schon vorher schneller als 1867 px/s wäre — was der Deckel selbst verhin
 greift ausschließlich über Aktivtransfer (Dash, laufender Blob) oder Smash mit Versatz.
 Das gehört in die Bewertung von B-06/GDD, wenn dort je über `maxBallSpeed` diskutiert wird.
 
-## Entscheidungen, die Roberto treffen muss
+## Entscheidungen, die r0btoshi treffen muss
 
 Keine. Die fünf offenen Punkte aus dem ersten Bericht sind beantwortet:
 Assetherkunft geklärt (1, 2), `bot.lua` gelöscht (3), Aufzeichnung vollständig (4),
