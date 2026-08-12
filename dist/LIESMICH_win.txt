@@ -1,0 +1,68 @@
+VOLLEY DASH -- Windows
+======================
+
+So faengst du an
+----------------
+
+1. Diese ZIP-Datei ENTPACKEN. Rechtsklick -> "Alle extrahieren".
+   Nicht aus dem ZIP heraus starten -- Windows fuehrt das Spiel dann in einem
+   temporaeren Ordner aus, und die Einstellungen sind beim naechsten Mal weg.
+
+2. VolleyDash.exe doppelklicken.
+
+3. Wenn Windows warnt: "Der Computer wurde durch Windows geschuetzt"
+   -> "Weitere Informationen" anklicken
+   -> "Trotzdem ausfuehren"
+
+   Das kommt, weil das Spiel nicht signiert ist. Ein Signaturzertifikat kostet
+   dreistellig im Jahr und lohnt fuer ein Feierabendprojekt nicht. Die Warnung
+   sagt nichts ueber den Inhalt aus, sondern nur, dass Microsoft den Absender
+   nicht kennt.
+
+Steuerung
+---------
+
+Spieler 1 (links):    A / D bewegen, W springen, S schmettern
+Spieler 2 (rechts):   H / K bewegen, U springen, J schmettern
+Menue und Pause:      ESC
+Vollbild:             F11 oder Alt+Enter
+
+Die Pfeiltasten gehoeren der Menuesteuerung und lassen sich deshalb nicht
+belegen. Alles andere ist frei: Settings -> Controls.
+
+Gamepads werden erkannt: Steuerkreuz oder linker Stick bewegen, A springt,
+X schmettert, LB/RB sind der Dash.
+
+Dash und Schmettern sind im voreingestellten Regelwerk "classic" ABGESCHALTET,
+weil das Original sie nicht hatte. Wer sie will: Local Match -> Ruleset auf
+"prototype" stellen. Auf der Tastatur ist der Dash ein Doppeltipp auf links
+oder rechts.
+
+Was drin ist
+------------
+
+Lokales Spiel zu zweit an einer Tastatur oder gegen den Bot in drei Stufen.
+Netzwerkspiel im LAN ist in Arbeit und noch NICHT enthalten -- der Menuepunkt
+"Network Match" traegt deshalb ein [WIP].
+
+Wenn etwas nicht laeuft
+-----------------------
+
+* "VCRUNTIME140.dll fehlt" oder aehnlich: Die ZIP wurde unvollstaendig
+  entpackt. Alle Dateien muessen neben der EXE liegen, besonders die .dll.
+
+* Schwarzes Fenster oder Absturz beim Start: Grafiktreiber veraltet. Das Spiel
+  braucht OpenGL 2.1.
+
+* Kein Ton: Unter Settings -> Master Volume und Music Volume nachsehen.
+
+* Sonst: Bildschirmfoto vom Hauptmenue machen. Unten rechts steht die Version
+  mit Build-Hash -- ohne diese Angabe ist ein Fehlerbericht schwer zu deuten.
+
+Lizenz
+------
+
+Volley Dash steht unter der zlib-Lizenz. Die beiliegende license.txt gehoert
+zur Spielengine LOEVE (love2d.org) und muss mitverteilt werden.
+
+Quellcode und Fehlerberichte: siehe README im Projektarchiv.

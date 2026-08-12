@@ -17,6 +17,10 @@ desktop.ini
 # Editor
 .vscode/
 
+# Vom Build erzeugt (M1-04). Gehoert in die .love, nicht ins Repo -- sonst
+# committet frueher oder spaeter jemand den Build-Hash von gestern.
+src/build_info_gen.lua
+
 # Laufzeit- und Testartefakte
 tests/replays/tmp/
 tests/replays/.last_window

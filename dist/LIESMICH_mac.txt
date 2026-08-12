@@ -1,0 +1,82 @@
+VOLLEY DASH -- macOS
+====================
+
+So faengst du an
+----------------
+
+1. ZIP entpacken (Doppelklick).
+
+2. VolleyDash.app NICHT doppelklicken. Beim ersten Mal geht das nicht.
+   Stattdessen: RECHTSKLICK auf die App -> "Oeffnen" -> im Dialog nochmals
+   "Oeffnen".
+
+   Ab dem zweiten Start reicht der Doppelklick.
+
+3. Falls macOS trotzdem blockt:
+   Systemeinstellungen -> Datenschutz & Sicherheit -> ganz nach unten scrollen
+   -> bei "VolleyDash wurde blockiert" auf "Dennoch oeffnen".
+
+Warum dieser Umweg
+------------------
+
+Die App ist ad-hoc signiert, aber nicht bei Apple notarisiert. Dafuer braeuchte
+es ein Entwicklerkonto fuer 99 USD im Jahr; fuer ein Feierabendprojekt ist das
+nicht vorgesehen. Die Ad-hoc-Signatur sorgt nur dafuer, dass die App auf
+Apple-Silicon-Macs ueberhaupt startet -- den Rechtsklick-Weg beim ersten Mal
+ersetzt sie nicht.
+
+Notfall am Partyabend
+---------------------
+
+Wenn der Rechtsklick-Weg an einem fremden Rechner nicht weiterhilft, hebt
+dieser Befehl im Terminal die Quarantaene fuer genau diese App auf:
+
+    xattr -dr com.apple.quarantine /Pfad/zu/VolleyDash.app
+
+Ehrlich gesagt, was der Befehl tut: Er entfernt die Markierung "aus dem
+Internet geladen" und damit die Gatekeeper-Pruefung fuer diese eine Datei.
+Wer ihn benutzt, sollte wissen, woher die Datei kommt. Blind kopieren ist eine
+schlechte Angewohnheit -- hier steht er, weil eine Party kein Ort fuer
+Fehlersuche ist.
+
+Steuerung
+---------
+
+Spieler 1 (links):    A / D bewegen, W springen, S schmettern
+Spieler 2 (rechts):   H / K bewegen, U springen, J schmettern
+Menue und Pause:      ESC
+Vollbild:             F11 oder Alt+Enter
+
+Die Pfeiltasten gehoeren der Menuesteuerung und lassen sich deshalb nicht
+belegen. Alles andere ist frei: Settings -> Controls.
+
+Gamepads werden erkannt: Steuerkreuz oder linker Stick bewegen, A springt,
+X schmettert, LB/RB sind der Dash.
+
+Dash und Schmettern sind im voreingestellten Regelwerk "classic" ABGESCHALTET,
+weil das Original sie nicht hatte. Wer sie will: Local Match -> Ruleset auf
+"prototype" stellen.
+
+Was drin ist
+------------
+
+Lokales Spiel zu zweit an einer Tastatur oder gegen den Bot in drei Stufen.
+Netzwerkspiel im LAN ist in Arbeit und noch NICHT enthalten.
+
+Wenn etwas nicht laeuft
+-----------------------
+
+* "Die App ist beschaedigt und kann nicht geoeffnet werden": Die ZIP wurde mit
+  einem Programm entpackt, das Symlinks nicht erhaelt. Nochmal laden und mit
+  dem Finder entpacken.
+
+* Auf einem alten Intel-Mac ruckelt es: Vollbild ausschalten (F11).
+
+* Sonst: Bildschirmfoto vom Hauptmenue. Unten rechts steht die Version mit
+  Build-Hash, dazu bitte angeben, ob Intel oder Apple Silicon.
+
+Lizenz
+------
+
+Volley Dash steht unter der zlib-Lizenz. Die Lizenz der Spielengine LOEVE
+(love2d.org) liegt in der App unter Contents/Resources.

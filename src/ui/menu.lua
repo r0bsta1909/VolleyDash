@@ -8,11 +8,12 @@
 -- Rueckrufe im Kontext (`launch`, `resume`, `quit`, `tweaker`).
 -- ============================================================================
 
-local World    = require("src.sim.world")
-local Assets   = require("src.app.assets")
-local Prefs    = require("src.app.prefs")
-local Bindings = require("src.input.bindings")
-local Music    = require("src.app.music")
+local World     = require("src.sim.world")
+local Assets    = require("src.app.assets")
+local Prefs     = require("src.app.prefs")
+local Bindings  = require("src.input.bindings")
+local Music     = require("src.app.music")
+local BuildInfo = require("src.app.build_info")
 
 local Menu = {}
 Menu.__index = Menu
@@ -327,6 +328,12 @@ function Menu:draw(matchRunning)
     love.graphics.setColor(1, 1, 1, 0.4)
     love.graphics.printf("Use UP/DOWN to navigate. Use LEFT/RIGHT to change settings. Enter to select.",
         0, World.HEIGHT - 30, World.WIDTH, "center")
+
+    -- Version und Build-Hash (M1-04). Steht klein in der Ecke, weil die
+    -- Bug-Vorlage danach fragt und niemand sonst danach sucht.
+    Assets.setFont(12)
+    love.graphics.setColor(1, 1, 1, 0.35)
+    love.graphics.printf(BuildInfo.label(), 0, World.HEIGHT - 48, World.WIDTH - 12, "right")
 end
 
 return Menu

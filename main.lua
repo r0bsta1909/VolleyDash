@@ -16,9 +16,22 @@
 -- inert.
 -- ============================================================================
 
-local Scene         = require("src.app.scene")
-local Viewport      = require("src.render.viewport")
-local ReferenceMode = require("tools.reference_mode")
+local Scene    = require("src.app.scene")
+local Viewport = require("src.render.viewport")
+
+-- tools/ wird nicht ausgeliefert (CC-02 §3), tests/ auch nicht. In einer
+-- gebauten .love fehlt das Werkzeug also -- und ein hartes require haette das
+-- Spiel dort beim Start zerlegt, waehrend es aus dem Quellordner laeuft.
+-- Genau der Fehlertyp, vor dem `06_BUILD` §1 warnt.
+local ok, ReferenceMode = pcall(require, "tools.reference_mode")
+if not ok then
+    ReferenceMode = {
+        parse    = function() end,
+        runTests = function() return false end,
+        refMode  = function() return false end,
+        install  = function() end,
+    }
+end
 
 ReferenceMode.parse(arg)
 
