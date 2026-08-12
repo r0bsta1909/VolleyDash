@@ -21,13 +21,15 @@
       "Bash(lua:*)"
     ],
     "ask": [
+      "Bash(git push:*)",
       "Bash(git remote:*)",
       "Bash(gh:*)",
       "Bash(npm:*)",
       "Bash(pip:*)"
     ],
     "deny": [
-      "Bash(git push:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
       "Bash(rm -rf:*)",
