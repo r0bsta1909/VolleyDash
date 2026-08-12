@@ -76,8 +76,18 @@ function LobbyView.draw(info)
         info.preset or "?", tostring(info.rulesetHash)),
         0, top + 90, World.WIDTH, "center")
 
+    -- Der Host hat den Namen abgewandelt, weil er schon vergeben war. Das
+    -- muss dastehen: sonst sucht jemand im Turnierbaum nach einem Namen, unter
+    -- dem er nie gespielt hat.
+    if info.renamed then
+        Assets.setFont(17)
+        love.graphics.setColor(1, 0.85, 0.2)
+        love.graphics.printf("Der Name war vergeben -- du spielst als \""
+            .. info.renamed .. "\"", 0, top + 112, World.WIDTH, "center")
+    end
+
     -- Befunde des Abgleichs
-    local y = top + 125
+    local y = top + 145
     Assets.setFont(16)
     for _, finding in ipairs(info.findings or {}) do
         love.graphics.setColor(COLOR[finding.severity] or { 1, 1, 1 })

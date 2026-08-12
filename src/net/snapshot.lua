@@ -96,6 +96,28 @@ end
 -- der Breite `cooldownTimer / dashCooldown`. Genau dieses Verhaeltnis geht
 -- als ein Byte ueber die Leitung.
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- Die Null hat ein Vorzeichen -- auf jeder Plattform ein anderes
+--
+-- IEEE 754 kennt +0 und -0. Die Simulation erzeugt die negative Null beilaeufig:
+-- `ball.vx = -math.abs(ball.vx) * 0.8` bei vx = 0 (physics.lua:124).
+--
+-- GEMESSEN im CI-Lauf 13 (2026-08-12): Unter Windows-x86-64 liefert `-zero`
+-- eine negative Null, unter macOS-ARM64 eine positive. LOEVE 11.5 faehrt auf
+-- Apple Silicon den Interpreter statt des JIT (`04_NETCODE_SPEC` §1), und die
+-- Arithmetik verhaelt sich dort an dieser Stelle anders. Das ist kein Fehler
+-- von `love.data.pack` -- die Bytes eines vollstaendigen Snapshots sind auf
+-- beiden Plattformen identisch, geprueft in T-N-07.
+--
+-- Fuer das Spiel ist der Unterschied bedeutungslos: -0 == 0, und niemand sieht
+-- ein Vorzeichen an einer stehenden Geschwindigkeit. Fuer die byteweise
+-- Pruefsumme aus §9 (M3-03) waere er ein Fehlalarm in jedem Tick, in dem
+-- irgendetwas stillsteht. Deshalb wird die Null hier einmal begradigt:
+-- `v + 0.0` macht aus -0 eine +0 und laesst jeden anderen Wert unberuehrt.
+local function norm(v)
+    return v + 0.0
+end
+
 local function packRatio(value, span)
     if not span or span <= 0 then return 0 end
     local ratio = value / span
@@ -133,7 +155,7 @@ function Snapshot.from(state, tick, ackInputTick, ruleset)
 
     local span = ruleset.dashCooldown
 
-    return {
+    local snap = {
         tick            = tick,
         ballX           = ball.x,
         ballY           = ball.y,
@@ -159,6 +181,14 @@ function Snapshot.from(state, tick, ackInputTick, ruleset)
         flags           = flags,
         ackInputTick    = ackInputTick or -1,
     }
+
+    -- Eine Schleife statt zwoelf Aufrufe: ein neues Fliesskommafeld in
+    -- `FIELDS` ist damit von selbst mit erfasst.
+    for _, field in ipairs(Snapshot.FIELDS) do
+        if field[2] == "f" then snap[field[1]] = norm(snap[field[1]]) end
+    end
+
+    return snap
 end
 
 -- ---------------------------------------------------------------------------

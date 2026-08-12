@@ -222,4 +222,47 @@ case("serialize schreibt sortiert und mit Version", function()
     assertTrue(text:find("botActive=") < text:find("volume="), "sortiert")
 end)
 
+-- ---------------------------------------------------------------------------
+-- Nickname (M2)
+--
+-- Derselbe Name geht ueber das Netz, steht im HUD und landet im Turnierbaum.
+-- Wenn drei Stellen ihn unterschiedlich zurechtstutzen, heisst derselbe Mensch
+-- an drei Stellen anders -- deshalb saeubert genau eine Funktion.
+-- ---------------------------------------------------------------------------
+
+case("cleanName entfernt Leerraum am Rand", function()
+    assertEq(Prefs.cleanName("  Slime  "), "Slime")
+end)
+
+case("cleanName macht aus mehrfachem Leerraum einen", function()
+    assertEq(Prefs.cleanName("Giga    Blob"), "Giga Blob")
+end)
+
+case("cleanName wirft Steuerzeichen weg", function()
+    assertEq(Prefs.cleanName("Sli\nme\t!"), "Sli me !")
+    assertEq(Prefs.cleanName("\0\1Blob"), "Blob")
+end)
+
+case("cleanName kuerzt auf die Hoechstlaenge", function()
+    local long = string.rep("a", 40)
+    assertEq(Prefs.nameLength(Prefs.cleanName(long)), Prefs.NAME_MAX, "Laenge")
+end)
+
+case("cleanName vertraegt nil und leer", function()
+    assertEq(Prefs.cleanName(nil), "", "nil")
+    assertEq(Prefs.cleanName("   "), "", "nur Leerraum")
+end)
+
+case("dropLastChar entfernt genau ein Zeichen", function()
+    assertEq(Prefs.dropLastChar("Blob"), "Blo")
+    assertEq(Prefs.dropLastChar(""), "", "leer bleibt leer")
+end)
+
+case("der Nickname steht in der Whitelist und ueberlebt das Speichern", function()
+    local prefs = Prefs.new()
+    prefs.playerName = "Wobble"
+    local parsed = Prefs.parse(Prefs.serialize(prefs))
+    assertEq(parsed.playerName, "Wobble", "geladen")
+end)
+
 return T

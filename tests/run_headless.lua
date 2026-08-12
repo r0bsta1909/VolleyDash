@@ -23,6 +23,7 @@ Runner.SUITES = {
     "tests.snapshot_test",
     "tests.input_queue_test",
     "tests.lobby_test",
+    "tests.menu_test",
 }
 
 -- Suiten, die LOEVE brauchen (M2-01).

@@ -96,6 +96,45 @@ case("release gibt den Slot frei, den Host aber nicht", function()
     assertFalse(lobby:release(Lobby.HOST_SLOT), "der Host bleibt")
 end)
 
+-- ---------------------------------------------------------------------------
+-- Eindeutige Namen
+--
+-- Im Turnier steht der Name im Bracket. Zwei gleiche Namen sind dort keine
+-- Unschoenheit, sondern eine unbeantwortbare Frage.
+-- ---------------------------------------------------------------------------
+
+case("ein freier Name bleibt, wie er ist", function()
+    local lobby = newLobby()
+    assertEq(lobby:uniqueName("Slime"), "Slime", "unveraendert")
+end)
+
+case("ein vergebener Name bekommt eine Zahl", function()
+    local lobby = newLobby()
+    local slot = lobby:claim(4711, "Wobble", "abc123")
+    assertEq(slot, 2, "Slot")
+    -- Der Host heisst bereits "Wobble".
+    assertEq(lobby.slots[2].name, "Wobble 2", "abgewandelt")
+end)
+
+case("gross und klein gilt als derselbe Name", function()
+    local lobby = newLobby()
+    lobby:claim(4711, "WOBBLE", "abc123")
+    assertEq(lobby.slots[2].name, "WOBBLE 2", "abgewandelt")
+end)
+
+case("beim Wiedereinstieg zaehlt der eigene Name nicht gegen sich selbst", function()
+    local lobby = newLobby()
+    local slot = lobby:claim(4711, "Slime", "abc123")
+    lobby:claim(4711, "Slime", "abc123")   -- Reconnect mit demselben Namen
+    assertEq(lobby.slots[slot].name, "Slime", "kein 'Slime 2' nach dem Reconnect")
+end)
+
+case("ein leerer Name wird zu 'Gast'", function()
+    local lobby = newLobby()
+    lobby:claim(4711, "", "abc123")
+    assertEq(lobby.slots[2].name, "Gast", "Ersatzname")
+end)
+
 case("startbereit ist erst, wenn alle da und alle bereit sind", function()
     local lobby = newLobby()
     assertFalse(lobby:isStartable(), "allein nicht")

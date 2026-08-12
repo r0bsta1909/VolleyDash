@@ -38,7 +38,16 @@ Prefs.FIELDS = {
     -- Zuletzt getippte Adresse. Wer sie einmal eingegeben hat, tippt sie nach
     -- einem Absturz nicht gern noch einmal.
     lastAddress = { type = "string" },
+    -- Der Nickname fuer Netzspiel und Turnier. Anders als die Zufallsnamen des
+    -- lokalen Spiels muss er einen Neustart ueberleben: im Turnier steht er im
+    -- Bracket, und ein Teilnehmer, der nach jedem Start anders heisst, ist kein
+    -- Teilnehmer, sondern ein Rätsel (Entscheidung r0btoshi, 2026-08-12).
+    playerName  = { type = "string" },
 }
+
+-- Laenge in Zeichen, nicht in Byte: ein Name aus Umlauten waere sonst nach
+-- acht Buchstaben zu Ende.
+Prefs.NAME_MAX = 16
 
 Prefs.DEFAULTS = {
     volume    = 0.25,
@@ -49,7 +58,54 @@ Prefs.DEFAULTS = {
     bindings  = "a,d,w,s|h,k,u,j",
     clientId    = 0,     -- 0 heisst "noch keine"; App.clientId zieht dann eine
     lastAddress = "",
+    playerName  = "",    -- leer heisst "noch keiner"; App.playerName zieht dann einen
 }
+
+-- ---------------------------------------------------------------------------
+-- Nickname saeubern
+--
+-- Reine Funktion, absichtlich hier und nicht in der Oberflaeche: derselbe Name
+-- geht ueber das Netz, steht im HUD und landet spaeter im Turnierbaum. Wenn
+-- drei Stellen ihn unterschiedlich zurechtstutzen, heisst derselbe Mensch an
+-- drei Stellen anders.
+--
+-- Zeilenumbrueche und Steuerzeichen fliegen raus (sie zerlegen jede Anzeige),
+-- Leerraum am Rand ebenfalls, mehrfacher Leerraum in der Mitte wird zu einem.
+-- Gekuerzt wird nach ZEICHEN, nicht nach Byte.
+-- ---------------------------------------------------------------------------
+local utf8ok, utf8lib = pcall(require, "utf8")
+
+function Prefs.nameLength(text)
+    if utf8ok and utf8lib and utf8lib.len then
+        return utf8lib.len(text) or #text
+    end
+    return #text
+end
+
+-- Letztes Zeichen entfernen -- fuer die Ruecktaste in der Eingabe.
+function Prefs.dropLastChar(text)
+    if text == "" then return text end
+    if utf8ok and utf8lib and utf8lib.offset then
+        local offset = utf8lib.offset(text, -1)
+        if offset then return text:sub(1, offset - 1) end
+    end
+    return text:sub(1, -2)
+end
+
+function Prefs.cleanName(raw)
+    local text = tostring(raw or "")
+    -- Steuerzeichen werden zu Leerraum, nicht geloescht: sonst wuerde aus
+    -- einem Zeilenumbruch in einer verbogenen Prefs-Datei stillschweigend
+    -- "HansMeier" statt "Hans Meier".
+    text = text:gsub("[%z\1-\31\127]", " ")
+    text = text:gsub("%s+", " ")             -- mehrfacher Leerraum
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+
+    while Prefs.nameLength(text) > Prefs.NAME_MAX do
+        text = Prefs.dropLastChar(text)
+    end
+    return text
+end
 
 function Prefs.new()
     local p = {}

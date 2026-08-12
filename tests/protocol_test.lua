@@ -397,26 +397,29 @@ end)
 -- Genau das prueft der naechste Fall.
 -- ---------------------------------------------------------------------------
 
-case("T-N-07: die zur Laufzeit gebildete negative Null packt gleich", function()
+case("T-N-07: das Vorzeichen der Null ist NICHT plattformgleich", function()
+    -- Festgehaltene Messung, kein Fehlschlag. CI-Lauf 13, 2026-08-12:
+    --
+    --   Windows-x86-64   `-zero` ergibt eine negative Null -> 00000080
+    --   macOS-ARM64      `-zero` ergibt eine POSITIVE Null -> 00000000
+    --
+    -- Der Unterschied entsteht in der Arithmetik der Lua-Fassung, nicht in
+    -- `love.data.pack`: auf Apple Silicon laeuft der Interpreter statt des
+    -- JIT (`04_NETCODE_SPEC` §1). Fuer das Spiel bedeutungslos, fuer eine
+    -- byteweise Pruefsumme (§9) nicht -- deshalb begradigt `snapshot.lua`
+    -- die Null, bevor sie auf die Leitung geht.
     local zero = 0.0
     local negzero = -zero
-    local computed = -math.abs(zero) * 0.8   -- der Weg aus physics.lua:124
+    local bytes = hex(love.data.pack("string", "<f", negzero))
+    assertTrue(bytes == "00000080" or bytes == "00000000",
+        "unerwartete Bytes fuer eine Null: " .. bytes)
 
-    -- Beweis, dass es wirklich eine negative Null ist: 1/-0 ist -unendlich.
-    assertTrue(negzero == 0, "vergleicht sich gleich null")
-    assertTrue(1 / negzero < 0, "ist wirklich negativ")
-
-    assertEq(hex(love.data.pack("string", "<f", negzero)), "00000080", "aus -zero")
-    assertEq(hex(love.data.pack("string", "<f", computed)), "00000080", "aus Rechnung")
-end)
-
-case("T-N-07: Merkposten -- das Literal -0.0 ist plattformabhaengig", function()
-    -- Kein Fehlschlag, sondern eine festgehaltene Beobachtung: unter Windows
-    -- kommt 00000080 heraus, unter macOS 00000000. Wer sich je auf ein
-    -- `-0.0` im Quelltext verlaesst, soll diesen Fall finden.
-    local literal = hex(love.data.pack("string", "<f", -0.0))
-    assertTrue(literal == "00000080" or literal == "00000000",
-        "unerwartete Bytes fuer das Literal -0.0: " .. literal)
+    -- Was portabel IST und worauf es ankommt: der Wert bleibt null, und die
+    -- begradigte Null ist auf beiden Plattformen dieselbe.
+    assertEq(love.data.unpack("<f", love.data.pack("string", "<f", negzero)), 0,
+        "Wert nach dem Umlauf")
+    assertEq(hex(love.data.pack("string", "<f", negzero + 0.0)), "00000000",
+        "begradigt")
 end)
 
 case("T-N-07: ein vollstaendiger Snapshot ergibt dieselben 72 Byte", function()

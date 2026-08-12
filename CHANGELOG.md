@@ -21,6 +21,11 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
   abweichendes Regelwerk verhindert den Start, ein abweichender Build **warnt nur**.
 - Trennung und Wiedereinstieg: das Match pausiert 30 s und zeigt einen Zähler; wer mit
   derselben Kennung zurückkommt, steigt in den laufenden Satz ein. Danach Walkover.
+- **Nickname**, gespeichert und über das Menü unter „Network Match" änderbar. Anders als die
+  Zufallsnamen des lokalen Spiels überlebt er den Neustart — im Turnier steht er im Bracket.
+  Beim ersten Start wird einer vorbelegt, damit niemand vor dem ersten Match ein Formular
+  ausfüllt. Ist der Name in einer Lobby schon vergeben, hängt der Host eine Zahl an und sagt
+  es dem Gast, statt ihn abzuweisen.
 - **F3-Overlay** mit RTT, Paketverlust, Tick, Puffertiefe und wiederholten Eingaben.
 - `tools/net_test.sh` fährt den Netzcode als ein oder zwei Prozesse gegen sich selbst,
   gespeist aus den aufgezeichneten Referenz-Rallyes.
@@ -45,6 +50,10 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
   Loopback- und einmal über die LAN-Adresse.
 - Zwei Instanzen auf einem Rechner teilen sich die Einstellungsdatei und damit die
   Spielerkennung; der Gast wurde dadurch als Rückkehrer auf den Platz des Hosts gesetzt.
+- Das Vorzeichen der Null entsteht auf Windows und macOS unterschiedlich (auf Apple Silicon
+  läuft der Interpreter statt des JIT). Sichtbar wurde das erst im CI-Lauf auf beiden
+  Plattformen. Snapshots begradigen die Null jetzt vor dem Senden — sonst meldete die
+  Prüfsumme aus M3-03 später in jedem stillen Tick einen Unterschied, den es nicht gibt.
 
 ## [0.1.0] — 2026-08-12
 

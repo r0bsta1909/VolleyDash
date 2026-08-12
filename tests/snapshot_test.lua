@@ -234,6 +234,35 @@ case("ein gesetztes reserviertes Flag-Bit macht den Snapshot ungueltig", functio
     assertFalse(ok, "apply() muss ablehnen")
 end)
 
+case("die negative Null wird begradigt (T-N-07, CI-Lauf 13)", function()
+    local source, rs = newWorld()
+    -- Genau der Weg aus physics.lua:124 bei stehendem Ball.
+    source.ball.vx = -math.abs(0.0) * 0.8
+    source.ball.vy = -0.0
+    source.blobs[1].vy = -(0.0)
+
+    local snap = Snapshot.from(source, 0, -1, rs)
+
+    -- Unter Windows waeren das negative Nullen, unter macOS positive. Nach der
+    -- Begradigung ist es auf beiden Seiten dieselbe -- sonst meldete die
+    -- Pruefsumme aus §9 in jedem stillen Tick einen Unterschied.
+    assertEq(snap.ballVX, 0, "Wert")
+    assertTrue(1 / snap.ballVX > 0, "positive Null bei ballVX")
+    assertTrue(1 / snap.ballVY > 0, "positive Null bei ballVY")
+    assertTrue(1 / snap.blob1VY > 0, "positive Null bei blob1VY")
+end)
+
+case("die Begradigung laesst alle anderen Werte unberuehrt", function()
+    local source, rs = newWorld()
+    source.ball.vx, source.ball.vy = -123.5, 0.25
+    source.blobs[1].tiltAngle = -0.6
+
+    local snap = Snapshot.from(source, 0, -1, rs)
+    assertEq(snap.ballVX, -123.5, "negativ bleibt negativ")
+    assertEq(snap.ballVY, 0.25, "positiv bleibt positiv")
+    assertEq(snap.blob1Tilt, -0.6, "Neigung")
+end)
+
 -- ---------------------------------------------------------------------------
 -- Quantisierung
 -- ---------------------------------------------------------------------------

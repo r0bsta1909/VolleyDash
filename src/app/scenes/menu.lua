@@ -26,6 +26,8 @@ function MenuScene.new(app)
         onLaunch = function(vsBot) app.startMatch(vsBot) end,
         onHost   = function() app.hostLobby() end,
         onBrowse = function() app.openServerList() end,
+        playerName    = function() return app.playerName() end,
+        setPlayerName = function(name) app.setPlayerName(name) end,
         onTweaker = function() app.openTweaker() end,
         onClose  = function() app.closeMenu() end,
         onBindings = function() app.refreshBindings() end,
@@ -51,6 +53,13 @@ end
 
 function MenuScene:keypressed(key)
     self.menu:keypressed(key)
+end
+
+-- Getippter Text fuer den Nickname (M2). Ohne diesen Weg muesste die
+-- Belegung aus `keypressed` erraten werden -- auf einer deutschen Tastatur
+-- kaeme dabei Unsinn heraus.
+function MenuScene:textinput(text)
+    self.menu:textinput(text)
 end
 
 return MenuScene

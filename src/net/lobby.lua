@@ -82,13 +82,49 @@ function Lobby:slotOf(clientId)
     return nil
 end
 
+-- ---------------------------------------------------------------------------
+-- Eindeutige Namen
+--
+-- Im Turnier steht der Name im Bracket, auf dem Beamer und im Ergebnis. Zwei
+-- Spieler mit demselben Namen sind dort kein Schoenheitsfehler, sondern eine
+-- Frage, die niemand beantworten kann: wer hat gewonnen?
+--
+-- Aufloesung durch Anhaengen, nicht durch Ablehnen. Ein Gast, der beim Beitritt
+-- wegen seines Namens abgewiesen wird, muss zurueck ins Menue, tippen, neu
+-- verbinden -- drei Schritte gegen die 90-Sekunden-Vorgabe (CLAUDE.md §3.5).
+-- Der Host benennt ihn stattdessen um und sagt es ihm: der Gast sieht seinen
+-- tatsaechlichen Namen in der Lobby stehen.
+-- ---------------------------------------------------------------------------
+function Lobby:uniqueName(wanted, exceptSlot)
+    wanted = tostring(wanted or "")
+    if wanted == "" then wanted = "Gast" end
+
+    local taken = {}
+    for i, slot in ipairs(self.slots) do
+        if slot.occupied and i ~= exceptSlot then
+            taken[slot.name:lower()] = true
+        end
+    end
+
+    if not taken[wanted:lower()] then return wanted end
+
+    -- " 2", " 3", ... Mehr als MAX_SLOTS Versuche kann es nicht geben.
+    for suffix = 2, Lobby.MAX_SLOTS + 1 do
+        local candidate = wanted .. " " .. suffix
+        if not taken[candidate:lower()] then return candidate end
+    end
+    return wanted .. " " .. (Lobby.MAX_SLOTS + 2)
+end
+
 -- Gibt Slotnummer zurueck oder nil und einen Grund. Ein bereits bekannter
 -- `clientId` bekommt SEINEN Slot zurueck -- das ist der Reconnect-Fall aus
 -- §12 und kein Fehler.
 function Lobby:claim(clientId, name, buildHash)
     local existing = self:slotOf(clientId)
     if existing then
-        self.slots[existing].name = name or self.slots[existing].name
+        if name and name ~= "" then
+            self.slots[existing].name = self:uniqueName(name, existing)
+        end
         return existing, "reconnect"
     end
 
@@ -97,7 +133,7 @@ function Lobby:claim(clientId, name, buildHash)
             slot.occupied  = true
             slot.ready     = false
             slot.isHost    = false
-            slot.name      = name or ""
+            slot.name      = self:uniqueName(name, i)
             slot.buildHash = buildHash or ""
             slot.clientId  = clientId
             return i, "join"

@@ -19,14 +19,15 @@ local NetLobby  = require("src.net.lobby")
 local Ruleset   = require("src.sim.ruleset")
 local BuildInfo = require("src.app.build_info")
 local LobbyView = require("src.ui.lobby_view")
-local Menu      = require("src.ui.menu")
 local Music     = require("src.app.music")
 
 local LobbyScene = {}
 LobbyScene.__index = LobbyScene
 
+-- Im Netz gilt der gespeicherte Nickname, nicht der Zufallsname des lokalen
+-- Spiels: er steht in der Lobby des Gegenuebers und spaeter im Turnierbaum.
 local function playerName(app)
-    return Menu.displayNames(false)[1]
+    return app.playerName()
 end
 
 function LobbyScene.new(app, opts)
@@ -158,6 +159,17 @@ function LobbyScene:names()
     return out
 end
 
+-- War der Wunschname schon vergeben, hat der Host ihn abgewandelt. Der Gast
+-- erfaehrt das aus seinem eigenen Slot -- eine eigene Nachricht braucht es
+-- dafuer nicht, `LOBBY_STATE` traegt die Namen ohnehin.
+function LobbyScene:renamedTo()
+    if self.role ~= "client" or not self.client or not self.client.slot then return nil end
+    local slot = self.client.lobbySlots[self.client.slot]
+    if not slot or not slot.occupied then return nil end
+    if slot.name == self.app.playerName() then return nil end
+    return slot.name
+end
+
 function LobbyScene:enterMatch(slot)
     if self.started then return end
     self.started = true
@@ -234,6 +246,7 @@ function LobbyScene:draw()
             rulesetHash = self.client and self.client.rulesetHash or "?",
             error       = self.error,
             findings    = self.client and self.client.findings or {},
+            renamed     = self:renamedTo(),
             hint        = self.ready and "Bereit -- warte auf den Host"
                                       or "ENTER meldet dich bereit",
         }

@@ -161,6 +161,18 @@ function Menu:buildPages()
             title = "NETWORK MATCH",
             selection = 1,
             items = {
+                {
+                    -- Steht bewusst OBEN und nicht in den Einstellungen: im
+                    -- Netzspiel und im Turnier ist der Name die Kennung des
+                    -- Spielers, nicht Zierrat. Die Zufallsnamen des lokalen
+                    -- Spiels gelten hier nicht.
+                    name = "Nickname",
+                    getValue = function() return ctx.playerName() end,
+                    edit = {
+                        get = function() return ctx.playerName() end,
+                        set = function(value) ctx.setPlayerName(value) end,
+                    },
+                },
                 { name = "Spiel hosten", action = function() ctx.onHost() end },
                 { name = "Spiel suchen", action = function() ctx.onBrowse() end },
                 {
@@ -261,8 +273,51 @@ function Menu:goTo(name)
     self.pages[name].selection = 1
 end
 
+-- ---------------------------------------------------------------------------
+-- Texteingabe (M2, Nickname)
+--
+-- Eigener Zustand neben `capture`: dort wird EIN Anschlag abgefangen, hier
+-- eine ganze Zeile getippt. Zwei Dinge, zwei Zustaende.
+-- ---------------------------------------------------------------------------
+
+function Menu:beginEdit(item)
+    self.editing = { item = item, buffer = item.edit.get() or "" }
+end
+
+function Menu:commitEdit()
+    local edit = self.editing
+    self.editing = nil
+    if not edit then return end
+
+    local value = Prefs.cleanName(edit.buffer)
+    -- Ein leerer Name wird nicht uebernommen: dann bliebe der alte, und das
+    -- ist besser als jemand, der im Bracket "" heisst.
+    if value ~= "" then edit.item.edit.set(value) end
+    self:save()
+end
+
+function Menu:textinput(text)
+    local edit = self.editing
+    if not edit then return end
+    -- Steuerzeichen kommen hier gar nicht erst an; die Laenge deckelt die
+    -- Anzeige und den Platz im Protokoll (`s1`, 24 Byte).
+    if Prefs.nameLength(edit.buffer) >= Prefs.NAME_MAX then return end
+    edit.buffer = edit.buffer .. text
+end
+
 -- Gibt true zurueck, wenn die Taste verbraucht wurde.
 function Menu:keypressed(key)
+    if self.editing then
+        if key == "escape" then
+            self.editing = nil
+        elseif key == "backspace" then
+            self.editing.buffer = Prefs.dropLastChar(self.editing.buffer)
+        elseif key == "return" or key == "kpenter" then
+            self:commitEdit()
+        end
+        return true
+    end
+
     -- Laeuft eine Tastenabfrage, gehoert der naechste Anschlag ihr (M0-11).
     if self.capture then
         if key ~= "escape" then
@@ -300,7 +355,9 @@ function Menu:keypressed(key)
         if item.onRight then item.onRight() end
     elseif key == "return" then
         local item = page.items[page.selection]
-        if item.action then
+        if item.edit then
+            self:beginEdit(item)
+        elseif item.action then
             item.action()
         elseif item.target then
             self:goTo(item.target)
@@ -335,7 +392,16 @@ function Menu:draw(matchRunning)
     for i, item in ipairs(page.items) do
         local y = top + (i - 1) * spacing
         local text = item.name
-        if item.getValue then text = text .. ": < " .. item.getValue() .. " >" end
+
+        if self.editing and self.editing.item == item then
+            text = text .. ": " .. self.editing.buffer .. "_"
+        elseif item.edit then
+            -- Ohne Pfeile: hier wird getippt, nicht durchgeschaltet. Die
+            -- spitzen Klammern der Wertzeilen waeren ein falsches Versprechen.
+            text = text .. ": " .. item.getValue()
+        elseif item.getValue then
+            text = text .. ": < " .. item.getValue() .. " >"
+        end
 
         if i == page.selection then
             love.graphics.setColor(1, 1, 1)
@@ -348,7 +414,9 @@ function Menu:draw(matchRunning)
 
     Assets.setFont(14)
     love.graphics.setColor(1, 1, 1, 0.4)
-    love.graphics.printf("Use UP/DOWN to navigate. Use LEFT/RIGHT to change settings. Enter to select.",
+    love.graphics.printf(
+        self.editing and "Namen tippen, ENTER uebernimmt, ESC bricht ab"
+        or "Use UP/DOWN to navigate. Use LEFT/RIGHT to change settings. Enter to select.",
         0, World.HEIGHT - 30, World.WIDTH, "center")
 
     -- Version und Build-Hash (M1-04). Steht klein in der Ecke, weil die

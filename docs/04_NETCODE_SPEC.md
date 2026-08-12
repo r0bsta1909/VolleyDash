@@ -128,6 +128,14 @@ Header:  u8 protoVersion | u8 msgType | u8 flags
 | 0x50 | `PING` / 0x51 `PONG` | beidseitig | 0 | timestamp(4) |
 | 0x60 | `CHECKSUM` | H→C | 0 | tick(4), hash(4) — Desync-Detektor, §9 |
 
+### Namen in der Lobby sind eindeutig
+
+Der Name eines Spielers ist im Netzspiel und im Turnier seine **Kennung**: er steht in der Lobby, im HUD und später im Bracket. Zwei gleiche Namen sind dort keine Unschönheit, sondern eine Frage, die niemand beantworten kann — wer hat gewonnen?
+
+Der Host löst das beim Beitritt auf, **durch Anhängen, nicht durch Ablehnen**: Ist der Wunschname schon vergeben (Vergleich ohne Rücksicht auf Groß- und Kleinschreibung), wird `" 2"`, `" 3"` … angehängt. Ein Gast, der wegen seines Namens abgewiesen würde, müsste zurück ins Menü, tippen und neu verbinden — drei Schritte gegen die 90-Sekunden-Vorgabe des Charters.
+
+Der Gast erfährt seinen tatsächlichen Namen aus `LOBBY_STATE`; eine eigene Nachricht braucht es dafür nicht. Die Lobby zeigt ihm den Unterschied an, damit er sich später im Turnierbaum wiederfindet.
+
 **`seed` ist in `MATCH_START` gestrichen.** Die Simulation ist seit M0-08 zufallsfrei (`03_TECH` §3, `CLAUDE.md` §3.2), und `src/sim/rng.lua` aus dem Modulschnitt wurde nie gebraucht. Ein Feld zu übertragen, das keine Seite benutzt, erzeugt nur die Erwartung, es gäbe Zufall in der Simulation.
 
 **`MATCH_PAUSE` (0x24) ist neu in 1.1.** Fassung 1.0 beschrieb in §12 „Host pausiert das Match, zeigt *Warte auf {Name} … 30 s*", ohne eine Nachricht dafür vorzusehen — der verbleibende Client hätte den Grund seines Stillstands nicht erfahren.
@@ -196,6 +204,8 @@ ackInputTick            i4        4     zuletzt verarbeiteter Input-Tick des Emp
 - **`rally.timer`, `serveTimer`, `ballSide`, `touchCooldown`, `dashGrace`, `input.prev`**: reine Simulationsbuchführung. Der Client simuliert nicht und zeigt nichts davon an.
 - **`blob.vx`**: die Neigung wird direkt übertragen, und für die Darstellung ist `vx` sonst ohne Wirkung.
 
+**Die Null wird vor dem Senden begradigt.** IEEE 754 kennt +0 und −0, und die Simulation erzeugt die negative Null beiläufig (`ball.vx = -math.abs(ball.vx) * 0.8` bei `vx = 0`). Gemessen im CI-Lauf 13 (2026-08-12): Unter Windows-x86-64 liefert `-zero` eine negative Null, unter macOS-ARM64 eine **positive** — auf Apple Silicon läuft der Interpreter statt des JIT (§1), und die Arithmetik verhält sich dort anders. Für das Spiel ist das bedeutungslos; für die Prüfsumme aus §9 wäre es ein Fehlalarm in jedem Tick, in dem etwas stillsteht. `snapshot.lua` addiert deshalb einmal `+ 0.0` auf jedes Fließkommafeld. Das ist **kein** Fehler von `love.data.pack`: die Bytes eines vollständigen Snapshots sind auf beiden Plattformen identisch (T-N-07).
+
 **Neigung, Cooldown und Fehlerwurf standen in Fassung 1.0 nicht in der Liste.** Alle drei sind sichtbar: die Neigung ist die Blob-Animation beim Seitwärts-Dash (`02_CODE_AUDIT` §4 — „Blob-Neigung" ist ausdrücklich unveränderlich), der Cooldown ist der rote Balken im HUD, der Fehlerwurf ist die Einblendung „FAULT!". Ohne sie sähe der Client ein anderes Spiel als der Host.
 
 **`blobNCd` ist quantisiert:** `round(cooldownTimer / ruleset.dashCooldown × 255)`, ein Byte. Der HUD-Balken zeichnet genau dieses Verhältnis; ein Float dafür wäre drei Byte für nichts. Auf der Empfängerseite wird zurückgerechnet — der Wert ist Anzeige, keine Simulationsgröße.
@@ -234,7 +244,9 @@ Bei jedem Snapshot: Position des eigenen Blobs mit der Host-Position vergleichen
 
 Der Host berechnet alle 30 Ticks eine Prüfsumme über den Simulationszustand (`love.data.hash("md5", packedState)`, erste 4 Byte) und sendet sie als `CHECKSUM`. Der Client, der eine eigene Vorhersage fährt, vergleicht sie mit seiner vorhergesagten eigenen Blob-Position.
 
-Das erkennt nicht Desync im Lockstep-Sinne (den es nicht geben kann), sondern **Vorhersagefehler und Protokollfehler**: falsch interpretierte Snapshots, Endianness-Probleme, Ruleset-Abweichungen. In der Entwicklungsphase wird jede Abweichung geloggt; in Release-Builds erscheint sie als stiller Zähler im Debug-Overlay (F3).
+Das erkennt nicht Desync im Lockstep-Sinne (den es nicht geben kann), sondern **Vorhersagefehler und Protokollfehler**: falsch interpretierte Snapshots, Endianness-Probleme, Ruleset-Abweichungen.
+
+**Voraussetzung, ohne die der Detektor Unsinn meldet:** Er darf nur über Werte laufen, die auf beiden Plattformen bitgleich entstehen. Das Vorzeichen der Null gehört nicht dazu (§6) — es ist in `snapshot.lua` begradigt, bevor etwas gesendet wird. Wer den Detektor in M3-03 baut, prüft das erneut, statt es anzunehmen. In der Entwicklungsphase wird jede Abweichung geloggt; in Release-Builds erscheint sie als stiller Zähler im Debug-Overlay (F3).
 
 ## 10. Ruleset-Abgleich
 
@@ -297,6 +309,6 @@ Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die
 |----|-------|--------------|
 | N-01 | Verhalten bei WLAN mit RTT > 30 ms: Reicht Vorhersage des eigenen Blobs, oder braucht der Client eine Ball-Extrapolation? | M3, Playtest über WLAN |
 | N-02 | Spectator-Snapshot-Rate: 30 Hz mit Interpolation testen, ob am Beamer sichtbar schlechter | M5 |
-| N-03 | Ob `love.data.pack` mit `f` (float32) auf beiden Plattformen bitidentisch schreibt/liest — praktisch sicher, aber vor M2 einmal explizit verifizieren | **M2-01: Testfall T-N-07 vergleicht gepackte Bytes gegen eine im Test stehende Referenz. Läuft unter `love . --test` und damit auf beiden CI-Läufern.** |
+| N-03 | Ob `love.data.pack` mit `f` (float32) auf beiden Plattformen bitidentisch schreibt/liest | **BEANTWORTET, M2-01.** Ja. T-N-07 vergleicht einen vollständigen 72-Byte-Snapshot gegen eine im Test stehende Referenz; der Fall läuft auf `windows-latest` und `macos-latest` durch. **Eine Ausnahme, gefunden statt vermutet:** das Vorzeichen der Null entsteht in der Lua-Arithmetik unterschiedlich (§6), nicht beim Packen. Es wird vor dem Senden begradigt |
 | N-04 | Ob ENet auf macOS ohne zusätzliche Firewall-Freigabe funktioniert (ausgehende Verbindungen ja, eingehende als Host?) | M2, Test auf frischem Mac — **bleibt offen**, ein CI-Image beantwortet das nicht |
 | N-05 | Ob der UDP-Broadcast auf einem Windows-Rechner mit „öffentlichem" Netzwerkprofil überhaupt hinausgeht, oder ob die Firewall ihn ohne Rückfrage verwirft | M2-04, Test auf zwei Rechnern (D2) |

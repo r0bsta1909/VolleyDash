@@ -141,6 +141,31 @@ function App.setClientId(id)
     App.clientIdOverride = tonumber(id)
 end
 
+-- Der Nickname fuer Netzspiel und Turnier. Anders als die Zufallsnamen des
+-- lokalen Spiels ueberlebt er den Neustart: im Bracket muss derselbe Mensch
+-- morgen noch derselbe sein (Entscheidung r0btoshi, 2026-08-12).
+--
+-- Beim ersten Mal wird einer aus dem Namenspool gezogen und gespeichert --
+-- niemand soll vor dem ersten Match ein Formular ausfuellen. Aendern geht im
+-- Menue unter "Network Match".
+function App.playerName()
+    local name = Prefs.cleanName(App.prefs.playerName)
+    if name == "" then
+        name = Menu.NAME_POOL[math.random(1, #Menu.NAME_POOL)]
+        App.prefs.playerName = name
+        Prefs.save(App.prefs)
+    end
+    return name
+end
+
+function App.setPlayerName(name)
+    local clean = Prefs.cleanName(name)
+    if clean == "" then return false end
+    App.prefs.playerName = clean
+    Prefs.save(App.prefs)
+    return true
+end
+
 function App.openServerList()
     Scene.push(require("src.app.scenes.serverlist").new(App))
 end
