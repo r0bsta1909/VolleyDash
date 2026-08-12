@@ -4,10 +4,10 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionierung nach
 [Semantic Versioning](https://semver.org/lang/de/).
 
-Bis zur ersten Veröffentlichung ist das Spiel nicht öffentlich verteilt worden — alles
-Bisherige steht deshalb unter `Unreleased`.
+Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
+deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
-## [Unreleased] — vorgesehen als 0.1.0
+## [0.1.0] — 2026-08-12
 
 Erste verteilbare Fassung. Lokales Spiel gegen einen zweiten Spieler an derselben Tastatur
 oder gegen den Bot. **Kein Netzwerk** — LAN kommt mit M2.

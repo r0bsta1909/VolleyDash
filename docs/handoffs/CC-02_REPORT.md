@@ -27,6 +27,19 @@ der Quellordner (`06_BUILD` §1).
 Menü vollständig gezeichnet bei 900 ms). Das Kriterium aus `06_BUILD` §8.7 lautet < 3 s auf
 der ältesten verfügbaren Testmaschine — das ist diese hier nicht.
 
+**Nachtrag 2026-08-12, nach dem ersten Push.** Die CI läuft (Lauf #3 und #4 grün):
+
+- `luajit tests/run_headless.lua` ist auf einem Linux-Runner durchgelaufen. Damit ist die
+  letzte offene Behauptung aus M0-13 belegt — der Pfad war geschrieben, aber nie an einem
+  echten Lua-Interpreter ausgeführt.
+- Zwei CI-Funde, beide behoben: `tools/build.sh` lag als `100644` im Index (Exit 126 —
+  Windows gibt das Ausführungsbit nicht an Git durch, dagegen hilft nur
+  `git update-index --chmod=+x`; der Workflow ruft das Skript zusätzlich über `bash` auf),
+  und drei Actions liefen noch auf Node.js 20.
+- **Das in der CI gebaute `.love` wurde von r0btoshi heruntergeladen, entpackt und
+  gespielt — fehlerfrei.** Damit ist Abnahmekriterium 5 aus `06_BUILD` §8 erfüllt, und zwar
+  am CI-Artefakt, nicht nur an der lokal gebauten Fassung.
+
 ## 2. Nicht erledigt und warum
 
 | Punkt | Grund | Was es bräuchte |
