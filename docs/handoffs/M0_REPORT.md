@@ -1,7 +1,7 @@
 # M0 — Abschlussbericht
 
 **Stand:** 2026-08-12 · **Meilenstein:** M0 Refactoring-Fundament
-**Status:** inhaltlich fertig, Abnahme D1 formal offen (siehe §4)
+**Status:** abgeschlossen und abgenommen (D1 als PO-Abnahme, siehe §4)
 
 ---
 
@@ -53,7 +53,14 @@ Vollständig; alles andere ist nachweislich unverändert.
 2. **M0-06, Aufwärts-Dash mit gehaltener Richtung** wird zum Seitwärts-Dash, weil die
    Richtung aus den Richtungsbits kommt (ADR-014).
 
-## 4. Abnahme D1 — formal offen
+## 4. Abnahme D1 — entschieden am 2026-08-12
+
+> **Nachtrag (2026-08-12, Beginn CC-02):** Roberto hat den zweiten Weg gewählt — **D1 ist als
+> Product-Owner-Abnahme erteilt**, auf Basis einer Person, ohne Blindverfahren. Der Vermerk
+> steht in `07_TEST_PLAN` §6 und im `CHANGELOG.md`. **M0 ist damit abgenommen.** Der
+> Abschnitt unten bleibt als Begründungslage stehen.
+
+### Ausgangslage der Entscheidung
 
 `07_TEST_PLAN` §6 verlangt: **drei Personen, je drei Sätze, alte gegen neue Fassung im
 Blindwechsel**, Frage „Welche war Nummer 1?".
@@ -71,7 +78,8 @@ Zwei Wege, beide legitim:
   dass die Abnahme auf einer Person beruht — das ist eine Entscheidung, keine Lücke, solange
   sie so dasteht.
 
-Bis das entschieden ist, gilt M0 als **inhaltlich fertig, formal nicht abgenommen**.
+~~Bis das entschieden ist, gilt M0 als **inhaltlich fertig, formal nicht abgenommen**.~~
+**Entschieden: PO-Abnahme, siehe Nachtrag oben.**
 
 ## 5. Was aus M0 bewusst offen bleibt
 

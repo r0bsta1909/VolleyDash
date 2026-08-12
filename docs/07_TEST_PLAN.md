@@ -165,6 +165,19 @@ Der Checksum-Mechanismus aus `04_NETCODE` §9 wird zum Testinstrument:
 
 Drei Personen, die den Prototyp kennen, spielen je 3 Sätze mit alter und neuer Version im Blindwechsel. **Frage: „Welche Version war Nummer 1?"** Wenn mehr als eine Person die neue Version korrekt als „anders" identifiziert und die Änderung negativ bewertet, ist M0 nicht abgenommen.
 
+> **Abnahmevermerk 2026-08-12 — erteilt als Product-Owner-Abnahme.**
+> Roberto hat beide Fassungen selbst gespielt (neue Fassung gegen den Baseline-Arbeitsordner
+> `C:\dev\volley-dash-baseline`) und das Spielgefühl als unverändert bewertet.
+> **Das oben beschriebene Verfahren wurde nicht durchlaufen:** es fehlen die zweite und die
+> dritte Person und der Blindwechsel. Die Abnahme beruht auf **einer** Person und ist damit
+> nicht gegen die eigene Erwartungshaltung abgesichert — genau das sollte das Blindverfahren
+> leisten.
+>
+> Die Entscheidung ist bewusst so getroffen und gilt. Sie stützt sich darauf, dass die
+> Ebene-A-Regression den Hauptteil der Last trägt: elf von dreizehn Umbauschritten liefen
+> bitgleich durch, und die zwei gewollten Abweichungen sind in §2 einzeln protokolliert.
+> M0 ist abgenommen, M1 nicht mehr blockiert.
+
 ### D2 — LAN-Party-Simulation (nach M2, blockierend)
 
 Mindestaufbau: 1× Windows-Laptop, 1× MacBook, 1 Switch oder AP.

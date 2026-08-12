@@ -1,9 +1,13 @@
 # Build- und Distributionsartefakte
 build/
-dist/
+# Die entpackten LOEVE-Distributionen (~40 MB) gehoeren nicht ins Repo.
+# Die CI laedt sie beim Build von der offiziellen Quelle (12_OPENSOURCE §4).
+tools/prebuilt/
 *.love
 *.exe
 *.zip
+# Ausnahme: dist/ enthaelt die LIESMICH-Vorlagen und Icon-Quellen, aus denen
+# der Build die Pakete zusammensetzt (06_BUILD §5). Es ist Quelle, kein Artefakt.
 
 # Betriebssystem
 Thumbs.db
