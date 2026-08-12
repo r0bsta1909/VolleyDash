@@ -374,9 +374,49 @@ case("T-N-07: einzelne Werte sind bitgenau (IEEE 754, Little-Endian)", function(
     assertEq(hex(love.data.pack("string", "<i4", 1)), "01000000", "i4 positiv")
     assertEq(hex(love.data.pack("string", "<f", 1.5)), "0000c03f", "f exakt")
     assertEq(hex(love.data.pack("string", "<f", 0.1)), "cdcccc3d", "f gerundet")
-    assertEq(hex(love.data.pack("string", "<f", -0.0)), "00000080", "f negative Null")
+    assertEq(hex(love.data.pack("string", "<f", 123456.789)), "6520f147", "f gross")
+    assertEq(hex(love.data.pack("string", "<f", -3.25)), "000050c0", "f negativ")
     assertEq(hex(love.data.pack("string", "<d", 0.1)), "9a9999999999b93f", "d")
     assertEq(hex(love.data.pack("string", "<I2", 21212)), "dc52", "I2")
+end)
+
+-- ---------------------------------------------------------------------------
+-- Negative Null
+--
+-- Der erste CI-Lauf auf macOS-ARM64 hat hier einen echten Unterschied
+-- gefunden: das LITERAL `-0.0` packt dort als 00000000, unter Windows als
+-- 00000080. Auf Apple Silicon laeuft LOEVE 11.5 im Interpreter statt im JIT
+-- (`04_NETCODE_SPEC` §1), und die Konstantenfaltung des Parsers verliert
+-- offenbar das Vorzeichen.
+--
+-- Die Frage, auf die es ankommt, ist eine andere: Eine negative Null aus der
+-- SIMULATION entsteht nicht als Literal, sondern durch Rechnen --
+-- `ball.vx = -math.abs(ball.vx) * 0.8` bei vx = 0 (physics.lua:124). Wenn die
+-- zur Laufzeit gebildete negative Null auf beiden Plattformen gleich gepackt
+-- wird, ist der Befund eine Lua-Eigenheit und kein Serialisierungsfehler.
+-- Genau das prueft der naechste Fall.
+-- ---------------------------------------------------------------------------
+
+case("T-N-07: die zur Laufzeit gebildete negative Null packt gleich", function()
+    local zero = 0.0
+    local negzero = -zero
+    local computed = -math.abs(zero) * 0.8   -- der Weg aus physics.lua:124
+
+    -- Beweis, dass es wirklich eine negative Null ist: 1/-0 ist -unendlich.
+    assertTrue(negzero == 0, "vergleicht sich gleich null")
+    assertTrue(1 / negzero < 0, "ist wirklich negativ")
+
+    assertEq(hex(love.data.pack("string", "<f", negzero)), "00000080", "aus -zero")
+    assertEq(hex(love.data.pack("string", "<f", computed)), "00000080", "aus Rechnung")
+end)
+
+case("T-N-07: Merkposten -- das Literal -0.0 ist plattformabhaengig", function()
+    -- Kein Fehlschlag, sondern eine festgehaltene Beobachtung: unter Windows
+    -- kommt 00000080 heraus, unter macOS 00000000. Wer sich je auf ein
+    -- `-0.0` im Quelltext verlaesst, soll diesen Fall finden.
+    local literal = hex(love.data.pack("string", "<f", -0.0))
+    assertTrue(literal == "00000080" or literal == "00000000",
+        "unerwartete Bytes fuer das Literal -0.0: " .. literal)
 end)
 
 case("T-N-07: ein vollstaendiger Snapshot ergibt dieselben 72 Byte", function()
