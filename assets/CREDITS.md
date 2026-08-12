@@ -21,7 +21,7 @@ weiter und bleibt still, wo ein Klang fehlte (`src/app/assets.lua`, `ASSET_INVEN
 
 | Datei | Größe | Maße | Verwendung |
 |---|---|---|---|
-| `bg.png` | 1,6 MB | 1600 × 1200 | Hintergrund, wird auf 800 × 600 gezeichnet |
+| `bg.png` | 1,7 MB | 1448 × 1086 | Hintergrund, wird auf 800 × 600 gezeichnet |
 | `blob.png` | 84 kB | 496 × 271 | Spielfigur, zur Laufzeit eingefärbt |
 | `ball.png` | 119 kB | 304 × 310 | Ball |
 | `icon.png` | 82 kB | 512 × 512 | Fenster- und Programmsymbol |
@@ -31,8 +31,9 @@ Die 256er-Fassung für das EXE-Symbol liegt als `dist/icon-256.png`.
 
 **Zur Historie von `bg.png`:** Die Datei hieß bis M1-09 `bg.jpg`, war aber schon immer ein
 PNG (`ASSET_INVENTORY` §4). Sie lag in 2752 × 1536 vor und belegte rund 16 MB
-Texturspeicher; seit M1-09 liegt sie in 1600 × 1200 vor, also in exakt der doppelten
-Auflösung dessen, was das Spiel zeigt. Die Ursprungsfassung bleibt in der Git-Historie.
+Texturspeicher; seit M1-09 wird eine verkleinerte Fassung ausgeliefert. Die aktuelle stammt
+vom 2026-08-12 und belegt 6,0 MB Texturspeicher. Alle früheren Fassungen bleiben in der
+Git-Historie.
 
 ## Klänge
 

@@ -110,11 +110,14 @@ die SHA-256 unterscheiden sich. Gleiche Länge und gleiches Format (rund 0,87 s 
 
 Alle drei Punkte sind abgearbeitet:
 
-1. **`bg.jpg` → `assets/bg.png`, 2752 × 1536 → 1600 × 1200.** Aus 5 040 745 Bytes wurden
-   1 642 578 — rund 3,4 MB weniger im Paket, und der Texturspeicher fällt von etwa 16 MB
-   auf 7,7 MB. 1600 × 1200 ist die doppelte Auflösung dessen, was das Spiel zeigt: der
-   Hintergrund wird ohnehin auf 800 × 600 gezerrt (`src/render/game_view.lua:76`), das
-   Seitenverhältnis der Quelle war nie maßgeblich.
+1. **`bg.jpg` → `assets/bg.png`, aus 2752 × 1536 verkleinert.** Der Hintergrund wird
+   ohnehin auf 800 × 600 gezerrt (`src/render/game_view.lua:76`), das Seitenverhältnis der
+   Quelle war nie maßgeblich; gebraucht wird ungefähr die doppelte Auflösung des
+   Gezeigten. Aus 5 040 745 Bytes und rund 16 MB Texturspeicher wurden so gut 1,7 MB und
+   6 MB.
+   **Stand 2026-08-12 liegt eine von r0btoshi ausgetauschte Fassung in 1448 × 1086 vor**
+   (1 749 821 Bytes). Wer sie erneut tauscht, verkleinert mit
+   `love . --resize=assets/bg.png:1600x1200` — das Werkzeug liegt seit M1-09 im Repo.
    Verkleinert mit LÖVE selbst (Canvas → `ImageData:encode`), um keine Bildbibliothek als
    Abhängigkeit aufzunehmen. Das C2PA-Manifest der Ursprungsdatei ist damit aus der
    ausgelieferten Fassung verschwunden — **in der Git-Historie bleibt es**.
