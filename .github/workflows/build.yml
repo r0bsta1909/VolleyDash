@@ -66,7 +66,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          curl -fsSL -o love.zip \
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o love.zip \
             "https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-win64.zip"
           unzip -q love.zip
           echo "LOVE_BIN=$PWD/love-${LOVE_VERSION}-win64/lovec.exe" >> "$GITHUB_ENV"
@@ -74,7 +74,7 @@ jobs:
       - name: LOEVE laden (macOS)
         if: runner.os == 'macOS'
         run: |
-          curl -fsSL -o love.zip \
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o love.zip \
             "https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-macos.zip"
           unzip -q love.zip
           echo "LOVE_BIN=$PWD/love.app/Contents/MacOS/love" >> "$GITHUB_ENV"
@@ -125,7 +125,7 @@ jobs:
       - name: LOEVE fuer Windows laden
         run: |
           mkdir -p tools/prebuilt
-          curl -fsSL -o /tmp/love-win64.zip \
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/love-win64.zip \
             "https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-win64.zip"
           unzip -q /tmp/love-win64.zip -d tools/prebuilt
           mv "tools/prebuilt/love-${LOVE_VERSION}-win64" tools/prebuilt/love-win64
@@ -152,7 +152,7 @@ jobs:
       - name: LOEVE fuer macOS laden
         run: |
           mkdir -p tools/prebuilt
-          curl -fsSL -o /tmp/love-macos.zip \
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/love-macos.zip \
             "https://github.com/love2d/love/releases/download/${LOVE_VERSION}/love-${LOVE_VERSION}-macos.zip"
           # -q laesst Symlinks in den Frameworks unangetastet
           unzip -q /tmp/love-macos.zip -d tools/prebuilt/love-macos
