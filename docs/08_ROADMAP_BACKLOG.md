@@ -96,7 +96,11 @@ ersten Push. Bis dahin gilt für den macOS-Pfad: geschrieben, nicht bewiesen.
 
 **Offen aus M2:** D2 (zwei Rechner) und die Paketverlustfälle T-N-02/T-N-03 — beides braucht
 Hardware, keinen Code. Ebenso N-04 (ENet auf einem frischen Mac) und N-05 (Broadcast durch
-eine Windows-Firewall im öffentlichen Profil). Einzelheiten in `docs/handoffs/CC-03_REPORT.md`.
+eine Windows-Firewall im öffentlichen Profil). Einzelheiten in `docs/handoffs/CC-03_REPORT.md`;
+die Prüfreihenfolge für den Abend steht dort in §6.
+
+**Geschlossen in M2:** N-03 (gleiche Bytes auf Windows und macOS) — beantwortet durch T-N-07
+in der CI, mit einer gefundenen Ausnahme beim Vorzeichen der Null (`04_NETCODE` §6).
 
 ### M3 — Netzwerk-Politur (10–15 h)
 

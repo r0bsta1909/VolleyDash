@@ -2,8 +2,21 @@
 
 **Datum:** 2026-08-12 · **Auftrag:** `docs/handoffs/CC-03_M2_LAN.md`
 **Ausgangsstand:** 968e35f · **Endstand:** siehe `git log` ab e69980d
-**Tests:** 155 bestanden, 0 gescheitert (vorher 83) · **Netz-Selbsttest:** 37 Prüfungen, alle grün
+**Tests:** 179 bestanden, 0 gescheitert (vorher 83) · **Netz-Selbsttest:** 37 Prüfungen, alle grün
 **Referenzen:** `python tools/verify_replays.py` meldet OK
+**CI:** Lauf 14 vollständig grün, einschließlich `Protokoll-Bytes (macos-latest)`
+
+---
+
+## 0. Nachtrag nach dem Push
+
+**Offener Punkt N-03 ist beantwortet: ja.** Der vollständige 72-Byte-Snapshot ist auf
+`windows-latest` und `macos-latest` bitgleich. Dafür brauchte es drei CI-Läufe, und der
+zweite hat etwas gefunden, das keine Überlegung am Schreibtisch gefunden hätte — siehe
+B-N-07.
+
+**Nachgereicht auf Ansage (r0btoshi, 2026-08-12):** ein **gespeicherter Nickname** für
+Netzspiel und Turnier. Die Zufallsnamen bleiben, wo sie hingehören — im lokalen Spiel.
 
 ---
 
@@ -38,7 +51,7 @@ Endstand** (`./tools/net_test.sh loopback`, zuletzt 2:0 bei 3595 übertragenen S
 | T-N-04 Client killen → Pause, Walkover | **ja** | Selbsttest: Pause, 30-s-Fenster, Walkover-Meldung nach Ablauf |
 | T-N-05 Killen und in 10 s zurück | **ja** | Selbsttest: derselbe `clientId` steigt in das laufende Match ein |
 | T-N-06 abweichender `rulesetHash` | **ja** | Selbsttest: Start unterbleibt, Klartext nennt beide Hashes |
-| T-N-07 gleiche Bytes auf Win und macOS | **halb** | Windows: Referenzbytes stimmen. macOS: CI-Job steht, ist aber **noch nie gelaufen** |
+| T-N-07 gleiche Bytes auf Win und macOS | **ja** | CI-Lauf 14: derselbe 72-Byte-Snapshot auf beiden Läufern. N-03 geschlossen |
 | T-N-08 200 Snapshots in einem Frame | **ja** | Selbsttest: 201 Ereignisse in einem Durchlauf, danach leer |
 | T-N-09 drei Hosts gleichzeitig | **offen** | braucht drei Rechner; die Zusammenführung doppelter Einträge ist belegt |
 | T-N-10 Host schließt die Lobby | **ja** | Selbsttest: der Gast bekommt „Verbindung zum Host verloren", die Szene räumt sich nach 6 s ab |
@@ -91,6 +104,21 @@ Phasen, die es nicht gibt, fehlten drei **sichtbare** Werte: Blob-Neigung (die A
 Seitwärts-Dash), Dash-Cooldown (der rote Balken im HUD) und der Fehlerwurf (die Einblendung
 „FAULT!"). Alle drei sind ergänzt; der Cooldown als Verhältnis in einem Byte.
 
+**B-N-07 — Das Vorzeichen der Null entsteht auf beiden Plattformen unterschiedlich.**
+Gefunden vom CI-Lauf 12, präzisiert von Lauf 13. Unter Windows-x86-64 ergibt `-zero` eine
+negative Null (`00000080`), unter macOS-ARM64 eine **positive** (`00000000`) — auf Apple
+Silicon fährt LÖVE 11.5 den Interpreter statt des JIT. Das ist **kein** Fehler von
+`love.data.pack`: alles andere ist bitgleich, der ganze Snapshot inklusive.
+
+Die Simulation erzeugt negative Nullen beiläufig (`ball.vx = -math.abs(ball.vx) * 0.8` bei
+`vx = 0`, `physics.lua:124`). Fürs Spiel bedeutungslos — `-0 == 0`, und niemand sieht ein
+Vorzeichen an einer stehenden Geschwindigkeit. **Für die Prüfsumme aus `04_NETCODE` §9 wäre
+es ein Fehlalarm in jedem Tick, in dem etwas stillsteht**, und der hätte in M3-03 ausgesehen
+wie ein echter Desync. `snapshot.lua` begradigt die Null deshalb vor dem Senden.
+
+Das ist der Ertrag von T-N-07: Der Punkt stand seit der Spec-Fassung 1.0 als „praktisch
+sicher" im Dokument. Er war es nicht ganz.
+
 **B-N-06 — Ein Aufschlag ohne Seitwärtsbewegung fällt auf die eigene Seite.** Beim Bau des
 Loopback-Tests aufgefallen: Ein Blob, der senkrecht unter dem Ball hochspringt, schlägt ihn
 senkrecht hoch, der Ball landet auf der eigenen Hälfte, es gibt Seitenaus statt Punkt — und
@@ -134,10 +162,15 @@ Optimierung herhält.
    zu prüfen und genau den Plattformunterschied unsichtbar zu machen, den T-N-07 finden soll.
    Der Headless-Runner meldet die Suite als übersprungen, statt zu schweigen.
 
-3. **Der Spielername ist weiterhin der zufällige aus dem Namenspool** und überlebt keinen
-   Neustart. Für die Lobby reicht das; ein persistenter Name wäre ein neues Prefs-Feld und
-   ein Menüeintrag. **Sag Bescheid, wenn er vor der Party persistent sein soll** — am
-   Partyabend erkennt man sich an Namen.
+3. **Der Nickname ist gebaut und gespeichert** (`prefs.playerName`, Menü unter „Network
+   Match", oberster Eintrag). Zwei Setzungen darin, beide widerrufbar:
+   - **Beim ersten Start wird ein Name vorbelegt** statt ein Formular gezeigt. Wer nichts
+     tut, heißt trotzdem irgendwie und kann sofort spielen.
+   - **Doppelte Namen löst der Host durch Anhängen** („Squish", „Squish 2"), nicht durch
+     Ablehnen. Ein abgewiesener Gast müsste zurück ins Menü, tippen, neu verbinden — drei
+     Schritte gegen die 90-Sekunden-Vorgabe. Der Gast sieht seinen tatsächlichen Namen in
+     der Lobby. **Wenn du im Turnier lieber eine harte Ablehnung willst, sag es vor M4** —
+     dort ist die Anmeldung der richtige Ort dafür, nicht die Lobby.
 
 4. **ESC im laufenden Satz beendet die ganze Sitzung**, nach dem Abpfiff dagegen nur das
    Match und man landet wieder in der Lobby. So kostet das nächste Match keinen neuen
@@ -150,13 +183,50 @@ Optimierung herhält.
 
 ## 6. Nächster Schritt
 
-1. **Pushen und die CI ansehen.** Der Job `protocol` läuft auf `windows-latest` und
-   `macos-latest` und beantwortet T-N-07 endgültig. Läuft der macOS-Läufer LÖVE nicht ohne
-   Bildschirm, ist das dort zu sehen und nicht am Partyabend.
-2. **D2 mit zwei Rechnern**, am besten einer davon der Mac: Discovery über einen echten
-   Switch, Windows-Firewallabfrage abwarten statt wegklicken (N-05), ENet eingehend auf
-   macOS (N-04), ein vollständiger Satz für T-N-01.
-3. **`clumsy` einmal von Hand** für T-N-02 und T-N-03. Filter steht im Skriptkopf.
-4. Danach ist M2 abgenommen und **M3** dran: Vorhersage des eigenen Blobs (M3-01) und
-   Kosmetik aus Snapshot-Deltas (M3-02). Das Feld „KORREKTUR" im F3-Overlay steht schon da
-   und meldet 0 — M3-01 füllt es, statt es zu erfinden.
+### D2 am Abend — was in welcher Reihenfolge zu prüfen ist
+
+Die Reihenfolge ist nicht beliebig. Jeder Schritt setzt den vorigen voraus, und der erste,
+der scheitert, erklärt die folgenden.
+
+1. **Beide Rechner in dasselbe Segment**, möglichst per Kabel. WLAN-Access-Points mit
+   Client-Isolation blocken den Broadcast zwischen Gästen (`04_NETCODE` §11).
+2. **Nickname auf beiden Geräten setzen**, bevor irgendetwas gestartet wird. Sonst heißen
+   beide gleich und der Host hängt eine „2" an — richtig, aber verwirrend beim ersten Mal.
+3. **Windows hostet, Mac tritt bei.** Beim ersten Start fragt die Windows-Firewall nach
+   einer Freigabe — **erlauben, nicht wegklicken**, und zwar für das Profil, in dem der
+   Rechner gerade ist (N-05). Erscheint die Lobby beim Mac in der Liste? Wenn nicht: die
+   IP aus der Lobby des Hosts abtippen, letzter Eintrag der Serverliste. Findet die
+   Discovery nichts, die IP-Eingabe aber schon, ist es die Firewall oder das Netz — nicht
+   der Netzcode.
+4. **Mac hostet, Windows tritt bei.** Das ist der eigentlich offene Punkt N-04: ob ENet auf
+   macOS eine **eingehende** Verbindung ohne zusätzliche Freigabe annimmt. Ausgehend
+   funktioniert erfahrungsgemäß immer, eingehend ist die Frage.
+5. **Ein vollständiger Satz** in beiden Richtungen (T-N-01), einmal mit F3 offen: RTT
+   sollte im LAN einstellig sein, „GEHALTEN" nahe null. Steht dort etwas anderes, ist das
+   die Zahl für den Fehlerbericht.
+6. **Stecker ziehen** beim Gast mitten im Satz (T-N-04): Der Host muss „Warte auf …" mit
+   Zähler zeigen. Innerhalb von 30 s wieder verbinden (T-N-05) — der Satz läuft weiter, der
+   Stand bleibt. Danach einmal ablaufen lassen: Walkover.
+7. **`clumsy` auf dem Windows-Rechner** für T-N-02 und T-N-03. Filter im Kopf von
+   `tools/net_test.sh`.
+
+**Zu deiner Frage: Nein, Windows↔Windows folgt nicht automatisch, aber fast.** Was der
+gemischte Test zusätzlich beweist, deckt den gleichnamigen Fall mit ab — Protokoll,
+Bytereihenfolge und Ablauf sind plattformunabhängig, und die harte Frage (float32 auf
+ARM gegen x86-64) ist mit T-N-07 in der CI schon beantwortet. **Was er nicht beweist, ist
+die Richtung:** Ob eine eingehende Verbindung ankommt, hängt an der Firewall des Rechners,
+der **hostet**, nicht am Betriebssystem des Gastes. Deshalb stehen oben Punkt 3 und 4
+getrennt. Ist einmal Windows als Host durchgelaufen, ist Windows↔Windows abgedeckt; ist
+nur der Mac als Host gelaufen, weißt du über den Windows-Host nichts.
+
+Der zweite Unterschied ist unspektakulär, aber real: Bei zwei gleichen Plattformen sind die
+Builds identisch, also bleibt die Build-Hash-Warnung aus. Bei Mac gegen Windows erscheint
+sie — **das ist richtig so und kein Fehler** (`04_NETCODE` §10: nur Warnung, kein Abbruch).
+Wenn sie erscheint, ist genau das der Beleg, dass die Prüfung wirkt.
+
+### Danach
+
+**M3**: Vorhersage des eigenen Blobs (M3-01) und Kosmetik aus Snapshot-Deltas (M3-02). Das
+Feld „KORREKTUR" im F3-Overlay steht schon da und meldet 0 — M3-01 füllt es, statt es zu
+erfinden. Für M3-03 (Desync-Detektor) ist B-N-07 die Vorarbeit: Die Prüfsumme darf nur über
+Werte laufen, die auf beiden Plattformen bitgleich entstehen.
