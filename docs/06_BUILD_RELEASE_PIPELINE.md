@@ -84,6 +84,35 @@ Das bedeutet: **eine Build-Maschine reicht.** Der Mac kann beide Plattformen bau
 
 <cite index="38-1">Ein eigenes Icon lässt sich mit Werkzeugen wie dem Freeware-Tool Resource Hacker in die EXE einsetzen.</cite> Manueller Schritt, nicht CI-tauglich — deshalb: Icon-Schritt einmalig dokumentieren und eine vorbereitete `love.exe` mit ersetztem Icon im Repo vorhalten (unter `tools/prebuilt/`).
 
+**Stand M1-06 — der zweite Halbsatz geht nicht.** `tools/prebuilt/` ist laut
+`12_OPENSOURCE` §4 ausdrücklich aus dem Repo ausgeschlossen (rund 40 MB, wird beim Build
+geladen). Eine vorgepatchte `love.exe` dort abzulegen widerspricht dem. Umgesetzt ist
+deshalb dieser Dreischritt:
+
+| Ebene | Wie | Automatisch? |
+|---|---|---|
+| Fenster- und Taskleistensymbol | `t.window.icon = "assets/icon.png"` in `conf.lua` | ja, auf allen Plattformen |
+| macOS-App-Symbol | `tools/make_icons.py --icns` ersetzt alle `.icns` in `Contents/Resources` | ja, im Tag-Build |
+| Symbol der Windows-EXE | Resource Hacker, siehe unten | **nein, Handgriff** |
+
+Das Symbol selbst liegt als `assets/icon.png` (512 × 512) und `dist/icon-256.png` im Repo.
+`tools/make_icons.py` verpackt beide ohne Bildbibliothek in `.icns` und `.ico` — beide
+Formate nehmen PNG-Daten unverändert auf, es wird nichts skaliert.
+
+**Der Handgriff für die EXE**, falls er einmal gemacht werden soll:
+
+1. `./tools/build.sh win` laufen lassen; dabei entsteht `build/VolleyDash.ico`.
+2. [Resource Hacker](https://www.angusj.com/resourcehacker/) öffnen,
+   `build/VolleyDash-<version>-win64/VolleyDash.exe` laden.
+3. *Action → Replace Icon* → `build/VolleyDash.ico` → *Replace*.
+4. Speichern, EXE testen, ZIP neu packen.
+
+**Warum das nicht im Skript steht:** Eine PE-Ressourcentabelle umzuschreiben ist kein
+Zweizeiler, und ein fehlerhafter Eingriff erzeugt eine EXE, die auf manchen Rechnern
+startet und auf anderen nicht. Solange das Fenstersymbol stimmt, ist der Gewinn ein Symbol
+im Explorer — das rechtfertigt kein selbstgeschriebenes PE-Werkzeug im kritischen Pfad des
+Builds. Der Punkt ist damit bewusst offen, nicht vergessen.
+
 ### SmartScreen
 
 Eine unsignierte EXE löst beim ersten Start auf fremden Rechnern die Warnung „Der Computer wurde durch Windows geschützt" aus. Ein Code-Signing-Zertifikat kostet je nach Anbieter dreistellig pro Jahr und baut erst über Zeit Reputation auf — für dieses Projekt nicht sinnvoll.
@@ -137,7 +166,26 @@ Der offizielle macOS-Download von love2d.org enthält seit 11.4 native arm64-Unt
 
 ## 5. Build-Skripte
 
-### `tools/build.sh` (macOS/Linux, baut Win + Mac)
+> **Stand M1-01 — was die umgesetzte Fassung anders macht als der Entwurf unten.**
+> Der Entwurf ist die Vorlage geblieben, die Datei `tools/build.sh` weicht in fünf Punkten ab:
+>
+> 1. **Ziele als Argument:** `./tools/build.sh [love|win|mac|all]`. Ohne Argument wird
+>    gebaut, was auf der Maschine geht — auf Windows also die `.love` und das Windows-Paket,
+>    der macOS-Zweig meldet sich mit Begründung ab, statt den Lauf scheitern zu lassen.
+> 2. **Werkzeuge werden gesucht, nicht vorausgesetzt:** `ZIP_BIN`, `PYTHON`, `LOVE_WIN`,
+>    `LOVE_MAC` sind überschreibbar. Unter Windows ist `python3` der Store-Platzhalter und
+>    `python` der echte Interpreter, unter Linux umgekehrt — das Skript prüft, welcher
+>    antwortet. Nichts davon ist hartcodiert (`CLAUDE.md` §8).
+> 3. **Der Build-Hash entsteht vor `build_info_gen.lua`**, sonst hinge er von sich selbst ab.
+>    Die erzeugte Datei heißt `src/build_info_gen.lua` und steht in `.gitignore`; gelesen
+>    wird sie über `src/app/build_info.lua`, das ohne sie „dev" meldet.
+> 4. **Selbstkontrolle nach dem Packen:** Das Skript prüft, dass `main.lua` in der Wurzel des
+>    Archivs liegt und dass `docs/`, `tests/`, `tools/` und `dist/` nicht hineingeraten sind.
+>    Beide Fehler sind sonst erst am Zielrechner sichtbar.
+> 5. **`license.txt` fehlt → Abbruch.** Ohne sie wäre die Weiterverteilung unzulässig; das
+>    ist keine Warnung wert, sondern ein Abbruch.
+
+### `tools/build.sh` (Entwurf 1.0 — die umgesetzte Fassung steht im Repo)
 
 ```bash
 #!/usr/bin/env bash

@@ -170,6 +170,13 @@ build_windows() {
     cp "$src/license.txt" "$dir/"
     cp dist/LIESMICH_win.txt "$dir/LIESMICH.txt"
 
+    # Die .ico fuer das EXE-Symbol wird erzeugt, aber nicht eingesetzt: das
+    # Umschreiben der PE-Ressourcen ist ein Handgriff mit Resource Hacker
+    # (`06_BUILD` §3) und laeuft nicht in der CI.
+    if [ -n "$PY" ]; then
+        "$PY" tools/make_icons.py --ico "$BUILD/$NAME.ico" || true
+    fi
+
     ( cd "$BUILD" && "$ZIP" -9 -r -q "$NAME-$VERSION-win64.zip" "$NAME-$VERSION-win64" )
     echo "Erzeugt: $BUILD/$NAME-$VERSION-win64.zip ($(du -h "$BUILD/$NAME-$VERSION-win64.zip" | cut -f1))"
 }
@@ -199,11 +206,15 @@ build_macos() {
           --version "$VERSION" \
           --remove-uti
 
-    # Programmsymbol ersetzen, falls die Vorlage gebaut werden konnte.
-    if [ -n "$PY" ] && "$PY" tools/make_icons.py --icns "$BUILD/$NAME.icns" >/dev/null 2>&1; then
-        local icns
-        icns=$(ls "$dir/$NAME.app/Contents/Resources/"*.icns 2>/dev/null | head -1 || true)
-        [ -n "$icns" ] && cp "$BUILD/$NAME.icns" "$icns"
+    # Programmsymbol. love.app bringt mehrere .icns mit (App-Symbol und das
+    # Symbol fuer .love-Dokumente); ersetzt werden alle, weil hier kein
+    # LOEVE-Symbol mehr auftauchen soll.
+    if "$PY" tools/make_icons.py --icns "$BUILD/$NAME.icns"; then
+        for icns in "$dir/$NAME.app/Contents/Resources/"*.icns; do
+            [ -f "$icns" ] && cp "$BUILD/$NAME.icns" "$icns"
+        done
+    else
+        echo "Hinweis: Symbol konnte nicht gebaut werden, love.app behaelt ihres." >&2
     fi
 
     # WICHTIG: Der Plist-Patch hat die Signatur der love.app zerstoert. Ohne
