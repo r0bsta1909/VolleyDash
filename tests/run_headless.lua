@@ -27,6 +27,14 @@ Runner.SUITES = {
     "tests.prediction_test",
     "tests.snapshot_events_test",
     "tests.checksum_test",
+
+    -- M4 -- Turnier (Stufe A: love-frei und headless)
+    "tests.tournament_json_test",
+    "tests.tournament_bracket_test",
+    "tests.tournament_model_test",
+    "tests.tournament_scheduler_test",
+    "tests.tournament_persistence_test",
+    "tests.tournament_run_test",
 }
 
 -- Suiten, die LOEVE brauchen (M2-01).
