@@ -22,6 +22,7 @@ local Protocol   = require("src.net.protocol")
 local Snapshot   = require("src.net.snapshot")
 local Lobby      = require("src.net.lobby")
 local InputQueue = require("src.net.input_queue")
+local Checksum   = require("src.net.checksum")
 local Ruleset    = require("src.sim.ruleset")
 
 local Host = {}
@@ -356,9 +357,23 @@ function Host:ackTick(slot)
 end
 
 function Host:publishSnapshot(state, tick)
+    local due = Checksum.due(tick)
+
     for slot, peer in pairs(self.slotPeer) do
         local snap = Snapshot.from(state, tick, self:ackTick(slot), self.ruleset)
         self:send(peer, Protocol.MSG.SNAPSHOT, snap)
+
+        -- Alle 30 Ticks die Pruefsumme ueber genau die Bytes, die dieser Gast
+        -- eben bekommen hat (§9, ADR-018). Erneut gepackt statt in `send`
+        -- abgegriffen: das kostet zweimal je Sekunde eine Serialisierung und
+        -- laesst `send` die eine Aufgabe behalten, die es hat.
+        if due then
+            local ok, data = pcall(Protocol.encode, Protocol.MSG.SNAPSHOT, snap)
+            if ok then
+                self:send(peer, Protocol.MSG.CHECKSUM,
+                    { tick = tick, hash = Checksum.ofBytes(data) })
+            end
+        end
     end
 end
 

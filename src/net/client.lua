@@ -15,6 +15,7 @@
 local Protocol = require("src.net.protocol")
 local Ruleset  = require("src.sim.ruleset")
 local Lobby    = require("src.net.lobby")
+local Checksum = require("src.net.checksum")
 
 local Client = {}
 Client.__index = Client
@@ -24,6 +25,11 @@ Client.MAX_BUFFER   = 8      -- darueber wird aufgeholt, statt nachzuhinken
 Client.PEER_TIMEOUT_MS = 5000
 Client.PING_INTERVAL = 0.5
 Client.CONNECT_TIMEOUT = 5
+
+-- Wie viele halbe Pruefsummen offen bleiben duerfen. Bei 30 Ticks Abstand
+-- sind acht Eintraege vier Sekunden Vorrat -- genug, damit ein verlorener
+-- Snapshot erst dann als fehlend zaehlt, wenn er sicher nicht mehr kommt.
+Client.HASH_MEMORY = 8
 
 function Client.new(opts)
     opts = opts or {}
@@ -75,7 +81,13 @@ function Client.new(opts)
         startedAt = nil,
         lastPingAt = 0,
         rtt       = 0,
-        stats     = { received = 0, applied = 0, held = 0, dropped = 0, lastDrain = 0 },
+        stats     = { received = 0, applied = 0, held = 0, dropped = 0, lastDrain = 0,
+                      checked = 0, desync = 0, missing = 0 },
+
+        -- Desync-Detektor (§9): eigener Hash je Pruefsummen-Tick, bis die
+        -- Angabe des Hosts eintrifft.
+        hashes    = {},
+        hashOrder = {},
     }, Client)
 
     self.startedAt = self:now()
@@ -168,6 +180,10 @@ function Client:receive(data)
         self.stats.received = self.stats.received + 1
         self.snapshots[#self.snapshots + 1] = payload
         self.latest = payload
+        self:rememberHash(payload)
+
+    elseif msgType == Protocol.MSG.CHECKSUM then
+        self:compareChecksum(payload)
 
     elseif msgType == Protocol.MSG.MATCH_END then
         -- Zurueck in die Lobby, nicht "ended": die Verbindung steht weiter,
@@ -230,8 +246,82 @@ function Client:onMatchStart(payload)
     self.tick = 0
     self.masks = { 0, 0, 0 }
     self.snapshots = {}
+    -- Der Host faengt seine Tickzaehlung neu an; alte Pruefsummen wuerden
+    -- sonst auf die Ticks des neuen Matches passen.
+    self.hashes, self.hashOrder = {}, {}
     self.state = "playing"
     self.onEvent("start", payload.matchId, payload.slot)
+end
+
+-- ---------------------------------------------------------------------------
+-- Desync-Detektor (M3-03, §9, ADR-018)
+--
+-- Der Snapshot wird aus der GELESENEN Tabelle erneut gepackt. Nur so prueft
+-- der Vergleich das Lesen; die empfangenen Rohbytes waeren eine Tautologie.
+-- Gerechnet wird nur auf den Ticks, auf denen auch der Host rechnet -- das
+-- ist zweimal je Sekunde statt sechzigmal.
+--
+-- DIE PRUEFSUMME KOMMT IN DER REGEL ZUERST. Sie laeuft ueber Kanal 0
+-- (zuverlaessig), der Snapshot ueber Kanal 1 (unzuverlaessig, §4) -- und
+-- zwischen zwei ENet-Kanaelen gibt es keine Reihenfolge. Gemessen im
+-- Loopback, wo sie AUSNAHMSLOS vorlief. Wer hier auf die eine Richtung baut,
+-- bekommt einen Detektor, der nie etwas prueft und trotzdem gruen meldet.
+--
+-- Deshalb: beide Haelften landen im selben Eintrag, verglichen wird, sobald
+-- die zweite da ist. Was beim Verdraengen nur die Pruefsumme hat, war ein
+-- verlorener Snapshot -- das ist Paketverlust, kein Befund.
+-- ---------------------------------------------------------------------------
+
+function Client:hashEntry(tick)
+    local entry = self.hashes[tick]
+    if entry then return entry end
+
+    entry = {}
+    self.hashes[tick] = entry
+    self.hashOrder[#self.hashOrder + 1] = tick
+
+    while #self.hashOrder > Client.HASH_MEMORY do
+        local oldest = table.remove(self.hashOrder, 1)
+        local dropped = self.hashes[oldest]
+        self.hashes[oldest] = nil
+        if dropped and dropped.theirs and not dropped.mine then
+            self.stats.missing = self.stats.missing + 1
+        end
+    end
+
+    return entry
+end
+
+function Client:settleHash(tick, entry)
+    if not (entry.mine and entry.theirs) then return end
+
+    self.hashes[tick] = nil
+    for i = #self.hashOrder, 1, -1 do
+        if self.hashOrder[i] == tick then table.remove(self.hashOrder, i) end
+    end
+
+    self.stats.checked = self.stats.checked + 1
+    if entry.mine ~= entry.theirs then
+        self.stats.desync = self.stats.desync + 1
+        self.onEvent("desync", tick, entry.mine, entry.theirs)
+    end
+end
+
+function Client:rememberHash(snap)
+    if not Checksum.due(snap.tick) then return end
+
+    local ok, data = pcall(Protocol.encode, Protocol.MSG.SNAPSHOT, snap)
+    if not ok then return end
+
+    local entry = self:hashEntry(snap.tick)
+    entry.mine = Checksum.ofBytes(data)
+    self:settleHash(snap.tick, entry)
+end
+
+function Client:compareChecksum(payload)
+    local entry = self:hashEntry(payload.tick)
+    entry.theirs = payload.hash
+    self:settleHash(payload.tick, entry)
 end
 
 -- ---------------------------------------------------------------------------
