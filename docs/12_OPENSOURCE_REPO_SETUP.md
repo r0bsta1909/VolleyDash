@@ -94,6 +94,14 @@ Für ein Open-Source-Projekt reicht „läuft auf meinem Mac" nicht. Der Build m
 | Push auf `main`, Pull Request | Headless-Tests (`tests/run_headless.lua`) unter LuaJIT. Schnell, kein LÖVE nötig |
 | dieselben | **Job `protocol`** auf `windows-latest` und `macos-latest`: `--test` (Protokollbytes, T-N-07), `--net-selftest` und `--tournament-selftest` |
 | Tag `v*` | Vollbuild Windows + macOS, Artefakte an GitHub Release anhängen |
+| **Manuell** („Run workflow") | Dieselben Pakete, aber **nur als Artefakt am Lauf** — kein Release |
+
+**Der manuelle Weg (seit M4-09)** ist für Abende gedacht, an denen etwas auf zwei oder vier
+Rechnern ausprobiert werden soll, ohne dass daraus eine öffentliche Zusage wird. `release`
+bleibt an den Tag gebunden: Ein Release verlangt nach §7 vorher CHANGELOG und VERSION, ein
+Artefakt am Lauf verlangt nichts. Beide Pakete eines Laufs tragen **denselben Build-Hash** —
+das ist keine Nebensache, denn der Abgleich aus M2-07 vergleicht ihn, und zwei Pakete aus zwei
+Läufen melden sich gegenseitig als andere Fassung.
 
 **Nachtrag 2026-08-13 (M4-09): die zwei Selbsttests laufen jetzt mit.** Bis dahin prüfte die CI
 nur, was ohne Leitung entscheidbar ist — bei einem Turnier mit verteilten Match-Hosts ist das
