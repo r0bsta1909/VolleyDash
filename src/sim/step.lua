@@ -134,4 +134,17 @@ function Step.tick(state, in1, in2, ruleset, events)
     return events
 end
 
+-- ---------------------------------------------------------------------------
+-- Sichtbar fuer die Vorhersage (M3-01, ADR-017)
+--
+-- Genau die zwei Schritte, die `Step.tick` oben fuer einen Blob geht. Sie
+-- werden hier nur sichtbar gemacht, nicht veraendert: kein Zahlenwert, keine
+-- Zeile Logik, kein anderes Verhalten. `src/net/prediction.lua` ruft sie auf,
+-- statt sie nachzubauen -- sechs nachgebaute Zeilen waeren eine zweite
+-- Wahrheit ueber die Blob-Bewegung und wuerden beim ersten Eingriff in
+-- `02_CODE_AUDIT` §4 still gegen den Host driften.
+-- ---------------------------------------------------------------------------
+Step.applyImpulses    = applyImpulses
+Step.updateBlobTimers = updateBlobTimers
+
 return Step
