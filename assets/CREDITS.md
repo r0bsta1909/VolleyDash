@@ -37,24 +37,29 @@ Git-Historie.
 
 ## Klänge
 
-Acht WAV-Dateien, 44,1 kHz / 16 Bit / Stereo, zuletzt mit FFmpeg geschrieben.
+Elf WAV-Dateien, **48 kHz / 16 Bit / Stereo**, unkomprimiertes PCM, zuletzt mit FFmpeg
+geschrieben.
 
-| Datei | Größe | Ereignis |
-|---|---|---|
-| `jump.wav` | 92 kB | Absprung |
-| `dash.wav` | 92 kB | Dash |
-| `hit_blob.wav` | 154 kB | Ball trifft Spielfigur |
-| `hit_sand.wav` | 154 kB | Ball trifft Boden |
-| `hit_net.wav` | 154 kB | Ball trifft Netz |
-| `hit_wall.wav` | 154 kB | Ball trifft Seitenwand |
-| `whistle.wav` | 154 kB | Anpfiff und Punktpfiff |
-| `whistle_end.wav` | 307 kB | Satzende |
+| Datei | Größe | Länge | Ereignis |
+|---|---|---|---|
+| `jump.wav` | 90 kB | 0,48 s | Absprung |
+| `dash.wav` | 90 kB | 0,48 s | Dash |
+| `hit_blob.wav` | 150 kB | 0,80 s | Ball trifft Spielfigur |
+| `hit_sand.wav` | 150 kB | 0,80 s | Ball trifft Boden |
+| `hit_net.wav` | 150 kB | 0,80 s | Ball trifft Netz |
+| `hit_wall.wav` | 150 kB | 0,80 s | Ball trifft Seitenwand |
+| `whistle.wav` | 150 kB | 0,80 s | Anpfiff und Punktpfiff |
+| `whistle_end.wav` | 300 kB | 1,60 s | Satzende |
+| `tournament_call.wav` | 225 kB | 1,20 s | Turnier-Aufruf: dein Match ist dran (`05_TOURNAMENT` §5) |
+| `tournament_warn.wav` | 113 kB | 0,60 s | 30 s vor Ablauf des No-Show-Timers (E-02) |
+| `tournament_done.wav` | 750 kB | 4,00 s | Turnierende, Sieger steht fest |
 
-**Angemeldet, aber noch nicht vorhanden:** `tournament_call.wav` — der Signalton für den
-Turnier-Aufruf (`05_TOURNAMENT` §5). Er ist seit M4-01…M4-06 in `src/app/assets.lua`
-eingetragen; solange die Datei fehlt, bleibt es still. Der Vollständigkeitsanspruch oben ist
-davon unberührt: Er gilt für Dateien **im** Repository, und diese ist noch keine. Vorgaben,
-Begründung und die fertige Tabellenzeile stehen in `docs/handoffs/CC-05_KLANGLISTE.md`.
+**Berichtigung 2026-08-13 (M4-07).** Hier stand bis eben „Acht WAV-Dateien, 44,1 kHz". Beide
+Angaben waren falsch: Es sind seit den Turnierklängen elf, und die Abtastrate war **schon
+immer 48 kHz** — bei allen acht ursprünglichen Dateien, nicht erst bei den neuen. Nachgemessen
+aus den RIFF-Kopfdaten, nicht angenommen. Am Verhalten ändert das nichts; LÖVE liest beide
+Raten. Wer aber neue Klänge beisteuert, richtet sich nach dieser Tabelle, und dann wäre eine
+falsche Zahl hier der Grund für eine Datei, die aus der Reihe fällt.
 
 ## Musik
 

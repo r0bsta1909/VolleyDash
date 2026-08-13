@@ -1,7 +1,8 @@
 # CC-05 — Klangliste Turniermodus
 
 **Erstellt:** 2026-08-13 · **Für:** r0btoshi · **Bezug:** `05_TOURNAMENT` §5, M4-07
-**Status:** eine Datei ist Pflicht, zwei sind begründete Vorschläge
+**Status:** ✅ **erledigt 2026-08-13** — alle drei Dateien liegen in `assets/` und sind
+in `src/app/assets.lua` angemeldet. Abgespielt werden sie mit M4-07 und M4-08.
 
 ---
 
@@ -40,7 +41,7 @@ und das ist die Sorte Ärger, die einen Turnierabend kippen lässt.
 |---|---|
 | **Ordner** | `assets/` — direkt darin, nicht in einem Unterordner |
 | **Dateiname** | `tournament_call.wav` |
-| **Format** | WAV, 44,1 kHz, 16 Bit, Stereo — wie die acht vorhandenen Klänge |
+| **Format** | WAV, **48 kHz**, 16 Bit, Stereo, PCM — wie die acht vorhandenen Klänge |
 | **Alternative** | `.ogg` wird auch geladen, aber `.wav` hat Vorrang. Bei einem so kurzen Klang ist WAV richtig |
 
 **Der Name muss exakt so lauten.** Der Lader sucht `assets/tournament_call.wav` und fällt
@@ -119,14 +120,14 @@ frühestens in die übernächste Sitzung. Es eilt nicht.
 
 `assets/CREDITS.md` erhebt einen Vollständigkeitsanspruch: *„Jede `.png`, `.wav` und `.ogg` in
 diesem Repository steht hier. Was hier nicht steht, gehört nicht ins Repository."*
-(`10_LEGAL` §4, M1-09). Die Zeile gehört also mit dazu. Sie ist vorbereitet — Größe eintragen
-und in die Tabelle unter **Klänge** hängen:
+(`10_LEGAL` §4, M1-09).
 
-```markdown
-| `tournament_call.wav` | ... kB | Turnier-Aufruf: dein Match ist dran (05_TOURNAMENT §5) |
-```
-
-Und darüber die Anzahl anpassen: aus *„Acht WAV-Dateien"* wird neun.
+**Erledigt 2026-08-13.** Alle drei Dateien stehen mit Größe und Länge in der Tabelle unter
+**Klänge**, die Anzahl ist von acht auf elf gezogen. Beim Nachmessen kam ein Nebenbefund
+heraus: Die Angabe *„44,1 kHz"* war **für alle acht ursprünglichen Dateien falsch** — sie
+liegen sämtlich in 48 kHz vor, gelesen aus den RIFF-Kopfdaten. Die Berichtigung steht in
+`CREDITS.md`. Am Verhalten ändert das nichts, LÖVE liest beide Raten; falsch war nur die
+Zahl, nach der sich künftige Beiträge gerichtet hätten.
 
 **Herkunft:** Es gilt der Grundsatz oben in der Datei — alles von r0btoshi, zlib, kein
 Material aus Blobby Volley oder Blobby Volley 2. **Wenn du einen Klang von woanders nimmst**

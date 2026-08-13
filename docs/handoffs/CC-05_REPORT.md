@@ -19,9 +19,10 @@
 > die Module sind fertig, geprüft und in der CI auf allen drei Plattformen durchgelaufen.
 > Was sie an Zustand vorfindet und wo es liegt, steht in **§6** — dort anfangen zu lesen.
 >
-> **Bei r0btoshi liegt eine Zuarbeit:** der Signalton für den Aufruf
-> (`docs/handoffs/CC-05_KLANGLISTE.md`). Er blockiert nichts — fehlt die Datei, bleibt es
-> still —, aber ohne ihn ist M4-07 nicht abgenommen (`05_TOURNAMENT` §5).
+> **Die Klänge liegen bereits vor** (r0btoshi, 2026-08-13): `tournament_call`,
+> `tournament_warn` und `tournament_done` sind in `assets/`, in `src/app/assets.lua`
+> angemeldet und in `CREDITS.md` eingetragen. Stufe B muss sie nur noch abspielen —
+> Vorgaben und Anlass stehen in `docs/handoffs/CC-05_KLANGLISTE.md`.
 
 ---
 
@@ -226,9 +227,10 @@ Nichts davon ist neu zu bauen. Die Anzeige liest, sie rechnet nicht.
 
 1. **Der Aufruf braucht einen Ton** (`05_TOURNAMENT` §5). Das war bis M4-05 eine
    Vorsichtsmaßnahme und ist jetzt eine Notwendigkeit: Der No-Show-Timer ist gebaut und läuft
-   wirklich. Wer nichts hört, verliert nach 180 s per Walkover. **Die Datei kommt von
-   r0btoshi** — Name, Ordner und Vorgaben stehen in `docs/handoffs/CC-05_KLANGLISTE.md`, der
-   Lader ist bereits angemeldet (`assets/tournament_call.wav`, fehlt sie, bleibt es still).
+   wirklich. Wer nichts hört, verliert nach 180 s per Walkover. **Die drei Dateien liegen
+   vor und sind geladen** — `Assets.play("tournament_call")` genügt. Dazu gehört
+   `tournament_warn` bei 30 s Restzeit (der Grund steht in der Klangliste §3.1) und
+   `tournament_done` in der Beamer-Ansicht.
 2. **„Raus" und „hat kein offenes Match" sind zwei verschiedene Dinge** (F-T-06). Ein
    Halbfinalverlierer spielt um Platz 3. Der Teilnehmerstatus beantwortet das schon richtig —
    die Anzeige darf ihn nur nicht selbst nachrechnen.

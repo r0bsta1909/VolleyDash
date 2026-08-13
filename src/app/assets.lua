@@ -52,14 +52,18 @@ function Assets.load()
     Assets.images.blob = loadImage("blob.png")
     Assets.images.ball = loadImage("ball.png")
 
-    -- `tournament_call` ist der Signalton aus `05_TOURNAMENT` §5. Er steht hier
-    -- schon vor seinem Aufrufer (M4-07): Die Datei darf fehlen -- dann bleibt
-    -- es still, wie bei jedem anderen Asset auch --, und sobald sie da ist,
-    -- wird sie geladen, ohne dass jemand diese Liste nachziehen muss.
+    -- Die drei `tournament_*` sind die Klaenge des Turniermodus und stehen hier
+    -- vor ihren Aufrufern (M4-07, M4-08). Das ist Absicht: Assets sind
+    -- grundsaetzlich optional, eine fehlende Datei bleibt still -- und sobald
+    -- sie da ist, wird sie geladen, ohne dass jemand diese Liste nachzieht.
+    --   tournament_call   Aufruf: dein Match ist dran   (05_TOURNAMENT §5)
+    --   tournament_warn   30 s vor Ablauf des No-Show-Timers (E-02)
+    --   tournament_done   einmal am Abend, Sieger steht fest
     -- Vorgaben und Begruendung: `docs/handoffs/CC-05_KLANGLISTE.md`.
     for _, name in ipairs({ "jump", "dash", "hit_blob", "hit_sand",
                             "hit_net", "hit_wall", "whistle", "whistle_end",
-                            "tournament_call" }) do
+                            "tournament_call", "tournament_warn",
+                            "tournament_done" }) do
         local sound = loadSound(name)
         Assets.sounds[name] = sound
         if sound then

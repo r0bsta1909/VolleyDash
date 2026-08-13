@@ -33,6 +33,18 @@ Eintrag steht hier, weil der Unterbau steht und geprüft ist.
   das Turnier — der Fall steht als Test drin.
 - **135 neue Testfälle**, davon ein vollständiger 20er-Durchlauf mit hartem Neustart mitten in
   Runde 2: Das Turnierobjekt wird weggeworfen und ausschließlich aus der Datei neu aufgebaut.
+- **Drei Klänge für den Turniermodus** (`tournament_call`, `tournament_warn`,
+  `tournament_done`, zusammen rund 1,1 MB). Sie werden noch nicht abgespielt — das kommt mit
+  der Anzeige. Der Aufruf-Ton ist keine Zierde: `05_TOURNAMENT` §5 schreibt ihn vor, weil auf
+  einer Party niemand auf sein Menü starrt, und seit der No-Show-Timer wirklich läuft,
+  verliert ein Match, wer nichts hört.
+
+### Behoben
+
+- `assets/CREDITS.md` gab die Klänge als **44,1 kHz** an. Sie liegen sämtlich in **48 kHz**
+  vor, und zwar seit jeher — nachgemessen aus den RIFF-Kopfdaten. Am Verhalten ändert das
+  nichts, LÖVE liest beide Raten; falsch war nur die Zahl, nach der sich künftige Beiträge
+  gerichtet hätten.
 
 ### Geändert
 
