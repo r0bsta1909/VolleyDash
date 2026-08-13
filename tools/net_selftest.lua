@@ -33,6 +33,7 @@ local Discovery  = require("src.net.discovery")
 local Lobby      = require("src.net.lobby")
 local Checksum   = require("src.net.checksum")
 local Prediction = require("src.net.prediction")
+local Frame      = require("src.input.frame")
 local SnapEvents = require("src.render.snapshot_events")
 
 local M = {}
@@ -318,33 +319,86 @@ function M.selftest(App)
     --
     -- Im sauberen Loopback bleibt der Korrekturzaehler bei null. Das ist das
     -- richtige Ergebnis und zugleich ein Problem: ein Zaehler, der nie
-    -- zaehlt, koennte auch abgeklemmt sein. Also wird hier absichtlich jedes
-    -- fuenfte INPUT-Paket unterschlagen -- der Host wiederholt dann die
-    -- letzte Maske (§7), und genau das ist der Vorhersagefehler, den M3-01
-    -- sichtbar machen soll.
+    -- zaehlt, koennte auch abgeklemmt sein. Also wird hier absichtlich Eingabe
+    -- unterschlagen -- der Host wiederholt dann die letzte Maske (§7), und
+    -- genau das ist der Vorhersagefehler, den M3-01 sichtbar machen soll.
+    --
+    -- BERICHTIGT 2026-08-13, nachdem der Fall in der CI auf macOS umfiel und
+    -- auf Windows nicht:
+    --
+    -- Vorher wurden drei AUFEINANDERFOLGENDE Pakete von fuenfzehn
+    -- unterschlagen, mit der Begruendung, damit sei die dreifache Redundanz
+    -- ueberwunden. Das rechnet sich nicht auf. Ein Paket traegt {t, t-1, t-2};
+    -- faellt t, t+1 und t+2 aus, dann bringt Paket t+3 die Masken t+1 und t+2
+    -- doch wieder mit. Unwiederbringlich verloren war also GENAU EIN Tick --
+    -- und ob ein einzelner Tick mehr als 2 px Abweichung erzeugt, haengt
+    -- daran, wo im Replay er landet. Windows fiel auf die eine Seite, macOS
+    -- auf die andere. Ein Test, der so entscheidet, prueft das Replay und
+    -- nicht die Vorhersage.
+    --
+    -- Jetzt faellt die Eingabe fuer ein zusammenhaengendes Fenster ganz aus.
+    -- Der Host wiederholt darin die letzte Maske, waehrend der Gast weiter
+    -- mit seinen echten Masken vorhersagt -- die Abweichung ist damit nicht
+    -- wahrscheinlich, sondern zwingend, solange der Spieler sich ueberhaupt
+    -- bewegt. Danach bleiben 100 Ticks, in denen der Blob wieder aufschliesst;
+    -- die Korrektur laeuft laut §8 ueber vier.
     --
     -- Unterschlagen wird im WERKZEUG, nicht im Spiel: `client.send` wird fuer
     -- die Dauer des Laufs umgehaengt. Ein Testschalter im ausgelieferten Code
     -- waere ein Schalter, den irgendwann jemand findet.
+    local BLACKOUT_FROM, BLACKOUT_TO = 20, 140
+
     local realSend = client.send
     local sendTick = 0
     client.send = function(this, msgType, payload)
         if msgType == Protocol.MSG.INPUT then
             sendTick = sendTick + 1
-            -- Drei aufeinanderfolgende Pakete, damit auch die dreifache
-            -- Redundanz aus §7 die Luecke nicht mehr schliesst.
-            if sendTick % 15 < 3 then return true end
+            if sendTick > BLACKOUT_FROM and sendTick <= BLACKOUT_TO then
+                return true
+            end
         end
         return realSend(this, msgType, payload)
     end
 
+    -- Und die Eingabe kommt fuer diesen Lauf NICHT aus dem Replay.
+    --
+    -- Auch das ist eine Berichtigung vom 2026-08-13: Mit den aufgezeichneten
+    -- Masken haengt die Aussage daran, ob der Gast im getroffenen Ausschnitt
+    -- ueberhaupt laeuft -- gemessen eine einzige Korrektur, und das ist zu
+    -- nahe an der Null fuer eine Zusicherung. Gefragt ist hier nicht, was in
+    -- R-05 passiert, sondern ob der Zaehler auf einen echten Eingabeverlust
+    -- reagiert. Also links, rechts, links: Der Host wiederholt im Ausfall die
+    -- letzte Maske und laeuft damit zwangslaeufig in die falsche Richtung,
+    -- waehrend der Gast die Wende schon vorhersagt.
+    --
+    -- Gewendet wird alle 20 Ticks, damit der Blob nicht an der Wand parkt --
+    -- dort stuende auch die wiederholte Maske still und es gaebe nichts zu
+    -- korrigieren.
+    --
+    -- Die letzten 60 Ticks steht er still, und das ist kein Beiwerk: Der
+    -- Abgleich unten vergleicht die Position des vorhergesagten Blobs mit der
+    -- des Hosts auf 3 px genau. An einem LAUFENDEN Blob ist diese Aussage
+    -- nicht zu halten -- allein der Anzeigepuffer von zwei Ticks (§8) sind bei
+    -- Laufgeschwindigkeit rund 13 px, und man wuerde den Puffer messen statt
+    -- die Vorhersage. Steht er, ist die Aussage wieder die, die sie sein soll:
+    -- Der Gast hat aufgeschlossen.
+    local moving = {}
+    for i = 1, 240 do
+        if i > 180 then
+            moving[i] = { 0, 0 }
+        else
+            local right = (math.floor((i - 1) / 20) % 2) == 0
+            moving[i] = { 0, Frame.encode({ right = right, left = not right }) }
+        end
+    end
+
     local corrBefore = pred.corrections
-    runMatch(host, client, hostState, clientState, ruleset,
-        replay and replay.inputs or nil, 240, pred)
+    runMatch(host, client, hostState, clientState, ruleset, moving, 240, pred)
     client.send = realSend
 
     local lossy = pred.corrections - corrBefore
-    print(string.format("[net] mit 20 %% Eingabeverlust: %d Korrekturen", lossy))
+    print(string.format("[net] %d Ticks ohne Eingabe: %d Korrekturen",
+        BLACKOUT_TO - BLACKOUT_FROM, lossy))
     check(lossy > 0,
         "bei echtem Eingabeverlust schlaegt der Korrekturzaehler an (" .. lossy .. ")")
     check(math.abs(clientState.blobs[2].x - hostState.blobs[2].x) < 3.0,

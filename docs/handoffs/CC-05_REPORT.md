@@ -383,6 +383,23 @@ nächsten erst sichtbar gemacht hat.
 | **C-T-07** | **`--tournament-selftest` fehlte in der Headless-Liste von `conf.lua`.** Der Lauf startete damit **mit Fenster, Grafik und Audio** — auf einem Läufer ohne Bildschirm bleibt er stehen, bis die Zeitschranke ihn abbricht. Lokal fiel nichts auf, weil hier ein Desktop existiert. Behoben; `conf.lua` trägt jetzt die Faustregel dazu: Ein Flag, das `M.runTools` bedient, gehört in die Liste — die Autopiloten (`--net-auto-*`, `--tournament-auto=`) ausdrücklich nicht, die fahren das echte Spiel und brauchen das Bild |
 | **C-T-08** | **Ein abgebrochener Schritt hinterließ ein leeres Protokoll — zweimal hintereinander.** Erst puffert LÖVE seine Ausgabe im Redirect (behoben mit `setvbuf`), dann brach die Zeitschranke den Schritt ab, **bevor** das nachgelagerte `cat` drankam — drei Minuten, null Zeilen. Beides ist derselbe Denkfehler: Diagnose, die erst nach dem Lauf passiert, gibt es bei einem Abbruch nicht. Die Schritte benutzen jetzt `tee`; damit steht alles im Joblog, **während** es passiert |
 
+### Aus Lauf 37 — der einzige Fehlschlag lag in einem M3-Werkzeug
+
+| ID | Befund | Erledigt |
+|----|--------|---|
+| **C-T-09** | **Der Vorhersagetest unter Eingabeverlust prüfte das Replay, nicht die Vorhersage.** Er unterschlug drei **aufeinanderfolgende** INPUT-Pakete von fünfzehn, mit der Begründung, damit sei die dreifache Redundanz aus §7 überwunden. Das rechnet sich nicht auf: Ein Paket trägt `{t, t-1, t-2}`; fallen `t`, `t+1` und `t+2` aus, bringt Paket `t+3` die Masken `t+1` und `t+2` doch wieder mit. Unwiederbringlich verloren war **genau ein Tick** — und ob ein einzelner Tick mehr als 2 px Abweichung erzeugt, hängt daran, wo im Replay er landet. Windows fiel auf die eine Seite, macOS auf die andere. Jetzt fällt die Eingabe für ein zusammenhängendes Fenster von 120 Ticks ganz aus, und die Eingabe kommt **nicht** aus dem Replay, sondern ist eine gefahrene Bewegung (links, rechts, links): Der Host wiederholt im Ausfall die letzte Maske und läuft damit zwangsläufig in die falsche Richtung. Die Abweichung ist nicht mehr wahrscheinlich, sondern zwingend | behoben |
+| **C-T-10** | **Der zweite Prüfsatz desselben Blocks war nur zufällig grün.** „Der Blob steht danach wieder beim Host" vergleicht auf **3 px** genau. An einem laufenden Blob ist das nicht zu halten — allein der Anzeigepuffer von zwei Ticks (§8) sind bei Laufgeschwindigkeit rund 13 px; man misst dann den Puffer und nicht die Vorhersage. Bestanden hat er bisher, weil der Blob im getroffenen Replay-Ausschnitt praktisch stillstand. Die gefahrene Eingabe steht deshalb die letzten 60 Ticks still, und erst dann wird verglichen — die Aussage ist damit wieder die, die sie sein soll: **der Gast hat aufgeschlossen** | behoben |
+
+**Zur Zahl der Korrekturen (2):** Das ist nicht knapp, sondern richtig. Während des Ausfalls
+kommt beim Host keine Eingabe an, also steht sein `ackInputTick` still — und ADR-017 gleicht
+ausdrücklich gegen den bestätigten Tick ab und nicht gegen die Gegenwart. Es gibt deshalb genau
+zwei Ereignisse: das Auseinanderlaufen am Anfang und das Aufschließen am Ende. Über drei Läufe
+identisch, samt Endposition auf zwei Nachkommastellen.
+
+**Was ich von hier aus nicht belegen kann:** ob der Fall auf macOS stabil ist. Die Abweichung
+ist jetzt so groß wie das halbe Feld statt zwei Pixel, damit ist die Marge um Größenordnungen
+besser — aber die Aussage macht der nächste CI-Lauf, nicht ich.
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |
