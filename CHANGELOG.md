@@ -7,11 +7,16 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
 deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
-## [Unreleased]
+## [0.3.0] — 2026-08-13
 
 Netzwerk-Politur (M3). Der Gast war bisher Zuschauer seines eigenen Blobs: Er drückte eine
 Taste und sah die Wirkung zwei Ticks später, und sein Bild blieb still — kein Staub, kein
 Klang. Beides ist behoben.
+
+**Diese Fassung spielt mit 0.2.x zusammen.** Protokollfassung, Snapshot-Format und
+Nachrichtentypen sind unverändert; wer noch 0.2.2 hat, kann mitspielen und sieht lediglich die
+gewohnte Build-Warnung in der Lobby. Nur die Neuerungen unten fehlen ihm dann — der ältere
+Stand sagt nichts vorher und schickt keine Prüfsummen.
 
 ### Hinzugefügt
 
