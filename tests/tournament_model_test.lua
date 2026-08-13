@@ -18,6 +18,7 @@ local T = {}
 local function case(name, fn) T[#T + 1] = { name = name, fn = fn } end
 
 local assertEq, assertTrue, assertFalse = H.assertEq, H.assertTrue, H.assertFalse
+local assertNear = H.assertNear
 
 -- ---------------------------------------------------------------------------
 -- Aufbau
@@ -426,6 +427,101 @@ case("ein Freilos hat einen Sieger und keinen Verlierer (B-T-03)", function()
     local stats = t.participants[winner].stats
     assertEq(stats.wins, 1, "ein Sieg")
     assertEq(stats.losses, 0, "keine Niederlage")
+end)
+
+-- ---------------------------------------------------------------------------
+-- Die zwei Statistiken aus der Simulation (`05_TOURNAMENT` §11, M4-09)
+-- ---------------------------------------------------------------------------
+
+-- Ein Turnier mit vier Teilnehmern, ausgelost, plus die Kennungen des ersten
+-- spielbaren Matches.
+local function twoPlayers()
+    local t = H.newTournament(4, { format = "single_elim" })
+    H.draw(t)
+    local m = t:matchList()[1]
+    return t, m
+end
+
+case("die laengste Rallye zaehlt fuer BEIDE Spieler des Matches", function()
+    local t, m = twoPlayers()
+    t:append({ event = "match_finished", matchId = m.id, at = 10,
+               sets = { { a = 15, b = 9 } }, winner = m.slotA,
+               stats = { longestRally = 42.5, fastestBall = 800, fastestBy = 1 } })
+
+    assertNear(t.participants[m.slotA].stats.longestRally, 42.5, 0.001, "Sieger")
+    -- Der Verlierer hat dieselbe Rallye gespielt. Sie nur dem Sieger
+    -- gutzuschreiben waere eine Statistik ueber den Ausgang, nicht ueber das Spiel.
+    assertNear(t.participants[m.slotB].stats.longestRally, 42.5, 0.001, "Verlierer")
+end)
+
+case("der schnellste Ball zaehlt nur fuer den, der ihn zuletzt beruehrt hat", function()
+    local t, m = twoPlayers()
+    t:append({ event = "match_finished", matchId = m.id, at = 10,
+               sets = { { a = 15, b = 9 } }, winner = m.slotA,
+               stats = { longestRally = 12, fastestBall = 912.5, fastestBy = 2 } })
+
+    assertEq(t.participants[m.slotA].stats.fastestBall, 0, "nicht seiner")
+    assertNear(t.participants[m.slotB].stats.fastestBall, 912.5, 0.01, "seiner")
+end)
+
+case("gefuehrt wird das Maximum, nicht die Summe und nicht der letzte Wert", function()
+    local t = H.newTournament(4, { format = "round_robin" })
+    H.draw(t)
+
+    local first = true
+    local pid = t.participantOrder[1]
+    for _, m in ipairs(t:matchList()) do
+        if m.slotA == pid or m.slotB == pid then
+            local by = (m.slotA == pid) and 1 or 2
+            t:append({ event = "match_finished", matchId = m.id, at = 10,
+                       sets = { { a = 15, b = 9 } }, winner = m.slotA,
+                       stats = { longestRally = first and 60 or 5,
+                                 fastestBall = first and 999 or 100,
+                                 fastestBy = by } })
+            first = false
+        end
+    end
+
+    local stats = t.participants[pid].stats
+    assertNear(stats.longestRally, 60, 0.001, "das Maximum bleibt stehen")
+    assertNear(stats.fastestBall, 999, 0.01, "auch beim Ball")
+end)
+
+-- Ein Freilos und ein Walkover liefern keine Zahlen. Wuerden sie als Nullen
+-- gefuehrt, waere das Maximum davon unberuehrt -- aber der Fall, der wirklich
+-- schadet, ist ein ABGEBROCHENES Match: seine Zahlen gehoeren zu einem
+-- Durchgang, der nicht zaehlt.
+case("ein abgebrochenes Match nimmt seine Statistiken mit (E-06)", function()
+    local t, m = twoPlayers()
+    t:append({ event = "match_finished", matchId = m.id, at = 10,
+               sets = { { a = 15, b = 9 } }, winner = m.slotA,
+               stats = { longestRally = 42.5, fastestBall = 800, fastestBy = 1 } })
+    t:append({ event = "match_aborted", matchId = m.id, at = 20, reason = "host_lost" })
+
+    assertEq(t:match(m.id).stats, nil, "keine Statistik am Match")
+    assertEq(t.participants[m.slotA].stats.longestRally, 0, "und keine beim Spieler")
+    assertEq(t.participants[m.slotA].stats.fastestBall, 0, "auch nicht beim Ball")
+end)
+
+case("ein Ergebnis ohne Statistik ist ein gueltiges Ergebnis", function()
+    local t, m = twoPlayers()
+    t:append({ event = "match_finished", matchId = m.id, at = 10,
+               sets = { { a = 15, b = 9 } }, winner = m.slotA })
+
+    assertEq(t.participants[m.slotA].stats.wins, 1, "der Sieg zaehlt")
+    assertEq(t.participants[m.slotA].stats.longestRally, 0, "Rallye offen")
+    assertEq(t.participants[m.slotA].stats.fastestBall, 0, "Ball offen")
+end)
+
+case("die Statistiken ueberstehen den Wiederaufbau aus dem Log", function()
+    local t, m = twoPlayers()
+    t:append({ event = "match_finished", matchId = m.id, at = 10,
+               sets = { { a = 15, b = 9 } }, winner = m.slotA,
+               stats = { longestRally = 42.5, fastestBall = 912.5, fastestBy = 2 } })
+
+    local rebuilt = Model.replay(t.log)
+    assertNear(rebuilt.participants[m.slotB].stats.longestRally, 42.5, 0.001, "Rallye")
+    assertNear(rebuilt.participants[m.slotB].stats.fastestBall, 912.5, 0.01, "Ball")
 end)
 
 return T

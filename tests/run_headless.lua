@@ -33,6 +33,8 @@ Runner.SUITES = {
     "tests.tournament_bracket_test",
     "tests.tournament_model_test",
     "tests.tournament_scheduler_test",
+    "tests.tournament_host_choice_test",
+    "tests.tournament_match_stats_test",
     "tests.tournament_persistence_test",
     "tests.tournament_run_test",
 

@@ -126,6 +126,32 @@ function Session.new(opts)
     return wrap(t, opts)
 end
 
+-- Ein Turnierstand, der ueber das Netz kommt (M4-09, ADR-023). Er wird
+-- GELESEN, nicht gefuehrt: Der Automat laeuft beim Turnier-Wirt, die
+-- Ereignisse kommen fertig herein und werden mit demselben `applyEvent`
+-- abgeleitet wie bei der Recovery.
+--
+-- `bracket_view.lua` merkt davon nichts -- es liest aus `Session`, und was
+-- sich aendert, ist die Quelle des Modells, nicht die Anzeige.
+function Session.observe(t, opts)
+    opts = opts or {}
+    opts.presence = "net"
+    local self = wrap(t, opts)
+    self.readOnly = true
+    self.cursor = #t.log
+    return self
+end
+
+-- Ein Ereignis vom Turnier-Wirt einspielen. Gibt zurueck, ob es angewandt
+-- wurde -- ein Ereignis, dessen Art diese Fassung nicht kennt (aeltere ZIP),
+-- wird verworfen und gezaehlt statt halb angewandt.
+function Session:applyRemote(ev)
+    if not self.readOnly then return false, "kein beobachteter Stand" end
+    local ok, err = pcall(function() self.t:append(ev) end)
+    if not ok then return false, tostring(err) end
+    return true
+end
+
 -- Wiederaufnahme aus der Datei (§7 Schritt 3 und 4). Das Turnier kommt fertig
 -- rekonstruiert herein; hier wird nur wieder angespannt.
 function Session.resume(t, opts, now)
@@ -218,6 +244,31 @@ function Session:uniqueName(wanted)
         if not taken[candidate:lower()] then return candidate end
     end
     return wanted
+end
+
+-- Wiedereintritt (E-05, E-14). Zwei Wege, in dieser Reihenfolge:
+--
+--   1. DIESELBE `clientId` -- der Rechner ist abgestuerzt und wieder da. Der
+--      sichere Fall, er braucht keine Namensregel.
+--   2. DERSELBE NAME, und der Traeger ist gerade OFFLINE -- der Spieler sitzt
+--      an einem anderen Rechner (E-14).
+--
+-- Ist der Namensvetter dagegen ONLINE, ist es kein Wiedereintritt, sondern
+-- eine echte Namensgleichheit: dann haengt `uniqueName` an (`04_NETCODE` §5).
+-- Das ist die einzige Lesart, unter der beide Regeln tun, wofuer sie da sind
+-- -- E-14 sagt "abgelehnt", aber ein Abweisen schickt jemanden zurueck ins
+-- Menue, und der Fall, den E-14 wirklich meint, ist der abwesende Namenstraeger.
+function Session:findReturning(name, clientId)
+    local clean = Session.cleanName(name):lower()
+    for _, pid in ipairs(self:activeIds()) do
+        local p = self.t.participants[pid]
+        if clientId and clientId ~= 0 and p.clientId == clientId then return pid, "client" end
+    end
+    for _, pid in ipairs(self:activeIds()) do
+        local p = self.t.participants[pid]
+        if p.name:lower() == clean and not self.online[pid] then return pid, "name" end
+    end
+    return nil
 end
 
 function Session:addParticipant(name, now, clientId)
@@ -377,8 +428,22 @@ function Session:startMatch(matchId, now)
     return true
 end
 
-function Session:enterResult(matchId, sets, now)
-    local ok, err = self.scheduler:reportResult(matchId, sets, now)
+-- Einzelne Bereitmeldung. In Stufe B gab es sie nicht -- der Turnierleiter
+-- bestaetigte beide auf einmal. Ueber das Netz meldet sich jeder fuer sich
+-- (M4-09, `MATCH_ACCEPT`), und erst wenn beide gemeldet sind, geht das Match
+-- auf `live`. Das ist dieselbe Bedingung wie vorher, nur zweimal gerufen.
+function Session:confirmReady(matchId, pid, now)
+    local ok = self.scheduler:confirmReady(matchId, pid, now)
+    if ok then self:advance(now) end
+    return ok
+end
+
+-- Der Eingang fuer ein Ergebnis. In Stufe B ruft ihn die Tastatur des
+-- Turnierleiters, seit M4-09 die Nachricht des Match-Hosts (E-08). `stats` ist
+-- optional -- ein von Hand eingetragenes Ergebnis hat keine, und ein Ergebnis
+-- ohne Statistik ist ein gueltiges Ergebnis (`05_TOURNAMENT` §11).
+function Session:enterResult(matchId, sets, now, stats)
+    local ok, err = self.scheduler:reportResult(matchId, sets, now, stats)
     if ok then self:advance(now) end
     return ok, err
 end
@@ -434,12 +499,17 @@ end
 -- der, der einen Ton braucht. Wuerde die Bedienung den Strom selbst leeren,
 -- bliebe der Ton aus, weil die Szene beim naechsten Bild nichts mehr faende.
 function Session:advance(now)
+    -- Ein beobachteter Turnierstand fuehrt seinen Automaten nicht (M4-09).
+    -- Der laeuft beim Turnier-Wirt; hier wuerde er ein zweites Mal Ereignisse
+    -- anhaengen, und ein append-only Log mit zwei Schreibern hat keine
+    -- gemeinsame Reihenfolge mehr (ADR-007, ADR-023).
+    if self.readOnly then return end
     self.scheduler:update(now or 0)
 end
 
 function Session:tick(now)
     now = now or 0
-    self.scheduler:update(now)
+    if not self.readOnly then self.scheduler:update(now) end
 
     local events = {}
     while self.cursor < #self.t.log do

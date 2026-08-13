@@ -94,9 +94,15 @@ end
 
 Model.deepCopy = deepCopy
 
+-- Die fuenf aus `05_TOURNAMENT` §11. Die ersten drei Zeilen fallen hier an,
+-- `longestRally` (s) und `fastestBall` (px/s) in der Simulation -- sie kommen
+-- mit dem Ergebnisbericht des Match-Hosts herein (M4-09) und werden als
+-- Maximum ueber alle Matches gefuehrt. Null heisst "noch keins gemessen" und
+-- ist am Beamer als Strich zu lesen, nicht als Ergebnis.
 local function newStats()
     return { matches = 0, wins = 0, losses = 0,
-             setsWon = 0, setsLost = 0, pointsFor = 0, pointsAgainst = 0 }
+             setsWon = 0, setsLost = 0, pointsFor = 0, pointsAgainst = 0,
+             longestRally = 0, fastestBall = 0 }
 end
 
 -- ---------------------------------------------------------------------------
@@ -131,6 +137,10 @@ local function installMatches(self, matches)
         record.winner     = nil
         record.loser      = nil
         record.hostClient = nil
+        record.hostReason = nil
+        record.hostRttA   = nil
+        record.hostRttB   = nil
+        record.stats      = nil
         record.calledAt   = nil
         record.startedAt  = nil
         record.endedAt    = nil
@@ -225,6 +235,33 @@ local function recomputeStats(self)
             if w then w.stats.wins = w.stats.wins + 1 end
             local l = m.loser and self.participants[m.loser]
             if l then l.stats.losses = l.stats.losses + 1 end
+
+            -- `05_TOURNAMENT` §11: die zwei Zahlen aus der Simulation. Sie
+            -- kommen mit dem Ergebnisbericht des Match-Hosts (M4-09); ein
+            -- Freilos, ein Walkover und ein von Hand eingetragenes Ergebnis
+            -- haben keine und veraendern das Maximum damit nicht.
+            local st = m.stats
+            if st then
+                -- Die laengste Rallye zaehlt fuer BEIDE -- sie haben sie
+                -- zusammen gespielt.
+                if st.longestRally then
+                    for _, side in ipairs({ "A", "B" }) do
+                        local p = self.participants[m["slot" .. side]]
+                        if p and st.longestRally > p.stats.longestRally then
+                            p.stats.longestRally = st.longestRally
+                        end
+                    end
+                end
+                -- Der schnellste Ball zaehlt fuer den, der ihn zuletzt
+                -- beruehrt hat. `fastestBy` ist der Slot (1 oder 2), nicht die
+                -- Teilnehmerkennung: Der Match-Host kennt nur seine zwei Slots.
+                local by = (st.fastestBy == 1 and m.slotA)
+                        or (st.fastestBy == 2 and m.slotB) or nil
+                local p = by and self.participants[by]
+                if p and st.fastestBall and st.fastestBall > p.stats.fastestBall then
+                    p.stats.fastestBall = st.fastestBall
+                end
+            end
         end
     end
 end
@@ -346,6 +383,11 @@ APPLY.participant_joined = function(self, ev)
         seed   = nil,
         status = Model.PARTICIPANT_STATUS.ACTIVE,
         stats  = newStats(),
+        -- Die Kennung des Rechners, von dem die Anmeldung kam (M4-09). Sie
+        -- steht im Log, damit ein Wiedereintritt nach einem Absturz des
+        -- TURNIER-Hosts noch zugeordnet werden kann -- die laufende
+        -- Verbindung ist nach einem Neustart weg, diese Zahl nicht (E-05).
+        clientId = ev.clientId,
     }
     self.participantOrder[#self.participantOrder + 1] = ev.participantId
 end
@@ -395,11 +437,18 @@ APPLY.match_started = function(self, ev)
     m.status     = Model.STATUS.LIVE
     m.startedAt  = ev.at
     m.hostClient = ev.hostClient
+    -- ADR-022: "Warum hostet der?" ist die Frage, die am Abend gestellt wird.
+    -- Der Grund und die zwei Messwerte stehen im Log und ueberstehen damit die
+    -- Rekonstruktion aus §7.
+    m.hostReason = ev.hostReason
+    m.hostRttA   = ev.rttA
+    m.hostRttB   = ev.rttB
 end
 
 APPLY.match_finished = function(self, ev)
     local m = requireMatch(self, ev.matchId)
-    m.sets = deepCopy(ev.sets or {})
+    m.sets  = deepCopy(ev.sets or {})
+    m.stats = ev.stats and deepCopy(ev.stats) or nil
     finishMatch(self, m, ev.winner, ev.at, Model.STATUS.FINISHED)
 end
 
@@ -431,6 +480,13 @@ APPLY.match_aborted = function(self, ev)
     -- gerade fuer ungueltig erklaert wurde.
     m.winner     = nil
     m.loser      = nil
+    -- Aus demselben Grund wie Sieger und Verlierer: Die Statistiken gehoeren
+    -- zum verworfenen Durchgang. Wer sie stehen liesse, haette bei der
+    -- Siegerehrung eine Rallye aus einem Match, das nie zaehlte.
+    m.stats      = nil
+    m.hostReason = nil
+    m.hostRttA   = nil
+    m.hostRttB   = nil
     m.aborts     = (m.aborts or 0) + 1
     m.reason     = ev.reason
 end

@@ -126,7 +126,14 @@ end
 
 -- Das Ergebnis kommt vom Match-Host aus dem Simulationszustand, nicht von
 -- einem Spieler (E-08). `sets` ist eine Liste von {a=…, b=…}.
-function Scheduler:reportResult(matchId, sets, now)
+--
+-- `stats` traegt die zwei Statistiken aus `05_TOURNAMENT` §11, die in der
+-- SIMULATION anfallen und deshalb nur der Match-Host kennt: die laengste
+-- Rallye in Sekunden und den schnellsten Ball in Pixel/s samt dem Spieler, der
+-- ihn zuletzt beruehrt hat. Ohne sie fehlen bei der Siegerehrung zwei von
+-- fuenf Zahlen. Die Tastatur des Turnierleiters laesst das Feld leer -- ein
+-- Ergebnis ohne Statistik ist ein gueltiges Ergebnis.
+function Scheduler:reportResult(matchId, sets, now, stats)
     local t = self.t
     local m = t.matches[matchId]
     if not m then return false, "unbekanntes Match" end
@@ -142,6 +149,7 @@ function Scheduler:reportResult(matchId, sets, now)
     t:append({
         event = "match_finished", matchId = matchId, at = now,
         sets = sets, winner = (a > b) and m.slotA or m.slotB,
+        stats = stats,
     })
     self.confirmed[matchId] = nil
     return true
@@ -234,10 +242,19 @@ function Scheduler:stepCalled(now)
             local both  = ready[m.slotA] and ready[m.slotB]
 
             if both then
-                local host = self.chooseHost and self.chooseHost(m, t)
-                              or t:higherSeed(m.slotA, m.slotB)
+                -- ADR-022. `chooseHost` darf eine Begruendung mitgeben; ohne
+                -- Netz gibt es keine Proben, und dann ist die Setznummer nicht
+                -- die Platzhalterregel aus Stufe A, sondern der
+                -- Gleichstandsfall derselben Regel.
+                local host, info
+                if self.chooseHost then host, info = self.chooseHost(m, t, now) end
+                if host == nil then
+                    host, info = t:higherSeed(m.slotA, m.slotB), { hostReason = "seed" }
+                end
+                info = info or {}
                 t:append({ event = "match_started", matchId = id, at = now,
-                           hostClient = host })
+                           hostClient = host, hostReason = info.hostReason,
+                           rttA = info.rttA, rttB = info.rttB })
                 return true
             end
 
