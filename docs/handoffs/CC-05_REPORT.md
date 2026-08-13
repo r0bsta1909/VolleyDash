@@ -16,7 +16,12 @@
 > | **D** | AP-7 — Export, manuelle Korrektur (Bedienung) | ⬜ offen |
 >
 > **Die nächste Session fängt bei Stufe B an.** Sie braucht nichts aus Stufe A neu zu bauen;
-> die vier Module sind fertig und geprüft.
+> die Module sind fertig, geprüft und in der CI auf allen drei Plattformen durchgelaufen.
+> Was sie an Zustand vorfindet und wo es liegt, steht in **§6** — dort anfangen zu lesen.
+>
+> **Bei r0btoshi liegt eine Zuarbeit:** der Signalton für den Aufruf
+> (`docs/handoffs/CC-05_KLANGLISTE.md`). Er blockiert nichts — fehlt die Datei, bleibt es
+> still —, aber ohne ihn ist M4-07 nicht abgenommen (`05_TOURNAMENT` §5).
 
 ---
 
@@ -198,24 +203,52 @@ dazu vorbereitet hat:
 
 ---
 
-## 6. Nächster Schritt
+## 6. Nächster Schritt — Stufe B (AP-5, M4-07 und M4-08)
 
-**Stufe B (AP-5, M4-07 und M4-08).** Anmeldung, Setzung mit sichtbarem Seed, kompakte Ansicht
-im Spielermenü, volle Ansicht für den Beamer. Der deterministische Generator dafür steht
-bereits in `bracket.lua` und ist mit festgenagelten Werten geprüft — die Anzeige muss ihn nur
-noch benutzen und den Seed hinschreiben.
+Anmeldung, Setzung mit **sichtbarem** Seed, kompakte Ansicht im Spielermenü (eigene Linie plus
+„Nächster Gegner"), volle Ansicht für den Beamer. `05_TOURNAMENT` §9 und §10.
 
-**Zwei Dinge, die dabei nicht untergehen dürfen:**
+### Was Stufe A dafür bereitgestellt hat
 
-- **Der Aufruf braucht einen Ton** (`05_TOURNAMENT` §5). Ohne akustisches Signal starrt niemand
-  auf sein Menü, und der No-Show-Timer läuft gegen jemanden, der nur nichts gehört hat. Der
-  Timer ist jetzt gebaut und läuft wirklich — die Konsequenz ist damit real geworden.
-- **„Raus" und „hat kein offenes Match" sind zwei verschiedene Dinge** (F-T-06).
+Nichts davon ist neu zu bauen. Die Anzeige liest, sie rechnet nicht.
 
-**Was Stufe A liegen lässt und Stufe C aufsammeln muss:** die beiden Statistiken aus §11, die
-in der Simulation anfallen (längste Rallye, schnellster Ball). Sie müssen mit dem
-Ergebnisbericht des Match-Hosts mitkommen.
+| Was die Anzeige braucht | Wo es liegt |
+|---|---|
+| Setzliste und sichtbarer Seed | `t.participants[pid].seed`, `t.seedValue`, `t.seedMode` — reproduzierbar über `Bracket.rng`, plattformübergreifend geprüft (F-T-05) |
+| Alle Matches in fester Reihenfolge | `t.matchOrder`, `t:matchList()`, `t.rounds` (mit `label` und `stage`) |
+| Nächstes eigenes Match | `t:openMatches()` nach `slotA`/`slotB` filtern |
+| Gruppentabellen, fertig sortiert | `t.standings[gi].rows` mit `rank`, plus `unresolved` für den Stichsatzhinweis |
+| Laufender No-Show-Countdown | `m.calledAt` + `config.noShowTimeout`; die verbleibende Zeit rechnet die Anzeige, den Ablauf entscheidet der Scheduler |
+| Dialog „Laufendes Turnier gefunden" | `Persistence:running()` liefert `id`, `name`, `round`, `rounds`, `status` |
+| Sichtbare Markierung einer Korrektur | `m.overridden`, `m.overrideReason`, `m.overrideBy` (E-12) |
 
-**Unverändert offen und nicht zu M4 gehörend:** das macOS-Paket auf fremder Hardware und N-04
-(nimmt ENet auf macOS eine eingehende Verbindung an?). Beides hängt am selben fehlenden Gerät.
-T-N-02/T-N-03 und N-01 sind seit ADR-019 zurückgestellt.
+### Vier Dinge, die dabei nicht untergehen dürfen
+
+1. **Der Aufruf braucht einen Ton** (`05_TOURNAMENT` §5). Das war bis M4-05 eine
+   Vorsichtsmaßnahme und ist jetzt eine Notwendigkeit: Der No-Show-Timer ist gebaut und läuft
+   wirklich. Wer nichts hört, verliert nach 180 s per Walkover. **Die Datei kommt von
+   r0btoshi** — Name, Ordner und Vorgaben stehen in `docs/handoffs/CC-05_KLANGLISTE.md`, der
+   Lader ist bereits angemeldet (`assets/tournament_call.wav`, fehlt sie, bleibt es still).
+2. **„Raus" und „hat kein offenes Match" sind zwei verschiedene Dinge** (F-T-06). Ein
+   Halbfinalverlierer spielt um Platz 3. Der Teilnehmerstatus beantwortet das schon richtig —
+   die Anzeige darf ihn nur nicht selbst nachrechnen.
+3. **Ein 32er-Baum ist auf einem Laptop unlesbar** (§10). Im Spielermenü gehört die eigene
+   Linie hin, sonst nichts. Der vollständige Baum ist die Beamer-Ansicht.
+4. **Bei Round Robin ist die Darstellung eine Tabelle, kein Baum** (§10). Beide Formate
+   kommen im selben Turnier vor: erst Gruppen, dann K.o.
+
+### Was Stufe A liegen lässt und Stufe C aufsammeln muss
+
+Die beiden Statistiken aus §11, die in der Simulation anfallen — **längste Rallye und
+schnellster Ball**. Sie müssen mit dem Ergebnisbericht des Match-Hosts mitkommen;
+`match_finished` trägt heute nur die Sätze. Gehört in **M4-09** mitgedacht, sonst fehlen sie
+bei der Siegerehrung.
+
+Dazu die beiden ADRs, die vor Stufe C fällig sind (§5 dieses Berichts): **T-01** — wer hostet
+ein Match — und das **Format von `TOURNAMENT_STATE`**.
+
+### Unverändert offen und nicht zu M4 gehörend
+
+Das macOS-Paket auf fremder Hardware und **N-04** (nimmt ENet auf macOS eine eingehende
+Verbindung an?). Beides hängt am selben fehlenden Gerät. T-N-02/T-N-03 und N-01 sind seit
+ADR-019 zurückgestellt.

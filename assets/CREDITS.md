@@ -50,6 +50,12 @@ Acht WAV-Dateien, 44,1 kHz / 16 Bit / Stereo, zuletzt mit FFmpeg geschrieben.
 | `whistle.wav` | 154 kB | Anpfiff und Punktpfiff |
 | `whistle_end.wav` | 307 kB | Satzende |
 
+**Angemeldet, aber noch nicht vorhanden:** `tournament_call.wav` — der Signalton für den
+Turnier-Aufruf (`05_TOURNAMENT` §5). Er ist seit M4-01…M4-06 in `src/app/assets.lua`
+eingetragen; solange die Datei fehlt, bleibt es still. Der Vollständigkeitsanspruch oben ist
+davon unberührt: Er gilt für Dateien **im** Repository, und diese ist noch keine. Vorgaben,
+Begründung und die fertige Tabellenzeile stehen in `docs/handoffs/CC-05_KLANGLISTE.md`.
+
 ## Musik
 
 Sieben Titel, Ogg Vorbis, zusammen rund 14 MB. Sie werden gestreamt, nicht in den Speicher
