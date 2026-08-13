@@ -371,6 +371,15 @@ von F-T-10).
 | **F-T-12** | **Die Discovery-Bake trug feste Angaben.** `Discovery.newHost{ info = … }` nahm nur eine Tabelle; für eine Match-Lobby stimmt das (zwei Plätze, ein Name), für ein Turnier nicht — dessen Teilnehmerzahl ändert sich den ganzen Abend, und die Bake hätte ab dem zweiten Beitritt **still** eine falsche Zahl gesendet. `info` darf jetzt auch eine Funktion sein | `discovery.lua`, eine Zeile |
 | **F-T-13** | **`lobby:isStartable()` passt nicht auf ein Turniermatch.** Es verlangt zusätzlich den Bereitschaftsschalter beider Plätze — den gibt es im Turnier nicht, weil bereit gemeldet wird beim Turnier-Wirt (`MATCH_ACCEPT`). Ein zweites Mal danach zu fragen wäre eine Hürde ohne Bildschirm, auf dem man sie erfüllen könnte. Das Turniermatch startet, sobald der zweite Platz belegt ist | `tournament.lua`, mit Begründung im Code |
 
+### Aus dem ersten CI-Lauf mit den Selbsttests (Lauf 34)
+
+Zwei Befunde, und der erste ist ein Fehler in meinem **Test**, nicht im Produkt.
+
+| ID | Befund | Erledigt |
+|----|--------|---|
+| **C-T-06** | **T-N-09 prüfte eine Lage, die es nie gibt.** Der erste Aufbau ließ drei Baken **denselben** Discovery-Port binden. Unter Windows und Linux geht das mit `SO_REUSEADDR`, unter macOS nicht — und die CI hat es zu Recht gemeldet. Der Punkt ist aber nicht die Portteilung: Am Partyabend stehen die drei Turniere auf **drei Rechnern**, und dort bindet jeder seinen Port allein. Ein Test, der drei Binds auf einem Port erzwingt, prüft eine Lage, die nicht vorkommt, und fällt dann ausgerechnet auf der Plattform um, auf der er es am wenigsten soll. **Das Produkt war nie betroffen** — `newBrowser` verträgt einen gescheiterten Zweitbind seit M2 ausdrücklich. Neu gebaut nach dem, was T-N-09 wirklich fragt: Hält der Browser drei Turniere auseinander? Die Baken binden dafür flüchtige Ports und schicken ihre Ankündigung direkt an den Browser — genau das tun sie in echt auch, wenn sie einen `PROBE` unicast beantworten. Dazu ein Fall mehr als vorher: **dieselbe `hostId` zweimal ergibt keinen zweiten Eintrag** | behoben |
+| **C-T-07** | **Ein hängender Lauf hinterließ ein leeres Protokoll.** Auf `windows-latest` blieb der Job nach acht Minuten ohne eine Zeile Ausgabe stehen. Grund ist nicht der Hänger selbst, sondern dass LÖVE seine Ausgabe im Redirect puffert — es gab also genau dann nichts zu lesen, wenn man es gebraucht hätte. Beide Selbsttests schalten die Pufferung jetzt ab, und beide Schritte sind zeitbeschränkt (3 min), damit ein Hänger meldet statt zu stehen. **Die Ursache des Hängers selbst ist damit noch nicht benannt** — der nächste Lauf sagt, wo er stehenbleibt | Diagnose vorbereitet, Ursache offen |
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |
@@ -409,7 +418,7 @@ wie `CLAUDE.md` §5 es verlangt, und sie wurden vorher freigegeben (§5.3).
 | `04_NETCODE` §5 | **0x41 bis 0x46** in der Nachrichtentabelle, die **`s4`-Ausnahme** für 0x40 mit Begründung und Begrenzung, und der Absatz, warum `HELLO`/`REJECT` wiederverwendet werden |
 | `08_ROADMAP` §2 | M4-09 auf ✅, Absatz „Stufe C ist abgeschlossen", T-N-09 erledigt |
 | `12_OPENSOURCE` §5 | Die beiden Selbsttests laufen in der CI, mit dem, was sie **nicht** beantworten (N-04, N-05) und dem offenen Punkt der Release-Gatterung |
-| `.github/workflows/build.yml` | Job `protocol` heißt jetzt „Protokoll und Sockets" und führt `--net-selftest` und `--tournament-selftest` aus |
+| `.github/workflows/build.yml` | Job `protocol` heißt jetzt „Protokoll und Sockets", führt `--net-selftest` und `--tournament-selftest` zeitbeschränkt aus, und die Build-Jobs hängen an `[test, protocol]` |
 | `CLAUDE.md` §12 | Wie der Turniermodus über das Netz läuft, die zwei neuen Abnahmebefehle |
 | `CHANGELOG.md` | `[Unreleased]` um Stufe C ergänzt, C-T-01 unter „Behoben" |
 

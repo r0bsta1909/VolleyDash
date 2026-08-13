@@ -4,6 +4,11 @@
 #   Push und Pull Request  -> Tests unter echtem LuaJIT
 #   Tag v*                 -> Vollbuild Windows + macOS, an den Release gehaengt
 #
+# Die Build-Jobs haengen seit M4-09 an `test` UND `protocol`. Vorher konnte ein
+# roter Protokolllauf ein Release nicht aufhalten; mit den Socket-Selbsttests im
+# selben Job waere das die falsche Reihenfolge -- ein Paket, dessen Netzweg
+# nachweislich nicht funktioniert, soll gar nicht erst entstehen.
+#
 # Der Testlauf ist der Ort, an dem sich `tests/run_headless.lua` zum ersten Mal
 # an einem echten Lua-Interpreter beweist: auf der Entwicklungsmaschine gibt es
 # keinen, dort laeuft der Pfad nur unter LOEVE (`love . --test`).
@@ -95,6 +100,7 @@ jobs:
       # Annotationen von jedem. Wer den Fehler sucht, soll ihn sehen, ohne
       # sich anmelden zu muessen.
       - name: Tests inklusive Protokoll
+        timeout-minutes: 5
         shell: bash
         run: |
           set +e
@@ -129,11 +135,17 @@ jobs:
       # EPHEMEREN Port oeffnet und nicht mehr nur 21212 freizugeben ist
       # (`05_TOURNAMENT` §8.2). Das bleibt Abnahme D2 auf zwei Rechnern.
       #
-      # Sollte einer der beiden hier je sporadisch scheitern, ist die erste
-      # Frage, ob ein Port belegt war -- dann meldet er "laesst sich nicht
-      # binden" und nicht ein stilles Fehlergebnis.
+      # Beide Schritte sind ZEITBESCHRAENKT. Lokal laufen sie in unter zwanzig
+      # Sekunden; was laenger braucht, haengt und soll das melden, statt bis
+      # zum Sechs-Stunden-Limit des Laeufers zu stehen. Gemessen an Lauf 34
+      # (2026-08-13), der auf `windows-latest` genau das getan hat.
+      #
+      # Sollte einer der beiden sporadisch scheitern, ist die erste Frage, ob
+      # ein Port belegt war -- dann meldet er "laesst sich nicht binden" und
+      # nicht ein stilles Fehlergebnis.
       # -----------------------------------------------------------------------
       - name: Netz-Selbsttest
+        timeout-minutes: 3
         shell: bash
         run: |
           set +e
@@ -149,6 +161,7 @@ jobs:
           exit $code
 
       - name: Turnier-Selbsttest
+        timeout-minutes: 3
         shell: bash
         run: |
           set +e
@@ -166,7 +179,7 @@ jobs:
   love:
     name: .love bauen
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, protocol]
     steps:
       - uses: actions/checkout@v5
 
@@ -182,7 +195,7 @@ jobs:
   windows:
     name: Windows-Paket
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, protocol]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v5
@@ -210,7 +223,7 @@ jobs:
   macos:
     name: macOS-Paket
     runs-on: macos-latest      # Pflicht: codesign gibt es nur hier
-    needs: test
+    needs: [test, protocol]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v5

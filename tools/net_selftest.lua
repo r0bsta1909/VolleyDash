@@ -162,6 +162,10 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.selftest(App)
+    -- Siehe `tools/tournament_selftest.lua`: ohne das hinterlaesst ein
+    -- haengender CI-Lauf ein leeres Protokoll.
+    pcall(function() io.stdout:setvbuf("no") end)
+
     print("[net] Selbsttest -- Host und Client in einem Prozess")
     print("[net] love " .. table.concat({ love.getVersion() }, ".", 1, 3))
 

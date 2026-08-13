@@ -107,10 +107,16 @@ keine zweite Maschine. Seit M4-09 hängt daran mehr als vorher, weil ein Match-H
 **ephemeren** Port öffnet und nicht mehr nur 21212 freizugeben ist (`05_TOURNAMENT` §8.2). Das
 bleibt Abnahme D2 auf zwei Rechnern.
 
-**Offen und bewusst nicht nebenbei geändert:** Die Build-Jobs hängen an `test`, nicht an
-`protocol`. Ein gescheiterter Protokoll- oder Socket-Lauf hält damit **kein** Release auf. Das
-war schon vor M4-09 so; ob es so bleiben soll, ist eine eigene Entscheidung — und mit den
-Socket-Läufen im Job ist die Frage teurer geworden als vorher.
+**Die Build-Jobs hängen seit M4-09 an `test` UND `protocol`.** Vorher konnte ein roter
+Protokolllauf ein Release nicht aufhalten; mit den Socket-Selbsttests im selben Job wäre das die
+falsche Reihenfolge — ein Paket, dessen Netzweg nachweislich nicht funktioniert, soll gar nicht
+erst entstehen.
+
+**Beide Socket-Schritte sind zeitbeschränkt** (3 min, der Protokollschritt 5 min). Lokal laufen
+sie in unter zwanzig Sekunden; was länger braucht, hängt und soll das melden, statt bis zum
+Sechs-Stunden-Limit des Läufers zu stehen. Beide Selbsttests schalten außerdem die Pufferung
+ihrer Ausgabe ab — umgeleitet hinterlässt ein hängender Lauf sonst ein **leeres** Protokoll,
+also genau dann nichts, wenn man es braucht (gemessen an Lauf 34, 2026-08-13).
 
 **Job Windows:** Läuft auf `ubuntu-latest`. Offizielle LÖVE-Win64-ZIP laden, `cat love.exe game.love > VolleyDash.exe`, DLLs und `license.txt` beipacken, zippen. Kein Windows-Runner nötig — <cite index="38-1">der Windows-Build lässt sich von Linux oder macOS aus mit `cat love.exe SuperGame.love > SuperGame.exe` erzeugen.</cite>
 

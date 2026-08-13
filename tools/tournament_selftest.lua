@@ -87,10 +87,39 @@ end
 function M.threeLobbies()
     print("[turnier] T-N-09 -- drei gleichzeitige Turniere im selben Netz")
 
+    -- ---------------------------------------------------------------------
+    -- ACHTUNG, hier stand bis 2026-08-13 ein falscher Aufbau
+    --
+    -- Der erste Anlauf liess drei Baken DENSELBEN Discovery-Port binden. Unter
+    -- Windows und Linux geht das mit `SO_REUSEADDR`, unter macOS nicht -- und
+    -- die CI hat das zu Recht gemeldet. Der Punkt ist aber nicht die
+    -- Portteilung: Am Partyabend stehen die drei Turniere auf DREI RECHNERN,
+    -- und dort bindet jeder seinen Port allein. Ein Test, der drei Binds auf
+    -- einem Port erzwingt, prueft eine Lage, die es nie gibt, und faellt dann
+    -- auf der Plattform um, auf der er es am wenigsten soll.
+    --
+    -- Geprueft wird deshalb, was T-N-09 wirklich fragt: Haelt der Browser drei
+    -- Turniere auseinander? Die Baken binden dafuer fluechtige Ports und
+    -- schicken ihre Ankuendigung direkt an den Browser -- genau das tun sie in
+    -- echt auch, wenn sie einen `PROBE` unicast beantworten (§11).
+    -- ---------------------------------------------------------------------
+
+    local browser = Discovery.newBrowser({ port = M.PORT_DISCOVERY })
+    if not check(browser ~= nil, "Browser bindet einen fluechtigen Port") then
+        return
+    end
+
+    local _, browserPort = browser.udp:getsockname()
+    browserPort = tonumber(browserPort)
+    if not check(browserPort ~= nil, "der Browserport ist ablesbar") then
+        browser:close()
+        return
+    end
+
     local beacons = {}
     for i = 1, 3 do
         local b = Discovery.newHost({
-            port = M.PORT_DISCOVERY,
+            port = 0,   -- fluechtig: in echt sitzt jede Bake auf einem eigenen Rechner
             info = { hostId = 9000 + i,
                      hostName = "Leiter " .. i,
                      lobbyName = "Turnier " .. i,
@@ -99,28 +128,24 @@ function M.threeLobbies()
                      mode = "tournament",
                      enetPort = M.PORT_ENET + i },
         })
-        if not check(b ~= nil, "Bake " .. i .. " bindet " .. M.PORT_DISCOVERY) then
+        if not check(b ~= nil, "Bake " .. i .. " bindet einen eigenen Port") then
             for _, x in ipairs(beacons) do x:close() end
+            browser:close()
             return
         end
         beacons[i] = b
     end
 
-    local browser = Discovery.newBrowser({ port = M.PORT_DISCOVERY })
-    if not check(browser ~= nil, "Browser bindet einen fluechtigen Port") then
-        for _, b in ipairs(beacons) do b:close() end
-        return
+    for _, b in ipairs(beacons) do
+        b:sendTo(b:announcePacket(), "127.0.0.1", browserPort)
     end
 
-    local parties = { beacons[1], beacons[2], beacons[3], browser }
-    browser:probe()
+    local parties = { browser }
     local found = waitFor(4, function() return #browser:list() >= 3 end, parties)
     check(found, "alle drei erscheinen in der Liste, gefunden: " .. #browser:list())
 
     -- Der Punkt von T-N-09 ist nicht die Zahl, sondern die
-    -- UNTERSCHEIDBARKEIT: drei Eintraege, drei Namen, drei ENet-Ports. Ohne
-    -- die `hostId`-Zusammenfuehrung stuende jeder von ihnen zweimal da
-    -- (Loopback und LAN-Adresse), und man waehlte blind.
+    -- UNTERSCHEIDBARKEIT: drei Eintraege, drei Namen, drei ENet-Ports.
     local names, ports, ids = {}, {}, {}
     for _, e in ipairs(browser:list()) do
         names[e.lobbyName] = true
@@ -135,14 +160,23 @@ function M.threeLobbies()
     check(count(names) == 3, "drei verschiedene Turniernamen: " .. count(names))
     check(count(ports) == 3, "drei verschiedene ENet-Ports: " .. count(ports))
     check(count(ids) == 3, "drei verschiedene hostIds: " .. count(ids))
-    check(#browser:list() == 3,
-        "kein Turnier steht doppelt in der Liste: " .. #browser:list())
 
     local tournamentOnly = true
     for _, e in ipairs(browser:list()) do
         if e.mode ~= "tournament" then tournamentOnly = false end
     end
     check(tournamentOnly, "alle drei sind als Turnier gekennzeichnet")
+
+    -- Und der Fall, fuer den die `hostId` ueberhaupt existiert: DASSELBE
+    -- Turnier antwortet zweimal -- einmal ueber die Loopback-, einmal ueber
+    -- die LAN-Adresse. Ohne Zusammenfuehrung stuende es zweimal in der Liste
+    -- und man waehlte blind.
+    beacons[1]:sendTo(beacons[1]:announcePacket(), "127.0.0.1", browserPort)
+    beacons[1]:sendTo(beacons[1]:announcePacket(), "127.0.0.1", browserPort)
+    pumpAll(0.3, parties)
+    check(#browser:list() == 3,
+        "eine zweite Antwort desselben Turniers ergibt keinen zweiten Eintrag: "
+        .. #browser:list())
 
     browser:close()
     for _, b in ipairs(beacons) do b:close() end
@@ -513,6 +547,11 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.selftest()
+    -- Umgeleitet puffert LOEVE die Ausgabe. In der CI heisst das: Ein Lauf,
+    -- der haengt, hinterlaesst ein LEERES Protokoll -- also genau dann nichts,
+    -- wenn man es braucht. Gemessen an Lauf 34 (2026-08-13).
+    pcall(function() io.stdout:setvbuf("no") end)
+
     print("[turnier] Selbsttest -- Turnier-Wirt, sieben Teilnehmer, ein Prozess")
     print("[turnier] love " .. table.concat({ love.getVersion() }, ".", 1, 3))
 
