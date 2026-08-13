@@ -157,7 +157,7 @@ Discovery-Lage berechenbar.
 | M4-06 | `persistence.lua`: atomares Schreiben, Recovery-Dialog | 4 | ✅ vier Schritte nach §7, JSON (ADR-020). Der Dialog „Laufendes Turnier gefunden" ist mit M4-07 dazugekommen |
 | M4-07 | Turnier-Lobby-UI, Setzung mit sichtbarem Seed | 4 | ✅ `src/ui/tournament_lobby.lua` + `src/tournament/session.lua`. Anmeldung **am Turnier-Host** (das Netz ist Stufe C), Seed als Text mit nachrechenbarer Zahl, Wiederaufnahme-Dialog, die drei Klänge. `by_rating` zurückgestellt (§9) |
 | M4-08 | `bracket_view.lua`: kompakt (Spieler) + voll (Beamer) | 5 | ✅ eigene Linie plus „Nächster Gegner" im Spielermenü, Gruppentabellen bzw. K.o.-Baum am Beamer, aufgerufene Matches blinkend mit Countdown (F2 schaltet um) |
-| M4-09 | **Verteilte Match-Hosts bei parallelen Matches — kritischer Pfad, nicht optional** (ADR-013) | 8 | ⬜ Stufe C. Einhängepunkt steht: `Scheduler.new(t, { chooseHost = … })`. T-01 und das Format von `TOURNAMENT_STATE` sind vorher als ADR fällig |
+| M4-09 | **Verteilte Match-Hosts bei parallelen Matches — kritischer Pfad, nicht optional** (ADR-013) | 8 | ✅ `src/net/tournament_host.lua`, `tournament_client.lua`, `match_runner.lua`, `src/tournament/host_choice.lua`, `match_stats.lua`. T-01 ist **ADR-022**, das Format von `TOURNAMENT_STATE` **ADR-023**. Abnahme mit `--tournament-selftest` (T-N-11, T-N-09) und einem Vierprozesslauf |
 | M4-10 | Export als Markdown/CSV | 1 | ⬜ Stufe D |
 | M4-11 | Manuelle Ergebniskorrektur mit Protokollierung | 2 | ✅ vollständig. Bedienung mit M4-07: Ergebnis eintragen, korrigieren (Begründung ist Pflicht), No-Show-Timer anhalten, Match abbrechen, Teilnehmer austragen |
 
@@ -171,6 +171,14 @@ ausschließlich über die Tastatur bis zum Sieger durch und steht als Testfall d
 **Angemeldet wird am Turnier-Host, nicht über das Netz:** Die Match-Lobby aus M2 hat zwei
 Plätze (`src/net/lobby.lua`) und startet genau ein Match, und das Format von
 `TOURNAMENT_STATE` ist ein offener ADR. Beides gehört zu **M4-09**.
+
+**Stufe C ist abgeschlossen** (CC-05, 2026-08-13): Angemeldet wird über das Netz, gespielt wird
+im Turnier. Ein Turnier steht als Bake in der Serverliste; bis zu vier Matches laufen
+gleichzeitig, gehostet von einem der beiden Spieler nach **ADR-022**; der Turnierstand geht als
+Log-Ereignisse hinaus (**ADR-023**). Der Match-Wirt bindet einen **ephemeren** Port — ein
+Prozess kann denselben ENet-Port nicht zweimal binden, und der Turnier-Wirt spielt mit
+(`05_TOURNAMENT` §8.2). **T-N-09 ist damit erledigt**, es steckt im Selbsttest. Offen bleibt
+**M4-10** (Stufe D).
 
 ### M5 — Spectator + Beamer (12–18 h)
 

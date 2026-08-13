@@ -9,10 +9,44 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
-Turniermodus (M4), **Stufe A und B**: das Turnier selbst und seine Bedienung. Es ist jetzt
-spielbar — Menü → NETWORK MATCH → „Turnier": Namen eintragen, auslosen, Ergebnisse eintragen,
-Sieger. **Noch ohne Netzwerk:** Angemeldet wird am Turnier-Host, und gespielt wird daneben.
-Die verteilten Match-Hosts sind Stufe C (M4-09).
+Turniermodus (M4), **Stufe A bis C**: das Turnier, seine Bedienung und das Netz. Menü →
+NETWORK MATCH → „Turnier" richtet aus; wer beitreten will, findet das Turnier in der
+Serverliste wie eine Lobby. Gespielt wird **im** Turnier: Der Turnier-Host ruft auf, einer der
+beiden Spieler hostet das Match, das Ergebnis geht von dort zurück ins Bracket. Offen bleibt
+der Export (M4-10, Stufe D).
+
+### Hinzugefügt (Stufe C — verteilte Match-Hosts, M4-09)
+
+- **Anmeldung über das Netz.** Ein Turnier sendet jetzt eine Bake und steht in der Serverliste
+  (`mode = "tournament"`); ENTER führt dort nicht in eine Match-Lobby, sondern ins Turnier.
+  Wer abstürzt, kommt mit derselben Kennung zurück; wer den Rechner wechselt, über seinen
+  Namen (E-05, E-14).
+- **Bis zu vier Matches gleichzeitig, gehostet von den Spielern selbst** (ADR-013). Der
+  Turnier-Host sagt beiden, wer hostet; der Wirt öffnet einen Port, den ihm das Betriebssystem
+  gibt, und der Gegner bekommt die Adresse. **Ein fester zweiter Port wäre hier gescheitert:**
+  Ein Prozess kann denselben ENet-Port nicht zweimal binden, und der Turnier-Host spielt mit.
+- **ADR-022 — wer hostet.** Median der gemessenen RTT über 5 s, entschieden erst ab 5 ms
+  Unterschied, sonst die kleinere Setznummer. Über Kabel ist der Gleichstand der Normalfall;
+  das ist Absicht, denn 1–2 ms Unterschied sind Rauschen und kein Maß. Grund und beide
+  Messwerte stehen im Log — „warum hostet der?" ist aus der Datei zu beantworten.
+- **ADR-023 — der Turnierstand geht als Log-Ereignisse über die Leitung**, nicht als fertiger
+  Zustand. Jeder Empfänger rechnet mit derselben Funktion wie die Absturz-Recovery, eine Lücke
+  erkennt er an seinem eigenen Wasserstand, und die Nachricht bleibt bei rund 100 Byte je
+  Ereignis statt 30 KB je Zustand.
+- **Längste Rallye und schnellster Ball** (`05_TOURNAMENT` §11) fallen in der Simulation an und
+  kommen jetzt mit dem Ergebnis des Match-Hosts mit. Gemessen wird außerhalb von `src/sim/`,
+  von einem Beobachter, der liest und nichts zurückschreibt — die Simulation bleibt unberührt.
+- **`--tournament-selftest`**: vier parallele Matches mit gleichzeitigem Ergebnisversand
+  (T-N-11) und drei gleichzeitige Turniere im selben Netz (T-N-09), alles in einem Prozess und
+  damit CI-tauglich. **T-N-09 stand seit M2 als Restschuld herum.**
+
+### Behoben (Stufe C)
+
+- **Die Turnierverbindung starb während des Matches.** Nur die oberste Szene bekommt `update`,
+  und während eines Matches liegt der Turniermodus darunter — sein ENet-Wirt wurde vier Minuten
+  lang nicht bedient. Nach 5 s Peer-Timeout galt jeder Teilnehmer als offline, der No-Show-Timer
+  lief gegen Leute, die gerade spielten, und das Ergebnis fand am Ende niemanden mehr. Die
+  Verbindung wandert jetzt mit ins Match, genauso wie die Bake seit M2.
 
 ### Hinzugefügt (Stufe B — die Bedienung)
 

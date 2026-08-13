@@ -244,8 +244,25 @@ Teilnehmern, ENTER tut, was in der Fußzeile steht, `E` trägt ein Ergebnis ein,
 eines, `P` hält den No-Show-Timer an, `A` bricht ein Match ab, `W` trägt jemanden aus. Der
 Turnierstand liegt als JSON unter `tournaments/` im Save-Ordner und wird nach jedem Ereignis
 geschrieben (ADR-007, ADR-020) — ein laufendes Turnier wird beim nächsten Betreten des
-Turniermodus zur Wiederaufnahme angeboten. **Angemeldet wird am Turnier-Host**, nicht über das
-Netz; das kommt mit M4-09.
+Turniermodus zur Wiederaufnahme angeboten.
+
+**Seit M4-09 läuft das Turnier über das Netz.** Der Turnierleiter öffnet den Modus wie bisher;
+sein Rechner sendet dann eine Bake und steht bei allen anderen in der **Serverliste**
+(`mode = "tournament"`) — ENTER dort führt ins Turnier statt in eine Match-Lobby. Teilnehmer
+sehen dieselbe Anzeige, dürfen aber nichts eintragen. Gespielt wird **im** Turnier: Der
+Turnier-Host ruft auf, einer der beiden Spieler hostet (**ADR-022**: RTT-Median über 5 s, ab
+5 ms Unterschied, sonst die kleinere Setznummer), und das Ergebnis geht von dort zurück ins
+Bracket. Der Turnier-Host bindet **21212**, ein Match-Wirt einen **ephemeren** Port — ein
+Prozess kann denselben ENet-Port nicht zweimal binden, und der Turnier-Host spielt mit
+(`05_TOURNAMENT` §8.2). Der Turnierstand geht als **Log-Ereignisse** hinaus, nicht als fertiger
+Zustand (**ADR-023**).
+
+Turnier-Abnahmen:
+
+| Zweck | Befehl |
+|---|---|
+| Vier parallele Matches, drei Turniere im Netz (T-N-11, T-N-09) | `/d/love2d/LOVE/lovec.exe . --tournament-selftest` |
+| Vier echte Prozesse, ein 4er-Turnier ohne Tastendruck | `--tournament-auto=host --client-id=1`, dazu dreimal `--tournament-auto=client --client-id=N` |
 
 Zwei Instanzen auf **einem** Rechner teilen sich die Prefs-Datei und damit die Spielerkennung;
 die Testflags nehmen deshalb `--client-id=N`. Paketverlust wird unter Windows mit `clumsy`
