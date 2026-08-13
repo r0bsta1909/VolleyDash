@@ -31,6 +31,9 @@ local Host       = require("src.net.host")
 local Client     = require("src.net.client")
 local Discovery  = require("src.net.discovery")
 local Lobby      = require("src.net.lobby")
+local Checksum   = require("src.net.checksum")
+local Prediction = require("src.net.prediction")
+local SnapEvents = require("src.render.snapshot_events")
 
 local M = {}
 
@@ -94,15 +97,23 @@ end
 -- dasselbe, nur mit Bild.
 -- ---------------------------------------------------------------------------
 
-local function runMatch(host, client, hostState, clientState, ruleset, inputs, ticks)
+-- `pred` ist optional und faehrt die Vorhersage des Gastes mit (M3-01). Sie
+-- laeuft hier genau so wie in `net_game.lua`: Snapshot anwenden, Kosmetik
+-- ableiten, abgleichen, einen Tick weiterrechnen. Das ist der Punkt, an dem
+-- sich zeigt, ob die Zuordnung ueber `ackInputTick` im echten
+-- Nachrichtenfluss stimmt -- headless laesst sich das nicht pruefen, weil es
+-- dort keinen Nachrichtenfluss gibt.
+local function runMatch(host, client, hostState, clientState, ruleset, inputs, ticks, pred)
     local events = {}
     local applied = 0
+    local prevSnap = nil
 
     for tick = 0, ticks - 1 do
         local pair = inputs and inputs[(tick % #inputs) + 1] or { 0, 0 }
 
         -- Client: eigene Eingabe abschicken
         client:update(0)
+        local inputTick = client.tick
         client:pushInput(pair[2])
 
         -- Host: Ereignisse leeren, simulieren, Snapshot verteilen
@@ -118,6 +129,17 @@ local function runMatch(host, client, hostState, clientState, ruleset, inputs, t
         if snap then
             Snapshot.apply(snap, clientState, ruleset)
             applied = applied + 1
+
+            if pred then
+                local derived = SnapEvents.diff(prevSnap, snap, ruleset)
+                pred:reconcile(snap, SnapEvents.isTakeover(derived))
+                prevSnap = snap
+            end
+        end
+
+        if pred then
+            pred:advance(pair[2], clientState.match.phase, inputTick)
+            pred:writeInto(clientState.blobs[2])
         end
 
         love.timer.sleep(0.0005)
@@ -142,6 +164,18 @@ end
 function M.selftest(App)
     print("[net] Selbsttest -- Host und Client in einem Prozess")
     print("[net] love " .. table.concat({ love.getVersion() }, ".", 1, 3))
+
+    -- Die Spielszene laesst sich hier nicht AUSFUEHREN -- sie braucht Bild
+    -- und Ton, und dieser Lauf hat beides nicht. Uebersetzen laesst sie sich
+    -- trotzdem, und ein Tippfehler in der Datei, die alles zusammenhaengt,
+    -- faellt sonst erst beim Anpfiff auf.
+    for _, path in ipairs({ "src/app/scenes/net_game.lua",
+                            "src/render/netstat.lua" }) do
+        local chunk, err = love.filesystem.load(path)
+        if not check(chunk ~= nil, path .. " laesst sich uebersetzen") then
+            print("       " .. tostring(err))
+        end
+    end
 
     local ruleset = Ruleset.new("prototype")
     local hostState = State.new(ruleset)
@@ -229,9 +263,12 @@ function M.selftest(App)
     hostState.blobs[1].x = hostState.ball.x
     hostState.blobs[1].y = hostState.ball.y + ruleset.blobRadius
 
+    local pred = Prediction.new(2, ruleset)
+    pred:reset(clientState.blobs[2])
+
     local ticks = math.min(600, replay and replay.count or 300)
     local applied = runMatch(host, client, hostState, clientState, ruleset,
-        replay and replay.inputs or nil, ticks)
+        replay and replay.inputs or nil, ticks, pred)
 
     print(string.format("[net] %d Ticks gefahren, %d Snapshots angewandt, "
         .. "%d empfangen, %d gehalten", ticks, applied,
@@ -253,6 +290,102 @@ function M.selftest(App)
     check(math.abs(clientState.ball.x - hostState.ball.x) < 1.0,
         string.format("Ball an derselben Stelle (Host %.2f, Client %.2f)",
             hostState.ball.x, clientState.ball.x))
+
+    -- --- Vorhersage (M3-01) -----------------------------------------------
+    --
+    -- Im Loopback geht kein Paket verloren. Genau deshalb ist das hier eine
+    -- harte Aussage: Bleibt die Vorhersage trotzdem stehen, stimmt die
+    -- Zuordnung ueber `ackInputTick` nicht -- und im WLAN waere das nicht
+    -- mehr von Jitter zu unterscheiden.
+    print(string.format("[net] Vorhersage: %d verglichen, %d korrigiert, "
+        .. "%d uebernommen, %d uebersprungen",
+        pred.compared, pred.corrections, pred.takeovers, pred.skipped))
+
+    check(pred.compared > ticks * 0.5,
+        "die Vorhersage wird laufend abgeglichen (" .. pred.compared .. " Vergleiche)")
+    check(pred.corrections <= pred.compared * 0.02,
+        string.format("und korrigiert fast nie: %d von %d Vergleichen",
+            pred.corrections, pred.compared))
+    check(math.abs(clientState.blobs[2].x - hostState.blobs[2].x) < 3.0,
+        string.format("der vorhergesagte Blob steht beim Host (Host %.2f, Gast %.2f)",
+            hostState.blobs[2].x, clientState.blobs[2].x))
+
+    -- --- Vorhersage unter Eingabeverlust ----------------------------------
+    --
+    -- Im sauberen Loopback bleibt der Korrekturzaehler bei null. Das ist das
+    -- richtige Ergebnis und zugleich ein Problem: ein Zaehler, der nie
+    -- zaehlt, koennte auch abgeklemmt sein. Also wird hier absichtlich jedes
+    -- fuenfte INPUT-Paket unterschlagen -- der Host wiederholt dann die
+    -- letzte Maske (§7), und genau das ist der Vorhersagefehler, den M3-01
+    -- sichtbar machen soll.
+    --
+    -- Unterschlagen wird im WERKZEUG, nicht im Spiel: `client.send` wird fuer
+    -- die Dauer des Laufs umgehaengt. Ein Testschalter im ausgelieferten Code
+    -- waere ein Schalter, den irgendwann jemand findet.
+    local realSend = client.send
+    local sendTick = 0
+    client.send = function(this, msgType, payload)
+        if msgType == Protocol.MSG.INPUT then
+            sendTick = sendTick + 1
+            -- Drei aufeinanderfolgende Pakete, damit auch die dreifache
+            -- Redundanz aus §7 die Luecke nicht mehr schliesst.
+            if sendTick % 15 < 3 then return true end
+        end
+        return realSend(this, msgType, payload)
+    end
+
+    local corrBefore = pred.corrections
+    runMatch(host, client, hostState, clientState, ruleset,
+        replay and replay.inputs or nil, 240, pred)
+    client.send = realSend
+
+    local lossy = pred.corrections - corrBefore
+    print(string.format("[net] mit 20 %% Eingabeverlust: %d Korrekturen", lossy))
+    check(lossy > 0,
+        "bei echtem Eingabeverlust schlaegt der Korrekturzaehler an (" .. lossy .. ")")
+    check(math.abs(clientState.blobs[2].x - hostState.blobs[2].x) < 3.0,
+        string.format("und der Blob steht danach wieder beim Host (%.2f gegen %.2f)",
+            hostState.blobs[2].x, clientState.blobs[2].x))
+
+    -- --- Desync-Detektor (M3-03) ------------------------------------------
+    print(string.format("[net] Pruefsummen: %d geprueft, %d abweichend, %d ohne Snapshot",
+        client.stats.checked, client.stats.desync, client.stats.missing))
+
+    check(client.stats.checked > 0,
+        "Pruefsummen kommen an und werden verglichen (" .. client.stats.checked .. ")")
+    check(client.stats.desync == 0,
+        "keine Abweichung bei gleichem Build (" .. client.stats.desync .. ")")
+
+    -- Ein Detektor, der nie anschlaegt, koennte auch kaputt sein. Also einmal
+    -- absichtlich falsch fuettern -- in beiden Reihenfolgen, denn beide
+    -- kommen im Betrieb vor.
+    local probe = {}
+    for k, v in pairs(client.latest or {}) do probe[k] = v end
+    probe.tick = Checksum.INTERVAL * 1000     -- weit weg von allem Echten
+
+    local before = client.stats.desync
+    client:rememberHash(probe)
+    client:compareChecksum({ tick = probe.tick, hash = 0xDEADBEEF })
+    check(client.stats.desync == before + 1,
+        "eine falsche Pruefsumme wird erkannt (Snapshot zuerst)")
+
+    probe.tick = probe.tick + Checksum.INTERVAL
+    client:compareChecksum({ tick = probe.tick, hash = 0xDEADBEEF })
+    client:rememberHash(probe)
+    check(client.stats.desync == before + 2,
+        "auch, wenn die Pruefsumme vorlaeuft")
+
+    -- Und ein richtiger Wert darf NICHT anschlagen -- sonst prueft der Fall
+    -- oben nur, dass der Zaehler zaehlt.
+    probe.tick = probe.tick + Checksum.INTERVAL
+    local checkedBefore = client.stats.checked
+    local honest = Checksum.ofBytes(Protocol.encode(Protocol.MSG.SNAPSHOT, probe))
+    client:rememberHash(probe)
+    client:compareChecksum({ tick = probe.tick, hash = honest })
+    check(client.stats.desync == before + 2 and client.stats.checked == checkedBefore + 1,
+        "eine richtige Pruefsumme geht durch")
+
+    client.stats.desync = before
 
     -- --- Aufstau (T-N-08) -------------------------------------------------
     for tick = 1, 200 do host:publishSnapshot(hostState, 10000 + tick) end

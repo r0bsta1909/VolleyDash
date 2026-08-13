@@ -14,9 +14,22 @@
 --   gehalten   Ticks ohne neuen Snapshot -- das sieht man als Stocken
 --   verworfen  Snapshots, die uebersprungen wurden, weil der Puffer zu voll war
 --   Wdh.       Ticks, in denen der Host die letzte Maske wiederholt hat (§7)
---   Korrektur  Vorhersagefehler. In M2 immer 0 -- der Client sagt nichts
---              vorher (§8). Das Feld steht trotzdem hier, damit M3-01 es
---              fuellt und nicht neu erfindet.
+--   Korrektur  Vorhersagefehler des eigenen Blobs: Abweichung > 2 px zur
+--              Host-Position beim selben Eingabetick (§8, M3-01). Im LAN
+--              gehoert hier eine kleine Zahl hin, die nicht dauernd steigt.
+--              Uebernahmen nach einem Punkt zaehlen NICHT mit -- sie sind
+--              eine Ansage des Hosts, kein Fehler.
+--   Desync     Protokollfehler: die Pruefsumme des Hosts ueber die gepackten
+--              Snapshot-Bytes passt nicht zu der, die der Client aus dem
+--              gelesenen Snapshot rechnet (§9, M3-03). Erwartet ist 0/N --
+--              alles andere heisst, dass die beiden Rechner verschiedene
+--              Fassungen sprechen. `fehlt` sind Pruefsummen ohne Snapshot;
+--              die sind Paketverlust, kein Befund.
+--
+-- Zwei Fehlerklassen, zwei Zahlen (ADR-018): KORREKTUR ist die Vorhersage,
+-- DESYNC das Protokoll. Ein gemeinsamer Wert sagte im Fehlerfall nicht,
+-- welche von beiden schuld ist -- und genau das ist die Frage, die abends
+-- gestellt wird.
 -- ============================================================================
 
 local World  = require("src.sim.world")
@@ -57,11 +70,16 @@ function Netstat.draw(info)
         rows[#rows + 1] = string.format("ACK-TICK  %s", tostring(info.ack or "-"))
     end
 
-    rows[#rows + 1] = string.format("KORREKTUR %d  (M3-01)", info.corrections or 0)
+    rows[#rows + 1] = string.format("KORREKTUR %d", info.corrections or 0)
+
+    if info.role == "client" then
+        rows[#rows + 1] = string.format("DESYNC    %d/%d  (%d fehlt)",
+            info.desync or 0, info.checked or 0, info.missing or 0)
+    end
 
     -- Unterhalb der Punktanzeige (die steht bei y = 30): ein Overlay, das den
     -- Spielstand verdeckt, waere genau dann im Weg, wenn man es braucht.
-    local width, lineHeight, top = 260, 16, 76
+    local width, lineHeight, top = 290, 16, 76
     local height = #rows * lineHeight + 14
 
     love.graphics.setColor(0, 0, 0, 0.55)
@@ -73,7 +91,8 @@ function Netstat.draw(info)
     end
 
     love.graphics.setColor(1, 1, 1, 0.35)
-    love.graphics.print("F3", 8 + width - 24, top + height - 18)
+    love.graphics.print(info.netlog and "F4 REC" or "F3/F4",
+        8 + width - 52, top + height - 18)
     love.graphics.setColor(1, 1, 1, 1)
 end
 

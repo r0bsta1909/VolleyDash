@@ -16,7 +16,10 @@
 -- mitbekommt -- das Bild steht, das Netz laeuft weiter. Eine eigene Szene ist
 -- billiger als diese Sonderfaelle.
 --
--- Client-seitige Vorhersage ist M3 und hier ausdruecklich NICHT eingebaut.
+-- Seit M3 ist der Unterschied kleiner: Der Gast bewegt seinen EIGENEN Blob
+-- sofort (`src/net/prediction.lua`, §8) und leitet Staub und Klang aus dem
+-- Unterschied zweier Snapshots ab (`src/render/snapshot_events.lua`, §6).
+-- Ball, Gegner und Punktestand kommen unveraendert allein vom Host.
 -- ============================================================================
 
 local World       = require("src.sim.world")
@@ -26,12 +29,15 @@ local Rules       = require("src.sim.rules")
 local LocalSource = require("src.input.local_source")
 local Snapshot    = require("src.net.snapshot")
 local Protocol    = require("src.net.protocol")
+local Prediction  = require("src.net.prediction")
 local Fx          = require("src.render.fx")
 local FxEvents    = require("src.render.fx_events")
+local SnapEvents  = require("src.render.snapshot_events")
 local GameView    = require("src.render.game_view")
 local Hud         = require("src.render.hud")
 local Netstat     = require("src.render.netstat")
 local Assets      = require("src.app.assets")
+local BuildInfo   = require("src.app.build_info")
 
 local NetGame = {}
 NetGame.__index = NetGame
@@ -78,6 +84,13 @@ function NetGame.new(app, opts)
         self.previousOnEvent = self.client.onEvent
         self.client.onEvent = function(kind, a, b, c) self:onClientEvent(kind, a, b, c) end
         self.state.match.inProgress = true
+
+        -- Nur der Gast sagt vorher. Der Host simuliert autoritativ; fuer ihn
+        -- ist das Modul tot (ADR-017).
+        self.prediction = Prediction.new(self.slot, self.ruleset)
+        self.prediction:reset(self.state.blobs[self.slot])
+        self.snapEvents = {}
+        self.prevSnap = nil
     end
 
     Fx.reset()
@@ -138,7 +151,60 @@ function NetGame:onClientEvent(kind, a, b, c)
     elseif kind == "failed" then
         self.result = a
         self.state.match.phase = "gameover"
+
+    elseif kind == "desync" then
+        self:logDesync(a, b, c)
     end
+end
+
+-- ---------------------------------------------------------------------------
+-- desync.log (M3-03, §9, `07_TEST_PLAN` §5)
+--
+-- Zwei Zeilenarten, weil es zwei Fehlerklassen gibt (ADR-018):
+--
+--   CORRECTION  die Vorhersage lag mehr als 2 px daneben (§8). Erwartet und
+--               normal bei Eingabeverlust -- die RATE ist die Aussage, nicht
+--               die einzelne Zeile.
+--   DESYNC      die Pruefsumme passt nicht (§9). Nicht normal. Eine einzige
+--               Zeile dieser Art ist ein Befund.
+--
+-- In der Entwicklung geschrieben, im Release nur gezaehlt. Die Grenze ist
+-- `BuildInfo.version`: aus dem Quellordner gestartet steht dort "dev", in
+-- einer gebauten `.love` die Fassung.
+--
+-- Gemeinsam gedeckelt, weil beide Fehler dazu neigen, sich zu wiederholen --
+-- und eine Protokolldatei, die den Speicherplatz frisst, ist am Partyabend
+-- das zweite Problem.
+-- ---------------------------------------------------------------------------
+
+NetGame.DESYNC_LOG_LINES = 200
+
+function NetGame:appendLog(line)
+    if BuildInfo.version ~= "dev" then return end
+
+    self.logged = (self.logged or 0) + 1
+    if self.logged > NetGame.DESYNC_LOG_LINES then return end
+
+    pcall(love.filesystem.append, "desync.log", line)
+
+    if self.logged == 1 then
+        print("[net] siehe " .. love.filesystem.getSaveDirectory() .. "/desync.log")
+    end
+end
+
+function NetGame:logDesync(tick, mine, theirs)
+    self:appendLog(string.format(
+        "DESYNC      tick=%s host=%08x client=%08x rtt=%.0fms build=%s\n",
+        tostring(tick), theirs or 0, mine or 0,
+        self.client.rtt or 0, tostring(BuildInfo.buildHash)))
+end
+
+function NetGame:logCorrection()
+    local p = self.prediction
+    self:appendLog(string.format(
+        "CORRECTION  ackTick=%s dx=%+.2f dy=%+.2f rtt=%.0fms gesamt=%d\n",
+        tostring(p.lastErrorTick), p.lastErrorX or 0, p.lastErrorY or 0,
+        self.client.rtt or 0, p.corrections))
 end
 
 -- ---------------------------------------------------------------------------
@@ -163,6 +229,15 @@ function NetGame:resetMatch()
     self.rematchAsked = false
     self.simTick = 0
     self.accumulator = 0
+
+    -- Der Gast faengt mit der Vorhersage von vorn an: der Host zaehlt seine
+    -- Ticks neu, und ein Ringpuffer aus dem alten Match passte auf die
+    -- falschen Eingabeticks. Die Zaehler bleiben stehen -- sie gelten fuer
+    -- die Sitzung, nicht fuer das Match.
+    if self.prediction then
+        self.prediction:reset(self.state.blobs[self.slot])
+        self.prevSnap = nil
+    end
 
     Fx.reset()
     GameView.capture(self.state)
@@ -214,17 +289,48 @@ function NetGame:tick()
         return
     end
 
+    -- ----------------------------------------------------------------------
     -- Client
+    --
+    -- Die Reihenfolge ist nicht beliebig:
+    --   1. abgreifen, solange das Bild noch das alte ist (M0-05)
+    --   2. anwenden, was der Host sagt -- er hat recht
+    --   3. daraus Kosmetik ableiten (§6) und die Vorhersage abgleichen (§8)
+    --   4. den eigenen Blob einen Tick weiterrechnen
+    --   5. das Ergebnis in den angezeigten Zustand schreiben
+    -- Wer 5 vor 2 setzt, sieht seinen eigenen Blob zwei Ticks in der
+    -- Vergangenheit -- also genau das, was M3 abschaffen soll.
+    -- ----------------------------------------------------------------------
+    GameView.capture(self.state)
+
+    local inputTick = self.client.tick
     self.client:pushInput(mask)
 
     local snap = self.client:nextSnapshot()
     if snap then
-        -- Vor dem Anwenden abgreifen: sonst gleitet die Darstellung von der
-        -- alten zur neuen Stelle statt zu interpolieren (M0-05).
-        GameView.capture(self.state)
         Snapshot.apply(snap, self.state, self.ruleset)
         self.simTick = snap.tick
+
+        local events = SnapEvents.diff(self.prevSnap, snap, self.ruleset, self.snapEvents)
+        FxEvents.apply(events, self.app.prefs.volume, self.state)
+
+        -- Ein Ballwechsel-Reset versetzt beide Blobs (`Rules.resetBall`).
+        -- Das ist keine falsche Vorhersage, sondern eine Ansage -- hart
+        -- uebernehmen, nicht weich nachfahren (ADR-017).
+        local takeover = SnapEvents.isTakeover(events)
+        if self.prediction:reconcile(snap, takeover) and not takeover then
+            self:logCorrection()
+        end
+        self.prevSnap = snap
     end
+
+    -- Waehrend einer Pause simuliert der Host nicht. Wer hier weiterrechnet,
+    -- laeuft ins Leere und wird beim Fortsetzen zurueckgeholt.
+    if not self.paused then
+        self.prediction:advance(mask, self.state.match.phase, inputTick)
+        self.prediction:writeInto(self.state.blobs[self.slot])
+    end
+
     Fx.update(World.TICK_DT)
 end
 
@@ -236,6 +342,14 @@ function NetGame:update(dt)
     -- abtippen muessen (D2, 2026-08-12).
     if self.beacon then self.beacon:update() end
     if self.role == "client" then self.pauseLeft = math.max(0, self.pauseLeft - dt) end
+
+    if self.netlog then
+        local now = love.timer.getTime()
+        if now - self.netlogAt >= 1 then
+            self.netlogAt = now
+            self:writeNetlog()
+        end
+    end
 
     self.accumulator = math.min(self.accumulator + dt, World.MAX_FRAME_DT)
     while self.accumulator >= World.TICK_DT do
@@ -304,23 +418,78 @@ function NetGame:stats()
             inputs = queue.received, repeats = queue.held,
             dropped = queue.dropped, invalid = queue.invalid,
             ack = self.host:ackTick(2), corrections = 0,
+            netlog = self.netlog,
         }
     end
     return {
         role = "client", slot = self.slot, tick = self.simTick,
+        netlog = self.netlog,
         rtt = self.client.rtt, peerRtt = self.client:peerRtt(),
         loss = self.client:peerLoss() or 0,
         buffer = self.client:bufferDepth(),
         received = self.client.stats.received,
         held = self.client.stats.held,
         dropped = self.client.stats.dropped,
-        corrections = 0,
+        -- Zwei Fehlerklassen, zwei Zahlen (ADR-018): KORREKTUR ist die
+        -- Vorhersage, DESYNC das Protokoll.
+        corrections = self.prediction and self.prediction.corrections or 0,
+        checked = self.client.stats.checked,
+        desync = self.client.stats.desync,
+        missing = self.client.stats.missing,
     }
+end
+
+-- ---------------------------------------------------------------------------
+-- Messmitschnitt (M3-04)
+--
+-- F4 schreibt einmal je Sekunde eine Zeile mit genau den Werten, die F3
+-- anzeigt. Grund: Die offene Frage N-01 (`04_NETCODE_SPEC` §13) ist eine
+-- MESSFRAGE -- reicht die Vorhersage des eigenen Blobs bei RTT 20-40 ms? Sie
+-- laesst sich nur an zwei Geraeten in einem WLAN beantworten, und dort steht
+-- niemand mit einem Notizblock. Ein abfotografiertes Overlay ist eine
+-- Momentaufnahme; eine Zeile je Sekunde ist eine Messreihe.
+--
+-- Bewusst eine Taste und kein Kommandozeilenflag: gemessen wird auf den
+-- gebauten Paketen, und die startet am Partyabend niemand aus einer Shell.
+-- ---------------------------------------------------------------------------
+
+NetGame.NETLOG_FILE = "netlog.csv"
+
+function NetGame:toggleNetlog()
+    self.netlog = not self.netlog
+    if not self.netlog then
+        print("[net] Mitschnitt aus")
+        return
+    end
+
+    self.netlogAt = 0
+    if not self.netlogStarted then
+        self.netlogStarted = true
+        pcall(love.filesystem.append, NetGame.NETLOG_FILE,
+            "zeit;rolle;tick;rtt_ms;enet_rtt_ms;verlust_pct;puffer;gehalten;"
+            .. "verworfen;korrektur;geprueft;desync;fehlt\n")
+    end
+    print("[net] Mitschnitt an: " .. love.filesystem.getSaveDirectory()
+          .. "/" .. NetGame.NETLOG_FILE)
+end
+
+function NetGame:writeNetlog()
+    local info = self:stats()
+    pcall(love.filesystem.append, NetGame.NETLOG_FILE, string.format(
+        "%.1f;%s;%d;%.0f;%.0f;%.2f;%d;%d;%d;%d;%d;%d;%d\n",
+        love.timer.getTime(), info.role, info.tick or 0,
+        info.rtt or 0, info.peerRtt or 0, (info.loss or 0) * 100,
+        info.buffer or 0, info.held or info.repeats or 0, info.dropped or 0,
+        info.corrections or 0, info.checked or 0, info.desync or 0,
+        info.missing or 0))
 end
 
 function NetGame:keypressed(key)
     if key == "f3" then
         self.overlay = not self.overlay
+
+    elseif key == "f4" then
+        self:toggleNetlog()
 
     elseif key == "r" then
         self:rematch()
