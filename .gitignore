@@ -28,4 +28,12 @@ tests/replays/.last_window
 # Reproduzierbar mit: love . --record-selftest [--fixed-dt]
 tests/replays/*/R-00.json
 desync.log
+# Die Protokolle der Selbsttests. Sie entstehen dort, wo der Lauf gestartet
+# wird -- in der CI im Arbeitsverzeichnis des Laeufers, lokal im Repo, wenn
+# jemand die Schritte des Workflows nachfaehrt. Genau so sind sie einmal in
+# einen Commit gerutscht (2026-08-13).
+test.log
+net.log
+tournament.log
+netlog.csv
 .claude/settings.local.json
