@@ -63,6 +63,8 @@ Tabelle aller mitgelieferten Komponenten mit Lizenz und Fundstelle:
 
 `src/lib/json.lua` (MIT) stand hier bis M2-01. Die Datei existiert nicht und wird nicht aufgenommen: `RULESET_FULL` überträgt seit ADR-016 eine binäre Schlüssel-Wert-Folge über `love.data.pack`, und das Projekt bleibt damit fremdbibliotheksfrei (`LICENSE-THIRD-PARTY.md`, M1-08). Sollte `TOURNAMENT_STATE` in M4 JSON brauchen, ist das eine eigene Entscheidung mit eigenem ADR.
 
+**Nachtrag 2026-08-13 (M4-06).** Seit ADR-020 gibt es `src/tournament/json.lua` — **eigener Code, keine Fremdkomponente**, und deshalb weiterhin kein Eintrag in `LICENSE-THIRD-PARTY.md`. Er deckt genau die Teilmenge ab, die der Turnierstand auf der Platte braucht, und ist ausdrücklich kein Allzweck-JSON. Der Absatz oben gilt unverändert: `TOURNAMENT_STATE` **über die Leitung** ist damit nicht entschieden. Dass ein Encoder jetzt im Haus liegt, ist kein Argument dafür, ihn auch auf den Draht zu legen — dort zählt Bytezahl, nicht Lesbarkeit.
+
 ### `docs/references.md` — die GPL-Abgrenzung
 
 Dokumentiert, welche Erkenntnis über Original-Spielverhalten woher stammt. Zweck: belegen, dass Verhalten **nachvollzogen** und kein GPLv2-Code aus Blobby Volley 2 übernommen wurde (`10_LEGAL` §2). Bei einem öffentlichen Repo, das sich erkennbar an Blobby Volley orientiert, ist das die naheliegendste Rückfrage — sie sollte beantwortet sein, bevor sie gestellt wird.

@@ -439,6 +439,82 @@ Dazu kommt ein gemessener Fallstrick aus M2: Der Host hält seine Zahlen als flo
 
 ---
 
+## ADR-020 — Der Turnierstand wird als JSON persistiert, mit einem eigenen Encoder
+
+**Status:** angenommen · 2026-08-13 · **Bezug:** ADR-007, ADR-016, M4-06, `05_TOURNAMENT` §7
+
+**Kontext:** ADR-007 legt fest, dass der Turnierzustand ein append-only Log ist, atomar geschrieben. Offen war das **Format** der Datei. `05_TOURNAMENT` §7 nennt den Dateinamen `tournaments/{id}.json`, ADR-016 hat JSON für das Ruleset ausdrücklich verworfen und diese eine Frage ebenso ausdrücklich offen gelassen: „Wenn M4 JSON braucht, ist das eine eigene Entscheidung mit eigenem ADR."
+
+Der Unterschied zum Ruleset ist real und nicht formal. Das Ruleset ist eine flache Tabelle aus 28 Werten. Der Turnierstand ist verschachtelt (Teilnehmer, Runden, Matches mit Satzlisten, Tabellen, Log), wächst über den Abend und wird nach **jedem** Log-Ereignis vollständig neu geschrieben.
+
+Drei Kandidaten standen zur Wahl: ein Lua-Tabellenliteral mit `loadstring` zurückgelesen, eine Schlüssel-Wert-Textdatei wie `prefs.sav`, oder JSON mit eigenem Encoder und Decoder.
+
+**Entscheidung:** Der Turnierstand wird als **JSON** geschrieben und gelesen, mit einem eigenen, `love`-freien Encoder/Decoder in `src/tournament/json.lua`. Keine Fremdbibliothek. Der Encoder sortiert Objektschlüssel, damit derselbe Zustand dieselben Bytes ergibt.
+
+**Begründung:**
+- **Die Datei ist ein Betriebsmittel, kein Zwischenformat.** `05_TOURNAMENT` §7 begründet die Persistenz mit „ein Zettel stürzt nicht ab". Der Fall, für den sie da ist, ist der, in dem die Software nicht mehr tut, was sie soll. Genau dann muss ein Mensch die Datei mit einem Texteditor öffnen, lesen und notfalls von Hand flicken können. Ein Format, das nur die Software versteht, verfehlt den Zweck der Maßnahme.
+- **`loadstring` auf einer beschädigten Datei ist der schlechtere Fehlerfall.** Der Absturzfall aus §7 hinterlässt mit einiger Wahrscheinlichkeit eine halb geschriebene Datei. Ein JSON-Decoder meldet dann „unerwartetes Ende in Zeile 412" und der Lader greift zur `.bak`. `loadstring` auf einem abgeschnittenen Tabellenliteral meldet einen Syntaxfehler oder — schlimmer — lädt eine syntaktisch vollständige, inhaltlich halbe Tabelle. Nebenbei: eine Save-Datei durch den Lua-Übersetzer zu schicken ist ein Mechanismus, den man auch ohne Angreifermodell nicht bauen muss, wenn er nichts spart.
+- **Das Flachformat aus `prefs.sav` trägt die Struktur nicht.** Es kennt keine Listen und keine Verschachtelung. Man müsste Pfade wie `matches.m_101.sets.1.a=15` erfinden — also JSON nachbauen, nur unlesbarer und ohne Grammatik.
+- **Die Kosten sind bekannt und einmalig.** Encoder und Decoder zusammen rund 180 Zeilen für die Teilmenge, die hier vorkommt: Objekte, Listen, Zeichenketten, Zahlen, Wahrheitswerte, `null`. Kein Unicode-Escaping über den ASCII-Bereich hinaus, keine Streaming-Schnittstelle, keine Kommentare. Das ist kein Bibliotheksersatz und will keiner sein.
+- **Zahlen gehen mit `%.17g` heraus**, aus demselben Grund wie in `Ruleset.canonical`: Der Wert, der zurückkommt, muss bitgleich der Wert sein, der hineinging. Punktestände sind ganzzahlig, aber `createdAt` und die Zeitstempel sind es nicht zwingend.
+- **Sortierte Schlüssel** kosten nichts und machen zwei Dinge möglich: Dateien zweier Läufe lassen sich mit `diff` vergleichen, und ein Test kann auf Bytegleichheit prüfen statt auf Strukturgleichheit.
+
+**Konsequenzen:**
+- `src/tournament/json.lua` ist **kein** allgemeiner JSON-Ersatz und wird auch nicht dazu ausgebaut. Er deckt genau das ab, was `persistence.lua` schreibt. Wer ihn woanders benutzen will, prüft vorher, ob er es kann.
+- Das Projekt bleibt fremdbibliotheksfrei. `LICENSE-THIRD-PARTY.md` bekommt keinen Eintrag.
+- **Über die Leitung entscheidet dieser ADR nichts.** `TOURNAMENT_STATE` (0x40) ist eine andere Frage mit anderen Kräften — dort zählt Bytezahl und nicht Lesbarkeit, und dort gibt es mit `love.data.pack` bereits ein eingeführtes Verfahren. Die Entscheidung fällt in M4-09, wie ADR-016 es vorsieht.
+- Die geschriebene Datei enthält neben `header` und `log` auch den **abgeleiteten** Zustand. Der Lader **ignoriert ihn** und rekonstruiert ausschließlich aus dem Log; der abgeleitete Teil steht für den Menschen darin, der die Datei um zwei Uhr nachts aufmacht. Der Test vergleicht beide Fassungen Feld für Feld — damit ist die Redundanz nicht Ballast, sondern die laufende Prüfung der Aussage „das Log ist die Wahrheit".
+
+**Verworfen:**
+- *Lua-Tabellenliteral mit `loadstring`:* spart rund 150 Zeilen und kostet die Lesbarkeit im einzigen Fall, für den die Datei existiert.
+- *Format wie `prefs.sav`:* trägt keine Verschachtelung.
+- *`love.data.pack` wie beim Snapshot:* binär, nicht lesbar, und ohne festes Feldlayout nicht sinnvoll — der Turnierstand ist im Gegensatz zum Snapshot kein festes Layout.
+- *Eine JSON-Bibliothek aufnehmen:* braucht ADR, Lizenzeintrag und Pflege für eine Teilmenge, die in 180 Zeilen passt. ADR-016 hat dieselbe Frage schon einmal so beantwortet.
+
+**Revisionsauslöser:** Wenn die Datei bei 32 Teilnehmern über 500 KB wächst oder das Schreiben nach einem Log-Ereignis messbar länger als 20 ms dauert. Dann ist nicht das Format falsch, sondern die Entscheidung, nach **jedem** Ereignis den ganzen Zustand zu schreiben.
+
+---
+
+## ADR-021 — Der Scheduler kennt weder Münzwurf noch Stillstand: drei Sackgassen bekommen eine deterministische Regel
+
+**Status:** angenommen · 2026-08-13 · **Bezug:** ADR-013, `CLAUDE.md` §3.2 und §3.3, `05_TOURNAMENT` §5, §6, M4-05
+
+**Kontext:** Beim Bauen des Zustandsautomaten aus `05_TOURNAMENT` §5 sind drei Lagen aufgetreten, die die Spec nicht abdeckt. Alle drei haben dieselbe Form: Der Automat kommt an eine Stelle, an der er ohne zusätzliche Regel entweder würfeln oder stehenbleiben müsste. Die Anti-Zufalls-Doktrin schließt das eine aus, die Betriebstauglichkeits-Doktrin das andere.
+
+1. **Beide Spieler erscheinen nicht.** E-02 regelt den No-Show für *einen* Spieler: Timer läuft, Walkover für den anderen. Erscheint keiner, gibt es keinen anderen.
+2. **Ein Teilnehmer ist gar nicht verbunden.** §5 verlangt für `pending → ready` ausdrücklich, dass **beide Spieler online** sind. Der No-Show-Timer läuft aber erst ab dem `calling`, also ab `ready`. Ein Spieler, dessen Rechner aus ist, hält sein Match damit für immer in `pending` — der Timer, der den Fall lösen soll, startet nie. Bei einem K.o.-Baum steht danach das halbe Turnier.
+3. **Ein Gleichstand überlebt den Stichsatz.** E-11 endet nach vier Kriterien mit „Stichsatz auf 7 Punkte. **Kein Münzwurf**". Bei einem Dreifach-Gleichstand ist der Stichsatz ein Mini-Turnier aus drei Sätzen, und das kann wieder 1–1–1 ausgehen.
+
+**Entscheidung:** Drei Regeln, alle deterministisch, alle im Log nachvollziehbar:
+
+1. **Beidseitiger No-Show** → Walkover für den **höher gesetzten** Spieler (kleinere Setznummer), protokolliert mit `reason = "no_show_both"`.
+2. **Offline-Blockade** → Ein Match, das ausschließlich daran scheitert, dass ein Teilnehmer offline ist, bekommt einen eigenen Timer über dieselbe `noShowTimeout`-Dauer. Läuft er ab, gilt der Offline-Spieler als No-Show; ist der Gegner online, gewinnt er per Walkover. Der Timer beginnt, sobald das Match ansonsten spielbar wäre — nicht früher.
+3. **Gleichstand nach dem Stichsatz** → Nach **genau einer** Stichsatzrunde entscheidet die Setznummer. Eine zweite Runde wird nicht angesetzt.
+
+**Begründung:**
+- **Die Setznummer ist die einzige Ordnung, die vor dem Turnier feststeht.** Sie ist sichtbar, sie ist aus dem Seed reproduzierbar (`05_TOURNAMENT` §9), und sie ist nicht das Ergebnis der Lage, die gerade entschieden werden soll. Damit ist sie das genaue Gegenteil eines Münzwurfs: Wer sie anzweifelt, kann den Seed nachrechnen.
+- **Zu Regel 1:** Die Alternative wäre, das Match neu anzusetzen. Das verschiebt das Problem und hält bei zwei dauerhaft abwesenden Spielern eine Bracket-Linie offen, an der später eine ganze Runde hängt. Ein Walkover schreibt das Bracket fort, und der Turnierleiter kann ihn per `manual_override` (E-12) korrigieren, wenn beide doch noch auftauchen. Der umgekehrte Weg — ein hängendes Match nachträglich zu entwerten — ist im Log deutlich unangenehmer.
+- **Zu Regel 2:** Ohne sie ist §5 in sich widersprüchlich. Sie ist keine Erweiterung von E-02, sondern die Bedingung dafür, dass E-02 überhaupt greifen kann. Der Timer startet bewusst erst, wenn das Match sonst spielbar wäre: Ein Spieler, der in Runde 3 noch gar nicht dran ist, darf nicht dafür bestraft werden, dass er zwischendurch den Laptop zuklappt.
+- **Zu Regel 3:** Eine Abbruchbedingung ist Pflicht, sonst ist die Terminierung des Turniers nicht bewiesen. Eine Runde Stichsatz gibt der sportlichen Entscheidung ihre Chance; danach ist die Wahrscheinlichkeit eines erneuten Dreifach-Gleichstands klein genug, dass die Setznummer der billigere Ausgang ist. „Kein Münzwurf" aus E-11 bleibt gewahrt — es wird nichts gelost.
+- **Alle drei Regeln erzeugen einen Log-Eintrag mit Begründungstext.** Ein Ergebnis, das niemand erklären kann, ist am Partyabend teurer als ein Ergebnis, das jemandem nicht gefällt.
+
+**Konsequenzen:**
+- `05_TOURNAMENT` §6 bekommt drei neue Zeilen: **E-15** (beidseitiger No-Show), **E-16** (Teilnehmer offline), **E-17** (Gleichstand überlebt den Stichsatz).
+- Der Scheduler braucht neben `calledAt` einen zweiten Zeitstempel je Match (`blockedSince`). Er ist **Laufzeitzustand und steht nicht im Log**: Er beschreibt die Verbindungslage, nicht das Turnier. Nach einem Neustart beginnt er neu — das ist richtig so, denn nach einem Neustart des Turnier-Hosts sind ohnehin alle Clients getrennt.
+- Der Verbindungsstatus (`online`) ist aus demselben Grund kein Log-Ereignis. Was im Log steht, muss die Rekonstruktion aus §7 überstehen; eine Verbindung tut das nicht.
+- Damit ist die Terminierung zusicherbar: Jedes Match erreicht in endlicher Zeit einen Endzustand, auch wenn niemand mehr spielt. Der Testlauf über ein 20er-Turnier prüft genau das.
+
+**Verworfen:**
+- *Münzwurf oder `math.random` bei Gleichstand:* `CLAUDE.md` §3.2. Im Turnierbetrieb ist das die Regel, an die sich am nächsten Tag alle erinnern.
+- *Beidseitigen No-Show neu ansetzen:* hält eine Bracket-Linie offen, an der eine ganze Runde hängt.
+- *Offline-Spieler sofort als Walkover werten:* bestraft einen Neustart. Deshalb dieselbe Frist wie beim No-Show — sie ist mit 180 s dafür bemessen.
+- *Stichsätze wiederholen, bis eine Entscheidung fällt:* keine obere Schranke, und bei drei gleich starken Spielern ist der zweite Durchgang nicht aussagekräftiger als der erste.
+- *Den Turnierleiter entscheiden lassen:* `05_TOURNAMENT` §1 nennt null manuelle Eingriffe als Zielverhalten. Eine Regel, die im Zweifel den Menschen ruft, ist genau der Eingriff, den §1 ausschließt.
+
+**Revisionsauslöser:** Wenn bei einem echten Turnier die Setznummer mehr als einmal ein Ergebnis entscheidet. Dann ist nicht die Regel falsch, sondern das Format zu grob — bei häufigen Gleichständen gehört die Gruppengröße auf den Prüfstand, nicht der Tiebreaker.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

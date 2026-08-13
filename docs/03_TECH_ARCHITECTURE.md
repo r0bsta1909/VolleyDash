@@ -60,7 +60,8 @@ volley-dash/
 │   │   ├── model.lua         # Datenmodell (Turnier, Runde, Match, Teilnehmer)
 │   │   ├── bracket.lua       # Single Elim / Round Robin: Erzeugung, Fortschreibung
 │   │   ├── scheduler.lua     # Welches Match ist als nächstes spielbar
-│   │   └── persistence.lua   # Speichern nach jedem Ereignis, Recovery
+│   │   ├── json.lua          # nur für persistence.lua (ADR-020), kein Allzweck-JSON
+│   │   └── persistence.lua   # Speichern nach jedem Ereignis, Recovery   [filesystem]
 │   │
 │   ├── render/
 │   │   ├── viewport.lua      # Letterbox-Transformation 800×600 → Fenster

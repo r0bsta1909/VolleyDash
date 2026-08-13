@@ -20,7 +20,7 @@ Ein Turnier auf einer LAN-Party scheitert in der Praxis nie an der Bracket-Logik
 |-------|------|-----------|
 | Teilnehmer | 4 – 32, **Auslegung 20** | Bracket muss beliebige Zahlen verkraften, nicht nur Zweierpotenzen |
 | Parallele Matches | **3 – 4, konfigurierbar** | Bei 20 Teilnehmern nicht optional — siehe Rechnung unten |
-| Satzlänge | Best-of-1 (Gruppe) / Best-of-3 (ab Viertelfinale) | Konfigurierbar |
+| Satzlänge | Best-of-1 (Gruppe und Viertelfinale) / **Best-of-3 ab Halbfinale** | Konfigurierbar über `bestOfDefault` / `bestOfFinals` |
 | Erwartete Dauer bei 20 | **≈ 90 min** bei 4 parallelen Matches | Basis: Satz ≈ 4 min inkl. Wechsel |
 
 ### Warum 20 Teilnehmer die Architektur ändern
@@ -30,6 +30,8 @@ Ein Turnier auf einer LAN-Party scheitert in der Praxis nie an der Bracket-Logik
 | 4 Gruppen à 5, Round Robin | 40 | 160 min | **40 min** |
 | Achtelfinale entfällt, 8er K.o. + Spiel um Platz 3 | 8 (teils Bo3) | 45 min | **25 min** |
 | Summe inkl. Übergängen | 48 | **≈ 3,5 h** | **≈ 90 min** |
+
+**Berichtigung 2026-08-13 (vor M4-02).** Die Zeile „Satzlänge" widersprach dem Kommentar an `bestOfFinals` im Datenmodell §4: einmal „ab Viertelfinale", einmal „ab Halbfinale". Verbindlich ist **ab Halbfinale**, §4 behält recht. Grund: Bei 20 Teilnehmern spielt das K.o. acht Matches; Best-of-3 schon im Viertelfinale legt bis zu vier zusätzliche Sätze auf den kritischen Pfad, und die 90-Minuten-Rechnung dieses Abschnitts ist ohnehin knapp kalkuliert. Ab Halbfinale betrifft Best-of-3 vier Matches (zwei Halbfinals, Finale, Spiel um Platz 3) — dort, wo die Länge sportlich etwas wert ist. Wer es anders will, stellt `bestOfFinals` um; die Grenze selbst ist Konfiguration, nicht Code.
 
 **Konsequenz:** Bei 20 Teilnehmern ist ein serielles Turnier praktisch nicht durchführbar — nach drei Stunden ist die Party woanders. Parallele Matches mit verteilten Match-Hosts (Backlog-Punkt M4-09) rücken damit von einer Ausbaustufe auf den **kritischen Pfad von M4**. Das ist die einzige Priorisierungsänderung, die Q-03 auslöst, aber eine wesentliche.
 
@@ -148,6 +150,11 @@ Tournament = {
 | E-12 | **Turnierleiter will ein Ergebnis korrigieren** | Manuelle Ergebniskorrektur nur durch den Turnier-Host, wird im `log` als `manual_override` mit Begründungstext protokolliert und im Bracket markiert |
 | E-13 | **Zwei Turniere gleichzeitig im LAN** | Erlaubt. Discovery zeigt beide; Teilnahme an mehreren gleichzeitig wird blockiert |
 | E-14 | **Spieler wechselt den Rechner** | Wiedereintritt über den Spielernamen; `clientId` wird neu zugeordnet. Namensdopplung wird beim Beitritt abgelehnt |
+| E-15 | **Beide Spieler erscheinen nicht** | Walkover für den **höher gesetzten** Spieler (kleinere Setznummer), im Log als `no_show_both`. Kein Münzwurf, keine Neuansetzung — eine offene Bracket-Linie hält eine ganze Runde auf (ADR-021) |
+| E-16 | **Ein Teilnehmer ist offline** | §5 verlangt für `ready` beide Spieler online, der No-Show-Timer läuft aber erst ab `ready`. Ein Match, das **ausschließlich** an einem offline Teilnehmer scheitert, bekommt deshalb denselben Timer über `noShowTimeout`; danach Walkover für den anwesenden Gegner. Der Timer beginnt erst, wenn das Match sonst spielbar wäre (ADR-021) |
+| E-17 | **Gleichstand überlebt den Stichsatz** | Nach **genau einer** Stichsatzrunde entscheidet die Setznummer. Keine zweite Runde — sonst ist die Terminierung des Turniers nicht zusicherbar (ADR-021) |
+
+**E-15 bis E-17 sind mit M4-05 dazugekommen**, aus dem Bau des Zustandsautomaten heraus. Alle drei haben dieselbe Form: eine Stelle, an der der Automat ohne Regel entweder würfeln oder stehenbleiben müsste. Die Begründung im Einzelnen steht in ADR-021.
 
 ## 7. Absturz-Recovery des Turnier-Hosts
 
