@@ -515,6 +515,86 @@ Drei Kandidaten standen zur Wahl: ein Lua-Tabellenliteral mit `loadstring` zurü
 
 ---
 
+## ADR-022 — Wer ein Match hostet: RTT-Median über 5 s, ab 5 ms Unterschied; sonst die Setznummer
+
+**Status:** angenommen · 2026-08-13 · **Bezug:** ADR-013, ADR-021, `05_TOURNAMENT` §8 und §12 (T-01), M4-09
+
+**Kontext:** `05_TOURNAMENT` §8 sagt, ein Match werde von „dem mit der besseren Verbindung zum Turnier-Host" gehostet. T-01 hält seit dem 2026-08-12 fest, dass das eine Absichtserklärung ist: Es fehlt das Maß (RTT woraus, über welchen Zeitraum) und es fehlt das Verhalten bei Gleichstand. Ein Gleichstand ohne Regel ist ein Münzwurf, und den schließt `CLAUDE.md` §3.2 aus.
+
+Beim Bauen kommt eine Größe dazu, die T-01 nicht kannte: **Seit ADR-019 wird über Kabel gespielt.** Dort liegt die RTT bei 1–2 ms, und der Unterschied zwischen zwei Teilnehmern liegt im Rauschen. Ein Maß, das auf Rauschen entscheidet, ist kein Maß, sondern ein Münzwurf mit Messgerät. Die Frage ist damit nicht in erster Linie „wie messen wir", sondern „ab wann darf die Messung überhaupt entscheiden".
+
+**Entscheidung:** Der Turnier-Host wählt den Match-Host in drei Schritten:
+
+1. **Maß:** der **Median** der über PING/PONG (`04_NETCODE` §5, 0x50/0x51) gemessenen Anwendungs-RTT der letzten **5 s**. Bei `Host.PING_INTERVAL = 0.5` sind das bis zu zehn Proben.
+2. **Schwelle:** Der Median entscheidet nur, wenn er sich um **mehr als 5 ms** unterscheidet. Der Schnellere hostet.
+3. **Gleichstand** (Unterschied ≤ 5 ms, oder eine Seite hat keine Proben): Es hostet der Spieler mit der **kleineren Setznummer**.
+
+Die getroffene Wahl steht mit beiden Messwerten und dem Grund (`"rtt"` oder `"seed"`) im Ereignis `match_started`.
+
+**Begründung:**
+- **Median statt Mittel.** Eine GC-Pause oder ein verlorenes PONG erzeugt genau einen Ausreißer unter zehn Proben. Der Mittelwert nimmt ihn mit und kann daran die Wahl kippen; der Median nicht. Das kostet nichts — die Proben liegen ohnehin vor.
+- **Die Schwelle ist der eigentliche Inhalt dieses ADR.** 5 ms sind weniger als ein Drittel eines Simulationsschritts (1/60 s ≈ 16,7 ms). Ein Unterschied unterhalb dieser Grenze kann am Match nichts ändern; ihn entscheiden zu lassen hieße, dem Zufall eine Zahl vorzuspannen. Über Kabel ist der Gleichstandsfall damit **der Normalfall** — die Setznummer ist in der Praxis die Regel und die RTT die Ausnahme für den Fall, dass am Abend doch jemand im WLAN sitzt (N-01).
+- **Die Setznummer und nicht die `participantId`.** T-01 schlug die `participantId` vor. ADR-021 hat für drei andere Sackgassen bereits die Setznummer zum Schlussanker gemacht, mit einer Begründung, die hier unverändert gilt: Sie steht vor dem Turnier fest, ist aus dem sichtbaren Seed nachrechenbar und ist nicht das Ergebnis der Lage, die sie entscheidet. Zwei verschiedene Anker für zwei verwandte Gleichstandsfragen wären zwei Wahrheiten — und am Abend erinnert sich niemand daran, welche wo gilt. Freigabe r0btoshi vor der Umsetzung; `05_TOURNAMENT` §12 ist entsprechend berichtigt.
+- **Der Turnier-Host hostet sein eigenes Match immer.** Seine RTT zu sich selbst ist null, also gewinnt er die Messung. Das ist keine Ausnahmeregel, sondern das Maß, das seine Arbeit tut: null Netzsprünge ist die beste Verbindung, die es gibt. Eine Ausnahme („die Autorität bleibt frei") wäre ein Sonderfall im Code für einen Lastunterschied von einem Match, das der Prozess ohnehin mitspielt. Freigabe r0btoshi.
+- **Der Host-Vorteil ist benannt und klein.** Wer hostet, sieht seine Eingabe ohne Netzweg. Der Gast sagt seinen eigenen Blob seit ADR-017 vorher, der Ball wird nicht vorhergesagt (ADR-002) — über Kabel bleibt davon etwa ein Frame. Er ist damit kleiner als der Unterschied, den die Schwelle ausschließt. Wäre er größer, wäre nicht die Wahlregel falsch, sondern die Architektur.
+
+**Konsequenzen:**
+- `Scheduler.new(t, { chooseHost = … })` bekommt endlich seine Antwort; die Platzhalterregel „der höher Gesetzte" aus Stufe A ist damit **zufällig der Gleichstandsfall** dieser Regel und bleibt in genau dieser Rolle stehen. Ohne Netz (Stufe B, Testrunner) ist sie weiterhin die vollständige Regel — es gibt dann keine Proben.
+- `match_started` trägt drei Felder mehr: `rttA`, `rttB`, `hostReason`. Sie stehen im Log und überstehen die Rekonstruktion aus §7. Das ist Absicht: „Warum hostet der?" ist die Frage, die am Abend gestellt wird, und sie muss aus der Datei zu beantworten sein.
+- Die **Proben** selbst stehen nicht im Log. Sie beschreiben die Verbindungslage, nicht das Turnier — dieselbe Grenze wie bei `online` und `blockedSince` in ADR-021.
+- Der Turnier-Host misst die RTT ohnehin für die Anzeige; die Wahl kostet keine zusätzliche Nachricht.
+
+**Verworfen:**
+- *RTT zwischen den beiden Spielern messen:* wäre das sachlich richtige Maß, setzt aber eine Verbindung voraus, die es vor der Host-Wahl noch nicht gibt. Sie erst aufzubauen, um dann zu entscheiden, wer sie behält, kostet einen Rundlauf für eine Zahl, die über Kabel bei 1–2 ms liegt.
+- *Mittelwert statt Median:* nimmt den einen Ausreißer mit, den es zu ignorieren gilt.
+- *Keine Schwelle, jeder Unterschied entscheidet:* macht die Wahl von Messrauschen abhängig und damit unreproduzierbar — ein Münzwurf, den man nicht mehr als solchen erkennt.
+- *`participantId` als Anker (T-01):* zweiter Anker neben ADR-021 für dieselbe Art Frage.
+- *Der Turnier-Host hostet nie:* Sonderfall im Code für einen Lastunterschied von einem Match.
+- *Der Turnierleiter wählt:* `05_TOURNAMENT` §1 nennt null manuelle Eingriffe als Zielverhalten.
+
+**Revisionsauslöser:** Wenn am Abend jemand im WLAN sitzt und die 5-ms-Schwelle regelmäßig überschritten wird — dann entscheidet plötzlich die RTT statt der Setznummer, und ob das Ergebnis noch als fair empfunden wird, ist eine Beobachtung und keine Rechnung. Ebenso, wenn der Host-Vorteil in einem echten Match sichtbar wird: dann ist ADR-002 an der Reihe, nicht dieser ADR.
+
+---
+
+## ADR-023 — `TOURNAMENT_STATE` (0x40) überträgt Log-Ereignisse als JSON, nicht den abgeleiteten Zustand
+
+**Status:** angenommen · 2026-08-13 · **Bezug:** ADR-007, ADR-016, ADR-020, `04_NETCODE` §5, `05_TOURNAMENT` §8, M4-09
+
+**Kontext:** `TOURNAMENT_STATE` (0x40) ist seit `04_NETCODE` 1.0 als Nachrichtentyp reserviert und war bis heute **ohne Format**. ADR-016 hat JSON für das Ruleset verworfen und diese eine Nachricht ausdrücklich offengelassen: „Wenn M4 JSON braucht, ist das eine eigene Entscheidung mit eigenem ADR." ADR-020 hat JSON für die **Datei** gewählt und über die Leitung ebenso ausdrücklich nichts entschieden — mit dem Hinweis, dort zähle „Bytezahl und nicht Lesbarkeit".
+
+Dieser Hinweis stimmt, aber er ruht auf einer Annahme, die niemand geprüft hatte: **dass der abgeleitete Zustand über die Leitung geht.** Er muss nicht. Der Turnierzustand ist seit ADR-007 ein append-only Log, aus dem alles andere gerechnet wird. Ein Log wächst nur hinten — die Differenz zwischen zwei Ständen ist damit immer ein Suffix, und ein Suffix braucht keine Invalidierung, keine Sequenznummern über die reine Position hinaus und keinen Weg, auf dem ein Empfänger „veraltet" wird.
+
+Die Größenordnungen: der abgeleitete Zustand eines 20er-Turniers ist rund 30 KB, ein einzelnes Log-Ereignis rund 100 Byte. Bei ~150 Ereignissen über den Abend und 20 Empfängern ist das der Unterschied zwischen 90 MB und 300 KB — und das, ohne einen Delta-Mechanismus erfinden zu müssen.
+
+**Entscheidung:** `TOURNAMENT_STATE` (0x40) überträgt **Log-Ereignisse**, nicht den abgeleiteten Zustand. Die Nutzlast ist `fromIndex(u4)`, `count(u2)` und die Ereignisse als **JSON-Array** in einer `s4`-Zeichenkette, kodiert mit dem vorhandenen `src/tournament/json.lua`. Der Empfänger reicht jedes Ereignis an dasselbe `Model.applyEvent`, das die Recovery und der Turnier-Host benutzen.
+
+**Begründung:**
+- **Kein zweiter Ableitungspfad.** Das ist der Hauptgrund, nicht die Bytezahl. `CC-05_REPORT` §1a nennt „nichts außerhalb von `applyEvent` fasst den abgeleiteten Zustand an" die eine Entscheidung, die alles andere trägt — die Recovery aus §7 ist deshalb kein eigener Code. Würde die Leitung den fertigen Zustand tragen, gäbe es einen zweiten Weg, auf dem ein Turnierstand entsteht: einen, der beim Beamer und bei jedem Spieler läuft und der beim ersten Auseinanderlaufen mit dem Host nicht mehr entscheidbar wäre. Ereignisse zu übertragen heißt, dass Host, Datei und jeder Empfänger denselben Zustand aus derselben Funktion in derselben Reihenfolge rechnen.
+- **Die Lückenerkennung ist geschenkt.** Der Empfänger kennt seinen Wasserstand. `fromIndex` größer als erwartet heißt „mir fehlt etwas" und wird mit einer Nachforderung ab dem eigenen Stand beantwortet. Kein Zustandsvergleich, keine Prüfsumme, kein Resync-Pfad, der bis zum Partyabend nie läuft.
+- **Binär bräuchte fünfzehn Codecs.** Das Log kennt fünfzehn Ereignisarten mit verschiedenen Feldern. Ein festes Feldlayout je Art müsste bei jeder Modelländerung mitgezogen werden, und ein vergessener Nachzug fällt als stiller Zahlendreher am Abend auf — genau der Grund, aus dem ADR-016 das Ruleset selbstbeschreibend überträgt. JSON ist hier die selbstbeschreibende Form.
+- **`json.lua` kann es, und das ist geprüft und nicht angenommen.** ADR-020 verlangt ausdrücklich: „Wer ihn woanders benutzen will, prüft vorher, ob er es kann." Er deckt genau das ab, was `persistence.lua` schreibt — und was `persistence.lua` schreibt, ist unter anderem dieses Log, Ereignis für Ereignis. Es sind dieselben Tabellen mit denselben Werttypen. Der Encoder wird für diese Entscheidung **nicht erweitert**.
+- **Eine Darstellung für Datei und Leitung.** Ein Fehler im Encoder zeigt sich damit an beiden Stellen statt an einer, und die Stelle, an der er auffällt, ist die Datei — die ein Mensch aufmachen kann.
+- **Die Bytezahl-Erwägung aus ADR-020 bleibt gültig, sie trifft nur nicht mehr zu.** Wer den Zustand überträgt, sollte ihn binär übertragen. Wir übertragen ihn nicht.
+
+**Konsequenzen:**
+- `04_NETCODE` §5 bekommt die **`s4`-Ausnahme** für 0x40, mit Begründung und ausdrücklich auf diese eine Nachricht begrenzt. Ein Block aus Ereignissen überschreitet 255 Byte, und ein Feldmaß zum Kürzen gibt es hier nicht.
+- Ein Empfänger, der mitten im Turnier dazukommt, bekommt das Log ab Index 0 — bei 150 Ereignissen rund 15 KB, einmal, auf dem zuverlässigen Kanal 0. Gesendet wird in Blöcken zu 32 Ereignissen, damit eine einzelne Nachricht nicht beliebig groß wird.
+- Der Empfänger hält ein **echtes `Model`** und eine echte `Session`. `bracket_view.lua` liest unverändert aus `Session` — die Quelle des Modells ändert sich, die Anzeige nicht (`CC-05_REPORT` §7).
+- **Der Empfänger schreibt nichts ins Log.** Sein `Session` ist lesend; jede Bedienung geht als eigene Nachricht an den Turnier-Host, der das Ereignis anhängt und zurückverteilt. Sonst gäbe es zwei Schreiber auf einem append-only Log, und die Reihenfolge wäre nicht mehr die eine Wahrheit aus ADR-007.
+- Ein Ereignis, dessen Art der Empfänger nicht kennt (ältere ZIP), wird verworfen und gezählt, nicht angewandt. Ein halb angewandtes Log wäre schlimmer als ein sichtbar veralteter Stand.
+- `src/tournament/json.lua` bleibt trotzdem kein allgemeiner JSON-Ersatz. Diese Nutzung ist die geprüfte Ausnahme, die ADR-020 vorgesehen hat, keine Öffnung.
+
+**Verworfen:**
+- *Den abgeleiteten Zustand übertragen, binär:* fünfzehn bis zwanzig Feldlayouts, ein zweiter Ableitungspfad, und der Zwang, entweder 30 KB je Ereignis zu senden oder einen Delta-Mechanismus mit Invalidierung zu erfinden.
+- *Den abgeleiteten Zustand übertragen, als JSON:* dieselbe Doppelableitung, dazu 30 KB je Ereignis. Das ist der Fall, gegen den ADR-020 zu Recht gewarnt hat.
+- *Log-Ereignisse binär, ein Codec je Ereignisart:* spart rund 60 % einer ohnehin kleinen Nachricht und erkauft es mit fünfzehn Dateien voller Feldlisten, die stillschweigend falsch werden.
+- *Die Zustandsdatei selbst verschicken:* enthält den abgeleiteten Teil doppelt (ADR-020) und wächst mit dem Abend.
+- *Eine JSON-Bibliothek aufnehmen:* dieselbe Antwort wie in ADR-016 und ADR-020.
+
+**Revisionsauslöser:** Wenn das Log über einen Abend so groß wird, dass die Erstübertragung an einen dazukommenden Empfänger spürbar dauert (Größenordnung: über 500 KB, dieselbe Schwelle wie in ADR-020). Dann ist nicht das Format falsch, sondern die Annahme, dass ein Empfänger das ganze Log braucht — dann bekäme er einen Zustandsabzug plus das Suffix danach.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

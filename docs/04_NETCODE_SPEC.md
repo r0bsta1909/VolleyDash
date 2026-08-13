@@ -117,6 +117,8 @@ Header:  u8 protoVersion | u8 msgType | u8 flags
 
 **Zeichenketten** werden mit `s1` gepackt: ein Längenbyte, dann die Bytes. Damit ist jede Zeichenkette auf 255 Byte begrenzt; die Sender kürzen vorher auf das jeweilige Feldmaß. Kein `z`, keine feste Breite — eine nicht terminierte Zeichenkette aus einer fremden Version würde sonst den Rest der Nachricht verschieben.
 
+**Eine Ausnahme, seit M4-09: `TOURNAMENT_STATE` (0x40) benutzt `s4`.** Die Nachricht trägt einen Block aus Turnier-Log-Ereignissen (ADR-023), und der überschreitet 255 Byte bereits bei drei Ereignissen — ein Feldmaß, auf das der Sender kürzen könnte, gibt es hier nicht. `s4` bleibt ein Längenpräfix und behält damit die Eigenschaft, um derentwillen `s1` gewählt wurde: Eine fremde Fassung verschiebt den Rest der Nachricht nicht, sie liefert eine Länge, die nicht aufgeht, und die Nachricht wird verworfen. **Diese Ausnahme gilt für 0x40 und nur dort.** Wer eine weitere Nachricht über 255 Byte braucht, prüft zuerst, ob sie in Blöcke zerfällt.
+
 ### Nachrichtentypen
 
 | ID | Name | Richtung | Kanal | Nutzlast |
@@ -133,7 +135,15 @@ Header:  u8 protoVersion | u8 msgType | u8 flags
 | 0x23 | `MATCH_END` | H→C | 0 | matchId(4), scoreA(1), scoreB(1), reason(1) |
 | 0x24 | `MATCH_PAUSE` | H→C | 0 | paused(1), secondsLeft(1), text(≤64) — §12 |
 | 0x30 | `SPECTATE_REQ` | C→H | 0 | matchId(4) |
-| 0x40 | `TOURNAMENT_STATE` | H→C | 0 | JSON, siehe `05_TOURNAMENT` |
+| 0x40 | `TOURNAMENT_STATE` | H→C | 0 | fromIndex(4), count(2), events(**`s4`**, JSON) — **ADR-023** |
+| 0x41 | `TOURNAMENT_ASSIGN` | H→C | 0 | matchId(≤16), role(1), opponent(≤24), address(≤48), bestOf(1) — M4-09 |
+| 0x42 | `MATCH_ACCEPT` | C→H | 0 | matchId(≤16), ready(1), enetPort(2) — M4-09 |
+| 0x43 | `MATCH_REPORT` | C→H | 0 | matchId(≤16), setCount(1), je Satz a(1) b(1), longestRally(`f`, s), fastestBall(`f`, px/s), fastestBy(1), reason(1) — M4-09 |
+| 0x44 | `RESULT_QUERY` | H→C | 0 | matchId(≤16) — die 60-s-Nachfrage aus `05_TOURNAMENT` §8 |
+| 0x45 | `STATE_REQUEST` | C→H | 0 | fromIndex(4) — Nachforderung bei einer Lücke im Log (ADR-023) |
+| 0x46 | `TOURNAMENT_WELCOME` | H→C | 0 | participantId(≤8), name(≤24), tournamentName(≤32), logCount(4) |
+
+**Die Turnier-Nachrichten kommen ohne eigenen Anmelde-Handschlag aus.** `HELLO` (0x01) trägt bereits `clientId`, `buildHash` und `playerName` — genau die drei Angaben, die eine Turnier-Anmeldung braucht — und `REJECT` (0x03) trägt die Ablehnung mit Klartext. Beide werden unverändert wiederverwendet. Neu ist nur die **Antwort**: Ein Turnier hat keine Slots und kein Ruleset zu verhandeln, es hat eine Teilnehmerkennung und einen Namen, der wegen der Eindeutigkeitsregel oben ein anderer sein kann als der gewünschte. Das ist `TOURNAMENT_WELCOME` (0x46).
 | 0x50 | `PING` / 0x51 `PONG` | beidseitig | 0 | timestamp(4) |
 | 0x60 | `CHECKSUM` | H→C | 0 | tick(4), hash(4) — Desync-Detektor, §9 |
 

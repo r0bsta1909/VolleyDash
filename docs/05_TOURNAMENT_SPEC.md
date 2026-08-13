@@ -207,6 +207,26 @@ An ADR-007 ändert das nichts — das Verfahren bleibt „tmp → bak → rename
 
 **Bei parallelen Matches gilt:** Der Match-Host meldet das Ergebnis über den reliable-Kanal an den Turnier-Host. Bleibt die Meldung aus (Absturz), fragt der Turnier-Host nach 60 s nach; bleibt sie weiter aus → E-06.
 
+### 8.1 Wer hostet — die Regel (Nachtrag 2026-08-13, M4-09)
+
+T-01 ist entschieden, **ADR-022**. Kurzfassung: Median der gemessenen RTT über die letzten 5 s, entschieden nur bei einem Unterschied über **5 ms**, sonst die **kleinere Setznummer**. Über Kabel ist der Gleichstandsfall der Normalfall — die Setznummer ist damit in der Praxis die Regel und die RTT die Ausnahme, nicht umgekehrt.
+
+Spielt der Turnier-Host selbst mit, ist seine RTT zu sich null; er hostet sein Match also immer. Das ist kein Sonderfall im Code, sondern das Maß, das seine Arbeit tut.
+
+### 8.2 Ports (Nachtrag 2026-08-13, M4-09)
+
+Ein Prozess kann **nicht zweimal denselben ENet-Port binden** — der zweite `host_create` scheitert mit „already listening". Das trifft genau den Auslegungsfall: Der Turnier-Host ist gleichzeitig Spieler und möglicherweise Match-Host, und ein Teilnehmer hängt gleichzeitig am Turnier-Host und an einem Match-Host. Gemessen 2026-08-13.
+
+| Rolle | Bindung | Wie die Gegenseite sie findet |
+|---|---|---|
+| Turnier-Host | `*:21212` fest (`Protocol.PORT_ENET`, konfigurierbar) | Discovery-`ANNOUNCE` mit `mode = "tournament"` und `enetPort` |
+| Match-Host | `*:0` — **ephemer**, vom Betriebssystem vergeben | Der Match-Host liest den tatsächlichen Port mit `host:get_socket_address()` zurück und meldet ihn in `MATCH_ACCEPT` (0x42). Der Turnier-Host setzt ihn mit der IP zusammen, die er am Peer sieht, und schickt beides in `TOURNAMENT_ASSIGN` (0x41) an den Gegner |
+| Teilnehmer | zwei Verbindungen, zwei Sockets | — |
+
+**Kein zweiter fester Port und kein Portbereich.** Ein Portbereich (21212, 21213, 21214 …) müsste bei einer Kollision ausweichen, und der Ausweich-Pfad ist der Code, der erst am Partyabend zum ersten Mal läuft. Der ephemere Port kann nicht kollidieren, weil das Betriebssystem ihn vergibt. Damit sind zugleich **drei gleichzeitige Lobbys im selben Netz** (T-N-09) kein Sonderfall mehr.
+
+**Der Turnier-Host hostet ein eigenes Match auf demselben Weg wie jeder andere** — zweiter ENet-Wirt auf `*:0`. Ein Multiplex über 21212 spart einen Socket und erkauft ihn mit einem zweiten Codeweg für eine Rolle, die sonst überall gleich aussieht.
+
 ## 9. Setzung (Seeding)
 
 | Modus | Verfahren |
@@ -235,11 +255,19 @@ Standard: `random` mit sichtbarem Seed. Klassische Bracket-Position: 1 gegen n, 
 
 Pro Turnier und Spieler: Matches, Sätze, Punkte für/gegen, längste Rallye, schnellster Ball. Diese fünf reichen für die Siegerehrung und kosten fast nichts, weil die Werte ohnehin in der Simulation anfallen. Alles darüber (Heatmaps, Trefferquoten) ist M6.
 
+**Woher die letzten beiden kommen (Nachtrag 2026-08-13, M4-09).** Die ersten drei fallen im Turniermodul an. **Längste Rallye und schnellster Ball fallen in der Simulation an** und müssen deshalb mit dem Ergebnisbericht des Match-Hosts mitkommen — `match_finished` trug bis M4-06 nur die Sätze.
+
+- Gemessen wird **außerhalb von `src/sim/`**, von einem Beobachter, der den Zustand nach jedem Tick liest: die längste Rallye aus `state.rally.timer` beim Ende eines Ballwechsels, die höchste Ballgeschwindigkeit aus dem Betrag von `(vx, vy)`. Die Simulation zählt nichts mit; sie bleibt unverändert (`02_CODE_AUDIT` §4).
+- Gemessen wird **nur auf dem Match-Host**. Er ist die Autorität (ADR-002); ein Gast, der dieselbe Zahl selbst rechnet, hätte eine zweite Wahrheit ohne Schiedsrichter.
+- **Zuordnung:** Die längste Rallye zählt für **beide** Spieler des Matches — sie haben sie zusammen gespielt. Der schnellste Ball zählt für den Spieler, der ihn zuletzt berührt hat (`state.rally.lastTouchPlayer` im Moment des Maximums).
+- Geführt wird je Teilnehmer das **Maximum** über alle seine Matches. Ein Walkover, ein Freilos und ein abgebrochenes Match liefern keine Werte und verändern das Maximum nicht.
+- Die Einheiten stehen im Ereignis fest: die Rallye in **Sekunden**, die Geschwindigkeit in **Pixeln je Sekunde** des logischen Feldes (800 × 600, ADR-004). Eine Zahl ohne Einheit ist am Beamer eine Zahl, die niemand einordnen kann.
+
 ## 12. Offene Punkte (aufgenommen 2026-08-12, vor M2)
 
 | ID | Punkt | Zu klären in |
 |----|-------|--------------|
-| T-01 | **Die Match-Host-Wahl ist noch eine Absichtserklärung.** §8 sagt „der mit der besseren Verbindung zum Turnier-Host", nennt aber weder das Maß (RTT woraus? über welchen Zeitraum?) noch das Verhalten bei Gleichstand. Ein Gleichstand ohne Regel wäre ein Münzwurf im Turnierbetrieb, und den schließt die Anti-Zufalls-Doktrin aus. **Vorschlag: gemessene RTT über die letzten 5 s, bei Gleichstand gewinnt die niedrigere `participantId`** — deterministisch und im Log nachprüfbar | M4-09 |
+| T-01 | **Die Match-Host-Wahl ist noch eine Absichtserklärung.** §8 sagt „der mit der besseren Verbindung zum Turnier-Host", nennt aber weder das Maß (RTT woraus? über welchen Zeitraum?) noch das Verhalten bei Gleichstand. Ein Gleichstand ohne Regel wäre ein Münzwurf im Turnierbetrieb, und den schließt die Anti-Zufalls-Doktrin aus. ~~Vorschlag: gemessene RTT über die letzten 5 s, bei Gleichstand gewinnt die niedrigere `participantId`~~ | **ERLEDIGT 2026-08-13** — **ADR-022**, Kurzfassung in §8.1. Zwei Berichtigungen gegenüber dem Vorschlag: Es entscheidet der **Median** der Proben, nicht ihr Mittel, und erst ab **5 ms** Unterschied. Bei Gleichstand entscheidet die **Setznummer**, nicht die `participantId` — ADR-021 hat die Setznummer bereits zum Schlussanker aller Gleichstände gemacht, und zwei Anker für dieselbe Art Frage sind eine Wahrheit zu viel. Freigabe r0btoshi vor der Umsetzung |
 | T-02 | **Der Turnier-Host ist der einzige Punkt, an dem Stillstand entsteht.** Die Recovery in §7 ist ein Neustart, kein Failover auf einen anderen Rechner: solange das Gerät aus ist, geht nichts weiter. Für v1.0 ist das die richtige Abwägung — die Konsequenz ist aber betrieblich und gehört ins Runbook: **der Turnier-Host darf nicht der Laptop von jemandem sein, der um Mitternacht nach Hause fährt** | **ERLEDIGT 2026-08-13** — als Punkt 5 der Vorbereitungsliste in `11_OPS` §1 eingetragen. Am Entwurf ändert sich nichts: kein Failover in v1.0 |
 
 ## 13. Abnahmekriterien M4
