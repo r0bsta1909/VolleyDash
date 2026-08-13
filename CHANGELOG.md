@@ -41,7 +41,7 @@ Die verteilten Match-Hosts sind Stufe C (M4-09).
 - **`src/tournament/session.lua`** hält Modell, Scheduler und Persistenz zusammen und liefert
   der Anzeige alles Gerechnete: Restzeit, eigene Linie, Bedienliste. Die Anzeige liest, sie
   rechnet nicht — sonst gäbe es für die Restzeit zwei Rechnungen.
-- **61 neue Testfälle**, alle `love`-frei, darunter ein 8er-Turnier, das ausschließlich über die
+- **60 neue Testfälle**, alle `love`-frei, darunter ein 8er-Turnier, das ausschließlich über die
   Tastatur bis zum Sieger durchläuft.
 
 ### Hinzugefügt (Stufe A — das Turnier)

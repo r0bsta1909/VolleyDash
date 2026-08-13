@@ -2,7 +2,7 @@
 
 **Datum:** 2026-08-13 · **Auftrag:** `docs/handoffs/CC-05_M4_TURNIER.md`
 **Ausgangsstand:** 9f40dc7 (`v0.3.0`) · **Stufe B ab** 72a579a
-**Tests:** 412 bestanden, 0 gescheitert (Stufe A: 349, vorher 214) · **ohne `love`:** 381 (Stufe A: 318)
+**Tests:** 411 bestanden, 0 gescheitert (Stufe A: 349, vorher 214) · **ohne `love`:** 380 (Stufe A: 318)
 **Netz-Selbsttest:** 47 Prüfungen, alle grün (unverändert)
 **Referenzen:** `python tools/verify_replays.py` meldet OK
 
@@ -134,7 +134,7 @@ Das kostet bei 48 Matches nichts messbares und erledigt drei Probleme auf einmal
 
 ### Was in Stufe B geprüft ist
 
-61 neue Fälle, alle `love`-frei. Die, die etwas widerlegen können:
+60 neue Fälle, alle `love`-frei. Die, die etwas widerlegen können:
 
 - **Ein 8er-Turnier ausschließlich über die Tastatur bis zum Sieger** — inklusive der Zusicherung,
   dass am Ende **kein** Match offen geblieben ist, auch nicht das Spiel um Platz 3.
