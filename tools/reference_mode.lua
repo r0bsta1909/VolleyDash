@@ -55,6 +55,9 @@ function M.parse(args)
 
         -- Netzwerk-Harness (M2-10). Ohne Fenster, ohne Spiel.
         if a == "--net-selftest" then flags.netSelftest = true end
+        if a == "--tournament-selftest" then flags.tournamentSelftest = true end
+        local tauto = a:match("^%-%-tournament%-auto=(.+)$")
+        if tauto then flags.tournamentAuto = tauto end
         if a == "--net-auto-host" then flags.autoHost = true end
         if a == "--net-auto-client" then flags.autoClient = "127.0.0.1" end
         local autoClient = a:match("^%-%-net%-auto%-client=(.+)$")
@@ -101,6 +104,14 @@ end
 function M.runTools()
     if M.runTests() then return true end
 
+    if flags.tournamentSelftest then
+        local failed = require("tools.tournament_selftest").selftest()
+        print(failed == 0 and "[turnier] alles bestanden"
+              or ("[turnier] " .. failed .. " gescheitert"))
+        love.event.quit(failed > 0 and 1 or 0)
+        return true
+    end
+
     if flags.netSelftest or flags.netHost or flags.netClient then
         local Net = require("tools.net_selftest")
         local code
@@ -133,6 +144,12 @@ function M.install(App)
     -- Zwei Instanzen auf einem Rechner teilen sich die Prefs und damit die
     -- Spielerkennung (M2-10).
     if flags.clientId then App.setClientId(flags.clientId) end
+
+    -- Der Turnier-Autopilot braucht dasselbe: laufendes Spiel, kein Recorder.
+    if flags.tournamentAuto then
+        require("tools.tournament_auto").install(App, flags.tournamentAuto)
+        return
+    end
 
     -- Der Netz-Autopilot braucht das laufende Spiel mit Bild, aber keinen
     -- Recorder (M2-10).
