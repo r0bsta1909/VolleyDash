@@ -1,5 +1,11 @@
 # CC-04 — WLAN-Messung (M3-04, offener Punkt N-01)
 
+> **Status: zurückgestellt, nicht erledigt** (ADR-019, 2026-08-13). Gespielt wird über Kabel;
+> dort liegt die RTT bei 1–2 ms und die Frage unten wird nicht gestellt. Diese Anleitung
+> bleibt vollständig gültig und einsatzbereit — sie wird gebraucht, sobald am Abend jemand
+> ohne Ethernet-Buchse dasteht oder ein Turnier über WLAN laufen soll. **Nichts daran ist zu
+> tun, solange Kabel liegen.**
+
 **Zweck:** `04_NETCODE_SPEC` §13, N-01 beantworten — *Reicht die Vorhersage des eigenen Blobs
 bei RTT 20–40 ms, oder braucht der Client zusätzlich eine Ball-Extrapolation?*
 

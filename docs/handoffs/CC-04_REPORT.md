@@ -6,11 +6,47 @@
 **Netz-Selbsttest:** 47 Prüfungen, alle grün (vorher 37)
 **Referenzen:** `python tools/verify_replays.py` meldet OK
 
-> **Der Code für M3 ist fertig. Offen ist genau eine Sache: die Messung selbst.**
-> AP-4 ist eine Messfrage, sie braucht ein WLAN und zwei Menschen — beides gibt es hier nicht.
-> Vorbereitet ist alles, was sie ohne mich durchführbar macht:
-> `docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`, ein Mitschnitt auf **F4** und eine **vorab**
-> festgelegte Entscheidungsregel.
+> **M3 ist abgeschlossen.** `v0.3.0` ist getaggt, die CI hat beide Pakete gebaut, und das
+> Windows-Paket ist auf einem Fremdrechner heruntergeladen, gestartet und gespielt worden
+> (r0btoshi, 2026-08-13). AP-4 ist per **ADR-019 zurückgestellt**: Gespielt wird über Kabel,
+> dort wird die WLAN-Frage nicht gestellt. Zurückgestellt heißt nicht beantwortet — Werkzeug
+> und Messanleitung bleiben im Repo. Der Nachfolgeauftrag liegt als
+> `docs/handoffs/CC-05_M4_TURNIER.md` bereit.
+
+---
+
+## 0. Nachtrag nach dem Release — 2026-08-13
+
+**`v0.3.0` ist draußen.** Schritte 1–4 des Release-Prozesses aus `12_OPENSOURCE` §7 sind
+gelaufen, die CI hat den Entwurf mit beiden Paketen bestückt, und **Schritt 7 ist für Windows
+erledigt**: heruntergeladen, gestartet, läuft.
+
+**Damit schließt sich die Lücke aus §2:** Die Spielszene war in der Entwicklungsumgebung nie
+ausgeführt worden (kein OpenGL in der Shell), nur übersetzt. Der Start auf dem Fremdrechner
+war also nicht Formalie, sondern die eigentliche Abnahme des Zusammenbaus.
+
+**Was weiterhin offen ist und keinem zugeordnet war:** Das **macOS-Paket** ist gebaut und
+ad-hoc signiert, aber auf keinem fremden Mac gestartet. Damit bleibt auch **N-04** offen (nimmt
+ENet auf macOS eine eingehende Verbindung ohne zusätzliche Freigabe an?). Beides hängt am
+selben fehlenden Gerät und ist kein M3-Rest, sondern eine stehende Abnahme aus M1/M2.
+
+**B-N-16 — Ein Paketlauf aus dem Repo-Verzeichnis mischt Archiv und Arbeitskopie.**
+Beim Gegenprüfen des Pakets gefunden: `lovec build/VolleyDash.love --test` meldete aus dem
+Repo-Wurzelverzeichnis 214 bestandene Tests und stürzte aus jedem anderen Verzeichnis beim
+Start ab. `tests/` und `tools/` liegen bewusst nicht in der `.love` — Lua findet sie über den
+normalen Suchpfad aber trotzdem, wenn das Arbeitsverzeichnis zufällig das Repo ist. Der Lauf
+prüfte also nie das Paket. Kein neuer Fehler, sondern eine Falle seit dem ersten Build; in
+`CLAUDE.md` §12 festgehalten. **Aus dem Paket heraus gibt es folgerichtig keine Testflags: das
+Paket wird gespielt, nicht getestet.**
+
+**Entscheidung r0btoshi, 2026-08-13: Der Abend läuft über Kabel** (ADR-019). Folgen, alle
+eingetragen: N-01 zurückgestellt, A1 im Charter auf einen Switch verengt, Switch und Kabel auf
+der Packliste in `11_OPS` §1, T-N-02/T-N-03 nicht mehr blockierend — und **T-N-09 wandert nach
+M4-09**, weil mehrere gleichzeitige Lobbys mit parallelen Matches der Normalfall sind.
+
+Nebenbei erledigt, weil ohnehin am Runbook gearbeitet wurde: **T-02** aus `05_TOURNAMENT` §12
+(der Turnier-Host darf nicht der Rechner von jemandem sein, der früher geht) steht jetzt als
+Punkt 5 der Vorbereitungsliste.
 
 ---
 
@@ -181,20 +217,18 @@ nicht —, und ADR-002 macht die Frage gegenstandslos: Es gibt genau einen Zusta
 
 ## 6. Nächster Schritt
 
-**Zuerst: einmal starten.** Die Spielszene ist in dieser Umgebung nicht gelaufen (§2). Der
-erste Start am Gerät ist damit kein Formalismus, sondern die eigentliche Abnahme des
-Zusammenbaus. Fünf Minuten lokal gegen den Bot ändern nichts am Netzcode — es reicht ein
-Loopback-Match über die reguläre Oberfläche mit zwei Instanzen (`--client-id=2` für die
-zweite).
+*Ursprünglich standen hier drei Schritte: einmal starten, WLAN messen, dann `0.3.0`. Der erste
+ist erledigt, der zweite zurückgestellt (ADR-019), der dritte veröffentlicht. Der Abschnitt
+gilt jetzt so:*
 
-**Dann die WLAN-Messung**, `docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`. 25 Minuten, davon 10
-Aufbau. Sie beantwortet N-01 und nimmt T-N-02, T-N-03 und T-N-09 mit, wenn ohnehin Geräte
-zusammenstehen.
+**M4 — der Turniermodus.** Auftrag liegt als `docs/handoffs/CC-05_M4_TURNIER.md` bereit. Das
+ist der Meilenstein, der den eigentlichen Zweck des Projekts trägt: 20 Leute an einem Abend
+durch ein Bracket. Alles bis hierher war Voraussetzung.
 
-**Danach ist M3 abgeschlossen** und M4 (Turnier) beginnt — das ist der Meilenstein, der den
-eigentlichen Zweck des Projekts trägt: 20 Leute an einem Abend durch ein Bracket. Vorher wäre
-ein Release `0.3.0` fällig; der Prozess steht in `12_OPENSOURCE` §7, `CHANGELOG` und
-`08_ROADMAP` sind bereits nachgetragen.
+**Wenn ein fremder Mac erreichbar ist**, kosten drei Dinge zusammen zehn Minuten: das
+macOS-Paket starten (Rechtsklick → Öffnen), einmal als **Host** eine Verbindung annehmen
+lassen (N-04), und im Match einmal auf den Punktklang hören — der Bodentreffer ist beim Gast
+rekonstruiert und der einzige abgeleitete Auslöser mit einer Annahme darin (B-N-15).
 
-**Nicht angefasst und weiterhin offen:** N-04 (ENet eingehend auf einem frischen Mac). Ein
-CI-Image beantwortet das nicht, und diese Session hatte keinen Mac.
+**Nicht angefasst und weiterhin offen:** N-04 und der Start des macOS-Pakets auf fremder
+Hardware. Beide hängen am selben fehlenden Gerät.

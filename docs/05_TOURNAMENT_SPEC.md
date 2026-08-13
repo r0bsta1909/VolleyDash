@@ -163,6 +163,24 @@ Tournament = {
 
 Speicherort: `love.filesystem.getSaveDirectory()`. Die Schreibvorgänge sind < 50 KB und passieren maximal alle paar Minuten — Performance ist kein Thema.
 
+**Berichtigung 2026-08-13, gemessen statt angenommen (vor M4-06).** Die drei Schritte oben sind so nicht ausführbar:
+
+- **`love.filesystem` kann nicht umbenennen.** Die Bibliothek hat weder `rename` noch `move` (LÖVE 11.5, vollständige Funktionsliste geprüft). Es bleibt `os.rename` aus der Lua-Standardbibliothek, und das braucht **absolute** Pfade — die liefert `love.filesystem.getSaveDirectory()`. Gemessen: funktioniert.
+- **`os.rename` überschreibt unter Windows nicht.** Existiert das Ziel, scheitert der Aufruf mit „File exists". Unter POSIX ersetzt `rename()` das Ziel atomar, unter der Windows-Laufzeit nicht. Geschrieben wird deshalb für die strengere Plattform; das läuft auf beiden.
+
+Die ausführbare Fassung:
+
+```
+1. schreiben          tournaments/{id}.json.tmp
+2. os.remove          tournaments/{id}.json.bak      (Fehler ignorieren, darf fehlen)
+3. os.rename json->bak                               (nur wenn .json existiert)
+4. os.rename tmp->json
+```
+
+**Zwischen Schritt 3 und 4 existiert kurz keine `.json`.** Genau dafür ist `.bak` da: Die Recovery liest `.json`, und wenn die fehlt oder unbrauchbar ist, `.bak`. Ein Absturz in diesem Fenster kostet höchstens das letzte Log-Ereignis, nie das Turnier.
+
+An ADR-007 ändert das nichts — das Verfahren bleibt „tmp → bak → rename", es hat nur einen Schritt mehr, als beim Schreiben der Spec bekannt war.
+
 **Recovery-Ablauf:**
 1. Beim Start prüft der Client, ob unter `tournaments/` ein Turnier mit `status = "running"` liegt.
 2. Falls ja: Dialog „Laufendes Turnier ‚Sommer-LAN 2026' gefunden (Runde 2 von 3). Fortsetzen?"
@@ -209,7 +227,7 @@ Pro Turnier und Spieler: Matches, Sätze, Punkte für/gegen, längste Rallye, sc
 | ID | Punkt | Zu klären in |
 |----|-------|--------------|
 | T-01 | **Die Match-Host-Wahl ist noch eine Absichtserklärung.** §8 sagt „der mit der besseren Verbindung zum Turnier-Host", nennt aber weder das Maß (RTT woraus? über welchen Zeitraum?) noch das Verhalten bei Gleichstand. Ein Gleichstand ohne Regel wäre ein Münzwurf im Turnierbetrieb, und den schließt die Anti-Zufalls-Doktrin aus. **Vorschlag: gemessene RTT über die letzten 5 s, bei Gleichstand gewinnt die niedrigere `participantId`** — deterministisch und im Log nachprüfbar | M4-09 |
-| T-02 | **Der Turnier-Host ist der einzige Punkt, an dem Stillstand entsteht.** Die Recovery in §7 ist ein Neustart, kein Failover auf einen anderen Rechner: solange das Gerät aus ist, geht nichts weiter. Für v1.0 ist das die richtige Abwägung — die Konsequenz ist aber betrieblich und gehört ins Runbook: **der Turnier-Host darf nicht der Laptop von jemandem sein, der um Mitternacht nach Hause fährt** | `11_OPS`, vor dem ersten Turnierabend |
+| T-02 | **Der Turnier-Host ist der einzige Punkt, an dem Stillstand entsteht.** Die Recovery in §7 ist ein Neustart, kein Failover auf einen anderen Rechner: solange das Gerät aus ist, geht nichts weiter. Für v1.0 ist das die richtige Abwägung — die Konsequenz ist aber betrieblich und gehört ins Runbook: **der Turnier-Host darf nicht der Laptop von jemandem sein, der um Mitternacht nach Hause fährt** | **ERLEDIGT 2026-08-13** — als Punkt 5 der Vorbereitungsliste in `11_OPS` §1 eingetragen. Am Entwurf ändert sich nichts: kein Failover in v1.0 |
 
 ## 13. Abnahmekriterien M4
 

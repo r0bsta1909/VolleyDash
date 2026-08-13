@@ -111,24 +111,40 @@ M3-04 ohnehin Hardware zusammenbringt.
 **Geschlossen in M2:** N-03 (gleiche Bytes auf Windows und macOS) — beantwortet durch T-N-07
 in der CI, mit einer gefundenen Ausnahme beim Vorzeichen der Null (`04_NETCODE` §6).
 
-### M3 — Netzwerk-Politur (10–15 h) — **Code fertig, eine Messung offen**, Auftrag: `docs/handoffs/CC-04_M3_NETZPOLITUR.md`, Bericht: `docs/handoffs/CC-04_REPORT.md`
+### M3 — Netzwerk-Politur (10–15 h) — **ABGESCHLOSSEN 2026-08-13, `v0.3.0` veröffentlicht**, Auftrag: `docs/handoffs/CC-04_M3_NETZPOLITUR.md`, Bericht: `docs/handoffs/CC-04_REPORT.md`
 
 | ID | Aufgabe | h | Stand |
 |----|---------|---|---|
 | M3-01 | Client-Vorhersage des eigenen Blobs + sanfte Korrektur | 5 | **fertig** — `src/net/prediction.lua`, ruft die Simulation auf statt sie zu kopieren (ADR-017) |
 | M3-02 | Kosmetik-Ereignisse aus Snapshot-Deltas ableiten (Partikel, Sound) | 3 | **fertig** — `src/render/snapshot_events.lua`, `love`-frei und im Headless-Runner |
 | M3-03 | Checksum-/Vorhersagefehler-Überwachung + `desync.log` | 2 | **fertig** — djb2 über die gepackten Snapshot-Bytes (ADR-018), zwei getrennte Zähler |
-| M3-04 | WLAN-Test bei RTT 20–40 ms, Bewertung offener Punkt N-01 | 3 | **offen: braucht ein WLAN und zwei Menschen.** Vorbereitet: Mitschnitt auf F4, Messanleitung mit vorab festgelegter Entscheidungsregel (`CC-04_WLAN_MESSANLEITUNG.md`) |
+| M3-04 | WLAN-Test bei RTT 20–40 ms, Bewertung offener Punkt N-01 | 3 | **zurückgestellt (ADR-019).** Gespielt wird über Kabel, dort wird die Frage nicht gestellt. Werkzeug und Messanleitung bleiben im Repo, falls doch jemand im WLAN sitzt |
 
 **Tests:** 214 bestanden (vorher 179), 183 ohne `love` (vorher 148), Netz-Selbsttest 47 Prüfungen
 (vorher 37), `verify_replays.py` meldet OK.
 
-**Weiterhin offen aus M2:** T-N-02, T-N-03 (Paketverlust mit `clumsy`) und T-N-09 (drei Lobbys).
-Sie hängen an derselben Hardware wie M3-04 und stehen als §6 in der Messanleitung.
+**Abnahme:** `v0.3.0` gebaut, das Windows-Paket auf einem Fremdrechner heruntergeladen,
+gestartet und gespielt (r0btoshi, 2026-08-13). Damit ist auch die Lücke aus dem CC-04-Bericht
+geschlossen, dass die Spielszene in der Entwicklungsumgebung nie ausgeführt wurde.
+**Das macOS-Paket ist gebaut und signiert, aber noch auf keinem fremden Mac gestartet.**
 
-### M4 — Turniermodus (36–48 h)
+**Restschuld, neu bewertet nach ADR-019:**
 
-**Abnahme:** `05_TOURNAMENT` §12 + Chaos-Szenario D3.
+| Fall | Stand |
+|---|---|
+| T-N-02, T-N-03 (Paketverlust) | **nicht mehr Abnahmebedingung.** Über Kabel ist Paketverlust ein Defekt, kein Normalfall. Die Logik dahinter ist in Ebene B abgesichert |
+| T-N-09 (drei Lobbys gleichzeitig) | **wichtiger geworden und nach M4 verschoben.** Mehrere gleichzeitige Lobbys im selben Netz sind mit parallelen Matches der Normalfall (ADR-013). Gehört in die Abnahme von **M4-09**, nicht in die Restschuld von M2 |
+| N-04 (ENet eingehend auf einem frischen Mac) | unverändert offen. Hängt am selben fremden Mac wie das Paket oben |
+
+### M4 — Turniermodus (36–48 h) — **als Nächstes**, Auftrag: `docs/handoffs/CC-05_M4_TURNIER.md`
+
+**Abnahme:** `05_TOURNAMENT` §13 + Chaos-Szenario D3. **Zusätzlich aus M2 übernommen:** T-N-09
+(drei gleichzeitige Lobbys) gehört zur Abnahme von M4-09 — bei parallelen Matches ist das der
+Normalfall, nicht der Sonderfall.
+
+**Betriebliche Randbedingung, seit ADR-019 fest:** Der Abend läuft über Kabel. Das vereinfacht
+nichts am Turniercode, verengt aber die Annahme A1 auf einen Switch und macht die
+Discovery-Lage berechenbar.
 
 | ID | Aufgabe | h |
 |----|---------|---|

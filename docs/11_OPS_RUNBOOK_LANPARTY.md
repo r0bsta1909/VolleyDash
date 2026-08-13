@@ -13,11 +13,13 @@
 | 2 | ZIPs auf USB-Stick **und** auf den Verteil-Laptop kopieren | ☐ |
 | 3 | Auf dem Verteil-Laptop einen HTTP-Server vorbereiten (`python3 -m http.server 8000` im ZIP-Ordner) | ☐ |
 | 4 | QR-Code auf die Download-URL erzeugen, für den Beamer als Bild ablegen | ☐ |
-| 5 | Turnier-Host-Rechner festlegen (der **nicht** an der Steckdose stirbt und **kein** Gaming-Laptop mit aktivem Update ist) | ☐ |
+| 5 | Turnier-Host-Rechner festlegen (der **nicht** an der Steckdose stirbt und **kein** Gaming-Laptop mit aktivem Update ist). **Und nicht der Laptop von jemandem, der um Mitternacht nach Hause fährt** — es gibt kein Failover auf ein anderes Gerät, nur einen Neustart auf demselben (`05_TOURNAMENT` §7, T-02). Solange dieser Rechner aus ist, steht das Turnier | ☐ |
 | 5b | Bei ~20 Teilnehmern: **8 spielfähige Rechner** für 4 parallele Matches zählen. Weniger Geräte = längeres Turnier, der Scheduler blockiert nicht, aber die Rechnung in `05_TOURNAMENT` §2 verschiebt sich | ☐ |
 | 6 | Auf dem Host-Rechner: Firewall-Freigabe für das Spiel **vorab** erteilen (Schritt 3 unten) | ☐ |
 | 7 | Auf dem Host-Rechner: Energiesparmodus/Standby **aus**, Windows-Update pausieren | ☐ |
 | 8 | Beamer-Rechner testen: Auflösung, `--beamer`-Start, Lautstärke | ☐ |
+| 8b | **Gigabit-Switch mit genug Ports und ein Patchkabel je Rechner** (ADR-019). Bei 8 spielfähigen Geräten plus Turnier-Host und Beamer sind das 10 Ports — ein 8-Port-Switch reicht dann nicht | ☐ |
+| 8c | **Wer hat keine Ethernet-Buchse?** Vorher fragen, nicht am Abend feststellen. Ein USB-Ethernet-Adapter je betroffenem Gerät gehört mit eingepackt; sonst sitzt derjenige im WLAN und N-01 ist wieder offen | ☐ |
 | 9 | 2 Ersatz-Gamepads und Kabel einpacken | ☐ |
 | 10 | Turnier vorab anlegen (Name, Format, Preset) und einmal mit Bots durchspielen | ☐ |
 | 11 | Auf jedem Mac einmal **vorab** die App per Rechtsklick öffnen — der Umweg kostet am Abend sonst pro Gerät 2 Minuten Erklärung (ADR-012) | ☐ |
@@ -25,6 +27,12 @@
 ## 2. Netzwerkaufbau
 
 **Der wichtigste Satz dieses Dokuments: Kabel schlägt WLAN, immer.**
+
+> **Entschieden am 2026-08-13 (ADR-019): Der Abend läuft über Kabel.** Aus der Empfehlung ist
+> eine Festlegung geworden. Damit gehören **Switch und Kabel für alle** auf die Packliste in §1
+> — das ist Hardware, die jemand mitbringen muss, und niemand bringt sie mit, wenn sie nur
+> empfohlen ist. Wer trotzdem im WLAN sitzt, spielt auf eigenes Risiko: Der offene Punkt N-01
+> (`04_NETCODE_SPEC` §13) ist zurückgestellt, nicht beantwortet.
 
 | Aufbau | Bewertung |
 |--------|-----------|

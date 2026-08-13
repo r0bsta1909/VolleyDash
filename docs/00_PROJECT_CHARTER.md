@@ -89,7 +89,7 @@ Das Spiel soll sich **nicht modernisieren**. Kein Progression-System, keine Unlo
 | Product Owner / Design / Dev | r0btoshi | ☐ |
 
 **Angenommene Annahmen (bitte prüfen):**
-- A1: Die LAN-Party hat ein gemeinsames L2-Segment (ein Switch bzw. ein WLAN-AP), kein Routing zwischen Subnetzen. Broadcast-Discovery hängt daran.
+- A1: Die LAN-Party hat ein gemeinsames L2-Segment, kein Routing zwischen Subnetzen. Broadcast-Discovery hängt daran. **Seit ADR-019 (2026-08-13) enger gefasst: ein Gigabit-Switch, alle per Kabel.** WLAN bleibt möglich, ist aber nicht mehr die Auslegung — der offene Punkt N-01 ist deshalb zurückgestellt und nicht beantwortet.
 - A2: Zielgröße variabel, Auslegungspunkt 20 Teilnehmer (Q-03 entschieden, ADR-013). Daraus folgt: 3–4 parallele Matches sind Pflicht, nicht Ausbau.
 - A3: Es gibt keinen dedizierten Server-Rechner; der Turnier-Host ist ein Spieler-Laptop.
 - A4: Linux ist nicht Zielplattform für v1.0 (fällt bei LÖVE quasi kostenlos als `.love`/AppImage ab, wird aber nicht getestet).

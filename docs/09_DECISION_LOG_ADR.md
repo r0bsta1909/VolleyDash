@@ -407,6 +407,38 @@ Dazu kommt ein gemessener Fallstrick aus M2: Der Host hält seine Zahlen als flo
 
 ---
 
+## ADR-019 — Gespielt wird über Kabel; die WLAN-Frage N-01 wird zurückgestellt
+
+**Status:** angenommen · 2026-08-13 · **Entscheidung r0btoshi** · **Bezug:** ADR-017, `11_OPS` §2, `04_NETCODE_SPEC` §13
+
+**Kontext:** M3 hat die Vorhersage des eigenen Blobs gebaut. Der offene Punkt N-01 fragt, ob sie bei WLAN-Latenz von 20–40 ms ausreicht oder ob der Client zusätzlich den Ball extrapolieren muss. Diese Frage ist nur an zwei Geräten in einem WLAN zu beantworten, mit zwei Menschen, die sagen können, ob es sich falsch anfühlt — Aufwand rund eine halbe Stunde plus Terminfindung.
+
+`11_OPS` §2 empfiehlt seit dem ersten Entwurf **Kabel vor WLAN**, mit Zahlen: RTT unter 1 ms gegen 5–30 ms mit Jitter, kein Paketverlust, keine Broadcast-Probleme, kein Roaming mitten im Satz.
+
+**Entscheidung:** Der Partyabend läuft über einen Gigabit-Switch, alle Teilnehmer per Kabel. N-01 bleibt **offen und zurückgestellt**, nicht beantwortet und nicht gestrichen. M3 ist damit abgeschlossen.
+
+**Begründung:**
+- **Die Messung beantwortet eine Frage, die im geplanten Betrieb nicht gestellt wird.** Über Kabel liegt die RTT bei 1–2 ms. Dort war das Spiel schon in M2 **ohne jede** Vorhersage spielbar; mit ihr ist die Restlatenz des eigenen Blobs null. Der Ball ist dann 1–2 ms alt, und das ist unterhalb eines Einzelbildes.
+- **Der Aufwand fällt an der falschen Stelle an.** Eine halbe Stunde plus Termin für eine Zahl, die keine Entscheidung mehr auslöst — während M4 (Turnier) 36–48 h braucht und der eigentliche Zweck des Projekts ist.
+- **Zurückstellen ist nicht dasselbe wie Streichen.** Steckt am Abend jemand doch im WLAN — ein Laptop ohne Ethernet-Buchse, ein Gast mit Adapterproblem —, ist die Frage sofort wieder da. Deshalb bleiben Messanleitung und Werkzeug (F4-Mitschnitt) unverändert im Repo, und N-01 bleibt in `04_NETCODE_SPEC` §13 stehen.
+- **Die Vorhersage bleibt trotzdem drin.** Sie ist gebaut, getestet und kostet über Kabel nichts. Sie wieder auszubauen wäre Arbeit, um etwas zu verlieren.
+
+**Konsequenzen:**
+- **Betrieblich:** Ein Switch mit genug Ports und Kabel für alle gehören auf die Packliste. Das ist neue Hardware-Voraussetzung, die vorher eine Empfehlung war. `11_OPS` §1 und §2 sind entsprechend nachgezogen.
+- Annahme **A1** im Charter verengt sich von „ein Switch bzw. ein WLAN-AP" auf **einen Switch**. Das macht die Discovery-Lage einfacher, nicht schwerer.
+- **T-N-02 und T-N-03** (5 % und 20 % Paketverlust) verlieren an Dringlichkeit: Über Kabel ist Paketverlust kein Normalfall, sondern ein Defekt. Sie bleiben offen und werden nicht mehr als Abnahmebedingung geführt.
+- **T-N-09 dagegen wird wichtiger, nicht unwichtiger** — drei gleichzeitige Lobbys im selben Netz sind im Turnierbetrieb mit parallelen Matches (ADR-013) der Normalfall, nicht der Sonderfall. Der Fall wandert damit von der M2-Restschuld in die Abnahme von **M4-09**.
+- Wer den Abend anders aufbaut, liest §5 der Messanleitung: Dort steht die Entscheidungsregel, mit der die Frage zu beantworten ist — vorab festgelegt, damit sie nicht zur Beobachtung passend gemacht wird.
+
+**Verworfen:**
+- *N-01 als beantwortet schließen:* Sie ist nicht beantwortet. Eine geschlossene Frage ohne Messung ist eine Behauptung mit Aktenzeichen.
+- *Die Vorhersage zurückbauen, weil sie über Kabel keinen messbaren Nutzen bringt:* Sie ist fertig und schadet nicht. Und sie ist genau das, was den Fall rettet, in dem doch jemand im WLAN sitzt.
+- *WLAN als zweite unterstützte Betriebsart zusagen:* Das hieße, T-N-02 und T-N-03 zur Abnahmebedingung zu machen und die Messung doch zu fahren. Wer über WLAN spielt, spielt auf eigenes Risiko — das steht so im Runbook.
+
+**Revisionsauslöser:** Wenn am Abend mehr als ein Gerät ohne Kabel dasteht. Dann ist WLAN kein Sonderfall mehr, und N-01 ist vor dem nächsten Turnier zu messen.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

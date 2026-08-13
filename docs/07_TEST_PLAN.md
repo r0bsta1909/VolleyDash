@@ -136,14 +136,14 @@ Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
 | ID | Fall | Erwartung |
 |----|------|-----------|
 | T-N-01 | Client verbindet sich, spielt 1 Satz | Endstand auf beiden Seiten identisch |
-| T-N-02 | 5 % Paketverlust auf Kanal 2 (Input) | Keine sichtbaren Aussetzer (Redundanz greift, `04_NETCODE` §7) |
-| T-N-03 | 20 % Paketverlust auf Kanal 1 (Snapshot) | Bild ruckelt, Endstand bleibt identisch |
+| T-N-02 | 5 % Paketverlust auf Kanal 2 (Input) | Keine sichtbaren Aussetzer (Redundanz greift, `04_NETCODE` §7). **Seit ADR-019 keine Abnahmebedingung mehr** — über Kabel ist Verlust ein Defekt, kein Normalfall. Die Logik ist in Ebene B abgesichert (`input_queue_test.lua`, T-N-13) |
+| T-N-03 | 20 % Paketverlust auf Kanal 1 (Snapshot) | Bild ruckelt, Endstand bleibt identisch. Wie T-N-02: offen, nicht mehr blockierend |
 | T-N-04 | Client-Prozess während des Satzes killen | Host pausiert, nach 30 s Walkover |
 | T-N-05 | Client killen + neu starten in 10 s | Reconnect, steigt in laufenden Satz ein |
 | T-N-06 | Host mit abweichendem `rulesetHash` | Match startet nicht, Klartextmeldung |
 | T-N-07 | `love.data.pack("<f", …)` auf Win und macOS | Bitidentisches Ergebnis (offener Punkt N-03) |
 | T-N-08 | 200 Snapshots in einem Frame in die Queue drücken | Event-Loop leert vollständig, kein Aufstau |
-| T-N-09 | Discovery mit 3 gleichzeitigen Hosts | Alle 3 in der Liste, korrekt unterscheidbar |
+| T-N-09 | Discovery mit 3 gleichzeitigen Hosts | Alle 3 in der Liste, korrekt unterscheidbar. **Gehört seit 2026-08-13 zur Abnahme von M4-09**: bei parallelen Matches (ADR-013) sind mehrere gleichzeitige Lobbys der Normalfall. Bis dahin offen |
 | T-N-10 | Host beendet Lobby, Client noch verbunden | Client kehrt sauber ins Menü zurück |
 | T-N-11 | 4 parallele Matches mit verteilten Match-Hosts, gleichzeitiger Ergebnisversand | Alle 4 Ergebnisse korrekt im Bracket, keine Race Condition |
 | T-N-12 | Gast spielt mit Vorhersage, kein Paketverlust (M3-01) | Korrekturzähler bleibt bei 0; der eigene Blob steht an derselben Stelle wie beim Host |
