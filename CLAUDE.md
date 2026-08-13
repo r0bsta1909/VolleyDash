@@ -195,6 +195,29 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 - Vor dem ersten Push an GitHub: Assetherkunft geklärt (`10_LEGAL` §4). Unklar lizenzierte
   Dateien dürfen nicht in die Historie geraten.
 
+### CI — eigenständig, nicht auf Zuruf
+
+`gh` ist installiert (`C:\Program Files\GitHub CLI`, nicht immer im PATH — dann
+`export PATH="$PATH:/c/Program Files/GitHub CLI"`) und mit dem Konto `r0bsta1909` angemeldet.
+**Der Stand der CI wird selbst nachgesehen, nicht erfragt.** Nach jedem Push, der Code oder
+Workflow anfasst, gehört der Lauf geprüft — und ein roter Lauf gehört gelesen, bevor jemand
+gefragt wird.
+
+| Zweck | Befehl |
+|---|---|
+| Läufe auflisten | `gh run list --workflow=build.yml --limit 5` |
+| Auf einen Lauf warten | `gh run watch <id> --exit-status --interval 15` |
+| **Warum rot** | `gh run view <id> --log-failed` — das ist der Grund für `gh`: vorher gab es nur Annotationen, und zwei Läufe gingen allein dafür drauf, überhaupt an die Ausgabe zu kommen |
+| Pakete bauen ohne Release | `gh workflow run build.yml --ref main` (siehe `12_OPENSOURCE` §5) |
+| Artefakte holen | `gh run download <id> --dir <ziel>` |
+
+**Nicht eigenständig:** ein Tag setzen oder ein Release veröffentlichen. Das ist eine
+öffentliche Zusage und folgt `12_OPENSOURCE` §7 — vorher CHANGELOG, VERSION und eine Freigabe.
+
+**Artefakte und Token gehören nie ins Repo.** Heruntergeladene Pakete landen außerhalb von
+`C:\devolley-dash`; ein `git add -A` erwischt sonst, was dort liegt (einmal passiert,
+2026-08-13, mit den Protokollen der Selbsttests).
+
 ## 12. Kommandos
 
 <!-- Wird gefüllt, sobald die Skripte existieren. -->
