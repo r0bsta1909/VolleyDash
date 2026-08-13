@@ -215,7 +215,14 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 | Netztest mit Bild und Screenshots | `LOVE_BIN=/d/love2d/LOVE/lovec.exe ./tools/net_test.sh auto` |
 | Build (alles, was die Maschine kann) | `LOVE_WIN=/d/love2d/LOVE ./tools/build.sh` |
 | Nur die `.love` | `./tools/build.sh love` |
-| Gebautes Paket testen | `/d/love2d/LOVE/love.exe build/VolleyDash.love` — **nie den Quellordner** |
+| Gebautes Paket testen | `/d/love2d/LOVE/love.exe build/VolleyDash.love` — **nie den Quellordner**, und **nicht aus dem Repo-Wurzelverzeichnis** (siehe unten) |
+
+**Das gebaute Paket wird aus einem fremden Verzeichnis gestartet, nicht aus dem Repo.**
+`tests/` und `tools/` liegen bewusst nicht in der `.love` — Lua findet sie über den normalen
+Suchpfad aber trotzdem, wenn das Arbeitsverzeichnis das Repo ist. Ein Lauf aus dem
+Wurzelverzeichnis mischt dann Archiv und Arbeitskopie und meldet grün, ohne das Paket geprüft
+zu haben (gemessen 2026-08-13). Aus dem Paket heraus gibt es folgerichtig **keine Testflags**:
+`--test` und `--net-selftest` gehören zum Quellordner, das Paket wird gespielt.
 
 `tools/build.sh` braucht Info-ZIP im PATH. Git Bash bringt kein `zip` mit:
 `winget install --id GnuWin32.Zip --exact --source winget`, danach
