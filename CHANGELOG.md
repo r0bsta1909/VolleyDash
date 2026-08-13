@@ -7,6 +7,42 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
 deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
+## [Unreleased]
+
+Turniermodus (M4), **Stufe A**: das Turnier selbst — ohne Netzwerk und ohne Bild. Es ist noch
+nichts davon bedienbar; wer die Version startet, sieht dasselbe Spiel wie in 0.3.0. Der
+Eintrag steht hier, weil der Unterbau steht und geprüft ist.
+
+### Hinzugefügt
+
+- **`src/tournament/` — Datenmodell, Auslosung, Zustandsautomat, Persistenz.** Alle vier
+  Dateien sind `love`-frei und laufen im Headless-Testrunner; nur `persistence.lua` fasst
+  Dateien an, und auch dort ist der Zugriff austauschbar.
+- **Das Log ist die Wahrheit.** Der gesamte abgeleitete Zustand — Paarungen, Tabellen,
+  Statistiken — wird nach jedem Ereignis aus dem append-only Log neu gerechnet (ADR-007).
+  Damit ist die Absturz-Recovery kein eigener Codepfad, sondern derselbe Ablauf, nur schneller.
+- **Formate:** Single Elimination mit Freilosen an die Höchstgesetzten, Round Robin, und
+  Gruppen → K.o. als Standardformat. Die Gruppenaufteilung findet der Scheduler selbst:
+  20 Teilnehmer werden 4×5, 18 werden 2×5 + 2×4, und keine Gruppe hat je weniger als 3 oder
+  mehr als 6 Mitglieder — geprüft für jede Teilnehmerzahl von 4 bis 32.
+- **Eigener deterministischer Zufallsgenerator für die Auslosung.** `math.random` liefert je
+  nach Lua-Fassung verschiedene Folgen; ein sichtbarer Seed, der auf zwei Rechnern zwei
+  Brackets erzeugt, wäre schlimmer als gar keiner (`05_TOURNAMENT` §9).
+- **Atomares Speichern nach jedem Log-Ereignis** in vier Schritten (`tmp` → `bak` → rename),
+  als JSON (ADR-020). Eine halb geschriebene Datei kostet höchstens das letzte Ereignis, nie
+  das Turnier — der Fall steht als Test drin.
+- **135 neue Testfälle**, davon ein vollständiger 20er-Durchlauf mit hartem Neustart mitten in
+  Runde 2: Das Turnierobjekt wird weggeworfen und ausschließlich aus der Datei neu aufgebaut.
+
+### Geändert
+
+- `05_TOURNAMENT` §2 sagte „Best-of-3 ab Viertelfinale", §4 „ab Halbfinale". Verbindlich ist
+  jetzt **ab Halbfinale**; §2 ist berichtigt. Die Grenze bleibt Konfiguration (`bestOfFinals`).
+- `05_TOURNAMENT` §6 hat drei Fälle mehr: **E-15** (beide Spieler erscheinen nicht),
+  **E-16** (ein Teilnehmer ist offline) und **E-17** (der Gleichstand überlebt den Stichsatz).
+  Alle drei sind Stellen, an denen der Zustandsautomat ohne Regel entweder würfeln oder
+  stehenbleiben müsste; beides schließt die Doktrin aus (ADR-021).
+
 ## [0.3.0] — 2026-08-13
 
 Netzwerk-Politur (M3). Der Gast war bisher Zuschauer seines eigenen Blobs: Er drückte eine

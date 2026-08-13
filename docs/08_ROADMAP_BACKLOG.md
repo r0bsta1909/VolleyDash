@@ -146,20 +146,24 @@ Normalfall, nicht der Sonderfall.
 nichts am Turniercode, verengt aber die Annahme A1 auf einen Switch und macht die
 Discovery-Lage berechenbar.
 
-| ID | Aufgabe | h |
-|----|---------|---|
-| M4-01 | `model.lua`: Datenmodell + append-only Log | 4 |
-| M4-02 | `bracket.lua`: Single Elimination inkl. Freilose | 5 |
-| M4-02b | Automatische Gruppenaufteilung aus beliebiger Teilnehmerzahl (Ziel 4–5/Gruppe) | 2 |
-| M4-03 | `bracket.lua`: Round Robin + Tabellenkriterien E-11 | 4 |
-| M4-04 | Gruppen → Elim | 3 |
-| M4-05 | `scheduler.lua`: Match-Zustandsautomat, Calling, No-Show-Timer | 5 |
-| M4-06 | `persistence.lua`: atomares Schreiben, Recovery-Dialog | 4 |
-| M4-07 | Turnier-Lobby-UI, Setzung mit sichtbarem Seed | 4 |
-| M4-08 | `bracket_view.lua`: kompakt (Spieler) + voll (Beamer) | 5 |
-| M4-09 | **Verteilte Match-Hosts bei parallelen Matches — kritischer Pfad, nicht optional** (ADR-013) | 8 |
-| M4-10 | Export als Markdown/CSV | 1 |
-| M4-11 | Manuelle Ergebniskorrektur mit Protokollierung | 2 |
+| ID | Aufgabe | h | Stand 2026-08-13 (CC-05, Stufe A) |
+|----|---------|---|---|
+| M4-01 | `model.lua`: Datenmodell + append-only Log | 4 | ✅ `src/tournament/model.lua`, `love`-frei. Abgeleiteter Zustand wird nach jedem Ereignis neu gerechnet |
+| M4-02 | `bracket.lua`: Single Elimination inkl. Freilose | 5 | ✅ klassische Setzung, Freilose an die Höchstgesetzten (E-01), für 4–32 geprüft |
+| M4-02b | Automatische Gruppenaufteilung aus beliebiger Teilnehmerzahl (Ziel 4–5/Gruppe) | 2 | ✅ 20 → 4×5, 18 → 2×5+2×4, keine Gruppe unter 3 oder über 6 |
+| M4-03 | `bracket.lua`: Round Robin + Tabellenkriterien E-11 | 4 | ✅ Kreismethode (parallelisierbare Runden), E-11 vollständig, echter Gleichstand wird gemeldet statt gewürfelt |
+| M4-04 | Gruppen → Elim | 3 | ✅ inkl. Reparaturgang: keine Gruppengegner in der ersten K.o.-Runde |
+| M4-05 | `scheduler.lua`: Match-Zustandsautomat, Calling, No-Show-Timer | 5 | ✅ plus E-15/E-16/E-17 (ADR-021) — ohne sie terminiert der Automat nicht |
+| M4-06 | `persistence.lua`: atomares Schreiben, Recovery-Dialog | 4 | ✅ vier Schritte nach §7, JSON (ADR-020). **Dialog-UI fehlt** — die Datenseite steht, `Persistence:running()` liefert sie |
+| M4-07 | Turnier-Lobby-UI, Setzung mit sichtbarem Seed | 4 | ⬜ Stufe B. Der deterministische Generator steht bereits in `bracket.lua` |
+| M4-08 | `bracket_view.lua`: kompakt (Spieler) + voll (Beamer) | 5 | ⬜ Stufe B |
+| M4-09 | **Verteilte Match-Hosts bei parallelen Matches — kritischer Pfad, nicht optional** (ADR-013) | 8 | ⬜ Stufe C. Einhängepunkt steht: `Scheduler.new(t, { chooseHost = … })`. T-01 und das Format von `TOURNAMENT_STATE` sind vorher als ADR fällig |
+| M4-10 | Export als Markdown/CSV | 1 | ⬜ Stufe D |
+| M4-11 | Manuelle Ergebniskorrektur mit Protokollierung | 2 | ✅ Datenseite fertig (`manual_override` mit Pflicht-Begründung, im Bracket markiert), **Bedienung fehlt** — die gehört zu M4-07 |
+
+**Stufe A ist abgeschlossen** (CC-05, 2026-08-13): Ein 20er-Turnier läuft im Headless-Runner
+vollständig durch — 40 Gruppenmatches, 8 K.o.-Matches, Sieger, inklusive hartem Neustart
+mitten in Runde 2 aus der Datei heraus. Bericht: `docs/handoffs/CC-05_REPORT.md`.
 
 ### M5 — Spectator + Beamer (12–18 h)
 
