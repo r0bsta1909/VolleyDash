@@ -39,6 +39,10 @@ der Export (M4-10, Stufe D).
 - **`--tournament-selftest`**: vier parallele Matches mit gleichzeitigem Ergebnisversand
   (T-N-11) und drei gleichzeitige Turniere im selben Netz (T-N-09), alles in einem Prozess und
   damit CI-tauglich. **T-N-09 stand seit M2 als Restschuld herum.**
+- **Beide Selbsttests laufen jetzt in der CI**, auf `windows-latest` und `macos-latest`. Bis
+  dahin prüfte sie nur, was ohne Leitung entscheidbar ist — bei einem Turnier mit verteilten
+  Match-Hosts ist das die kleinere Hälfte. N-04 und N-05 beantwortet das ausdrücklich nicht:
+  Ein Läufer hat keine Firewall und keine zweite Maschine.
 
 ### Behoben (Stufe C)
 

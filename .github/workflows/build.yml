@@ -7,6 +7,11 @@
 # Der Testlauf ist der Ort, an dem sich `tests/run_headless.lua` zum ersten Mal
 # an einem echten Lua-Interpreter beweist: auf der Entwicklungsmaschine gibt es
 # keinen, dort laeuft der Pfad nur unter LOEVE (`love . --test`).
+#
+# Seit M4-09 laufen dazu die beiden SELBSTTESTS ueber echte Sockets mit
+# (`--net-selftest`, `--tournament-selftest`). Vorher pruefte die CI nur, was
+# ohne Leitung entscheidbar ist -- und bei einem Turnier mit verteilten
+# Match-Hosts ist das die kleinere Haelfte.
 # =============================================================================
 name: build
 
@@ -40,7 +45,13 @@ jobs:
         run: python3 tools/verify_replays.py
 
   # ---------------------------------------------------------------------------
-  # Protokolltests auf beiden Zielplattformen (M2-01, Testfall T-N-07)
+  # Protokoll UND Sockets auf beiden Zielplattformen (M2-01, M2-10, M4-09)
+  #
+  # Drei Schritte, drei verschiedene Fragen: das Nachrichtenformat (T-N-07),
+  # der Netzweg eines Matches (T-N-08, T-N-10) und der Turnierbetrieb mit vier
+  # parallelen Matches (T-N-11, T-N-09). Die letzten beiden laufen ueber echte
+  # Sockets und sind seit M4-09 dabei -- vorher pruefte die CI nur, was auf
+  # dem Papier steht.
   #
   # `src/net/protocol.lua` serialisiert mit `love.data.pack` und laeuft deshalb
   # nicht im LuaJIT-Lauf oben. Genau diese Suite beantwortet aber den offenen
@@ -52,7 +63,7 @@ jobs:
   # der Lauf auf einem Laeufer ohne Bildschirm nicht moeglich.
   # ---------------------------------------------------------------------------
   protocol:
-    name: Protokoll-Bytes (${{ matrix.os }})
+    name: Protokoll und Sockets (${{ matrix.os }})
     needs: test
     strategy:
       fail-fast: false
@@ -93,6 +104,61 @@ jobs:
           if [ $code -ne 0 ] || [ ! -s test.log ]; then
             printf '::error title=%s::' "Protokolltest ${{ matrix.os }} (Code $code)"
             tail -30 test.log | while IFS= read -r line; do printf '%s%%0A' "$line"; done
+            printf '\n'
+          fi
+          exit $code
+
+      # -----------------------------------------------------------------------
+      # Die beiden Selbsttests ueber echte Sockets (M2-10, M4-09)
+      #
+      # `--test` prueft Regeln, Bracket und Nachrichtenformat. Was es NICHT
+      # anfasst, ist der Weg ueber die Leitung -- und genau der ist bei M4-09
+      # die interessantere Haelfte: Handschlag, Discovery, Eingabefluss,
+      # Snapshotweg (T-N-08, T-N-10) und die vier parallelen Turniermatches mit
+      # gleichzeitigem Ergebnisversand (T-N-11) samt drei gleichzeitigen
+      # Turnieren im selben Netz (T-N-09).
+      #
+      # Beide binden ausschliesslich Loopback und eigene Ports (21292/21293
+      # bzw. 21294/21295), damit sie weder einander noch eine laufende Partie
+      # stoeren. Sie brauchen kein Fenster.
+      #
+      # WAS DIESER SCHRITT NICHT BEANTWORTET: N-04 und N-05. Ein Laeufer hat
+      # keine Firewall und keine zweite Maschine; dass ENet hier eine
+      # eingehende Verbindung annimmt, sagt ueber einen fremden Mac nichts.
+      # Seit M4-09 haengt daran mehr als vorher, weil ein Match-Wirt einen
+      # EPHEMEREN Port oeffnet und nicht mehr nur 21212 freizugeben ist
+      # (`05_TOURNAMENT` §8.2). Das bleibt Abnahme D2 auf zwei Rechnern.
+      #
+      # Sollte einer der beiden hier je sporadisch scheitern, ist die erste
+      # Frage, ob ein Port belegt war -- dann meldet er "laesst sich nicht
+      # binden" und nicht ein stilles Fehlergebnis.
+      # -----------------------------------------------------------------------
+      - name: Netz-Selbsttest
+        shell: bash
+        run: |
+          set +e
+          "$LOVE_BIN" . --net-selftest > net.log 2>&1
+          code=$?
+          cat net.log
+          if [ $code -ne 0 ] || [ ! -s net.log ]; then
+            printf '::error title=%s::' "Netz-Selbsttest ${{ matrix.os }} (Code $code)"
+            grep -E '^  FAIL|^\[net\]' net.log | tail -30 \
+              | while IFS= read -r line; do printf '%s%%0A' "$line"; done
+            printf '\n'
+          fi
+          exit $code
+
+      - name: Turnier-Selbsttest
+        shell: bash
+        run: |
+          set +e
+          "$LOVE_BIN" . --tournament-selftest > tournament.log 2>&1
+          code=$?
+          cat tournament.log
+          if [ $code -ne 0 ] || [ ! -s tournament.log ]; then
+            printf '::error title=%s::' "Turnier-Selbsttest ${{ matrix.os }} (Code $code)"
+            grep -E '^  FAIL|^\[turnier\]' tournament.log | tail -30 \
+              | while IFS= read -r line; do printf '%s%%0A' "$line"; done
             printf '\n'
           fi
           exit $code

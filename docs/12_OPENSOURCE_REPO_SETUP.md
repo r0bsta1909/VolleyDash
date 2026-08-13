@@ -92,7 +92,25 @@ Für ein Open-Source-Projekt reicht „läuft auf meinem Mac" nicht. Der Build m
 | Auslöser | Aktion |
 |----------|--------|
 | Push auf `main`, Pull Request | Headless-Tests (`tests/run_headless.lua`) unter LuaJIT. Schnell, kein LÖVE nötig |
+| dieselben | **Job `protocol`** auf `windows-latest` und `macos-latest`: `--test` (Protokollbytes, T-N-07), `--net-selftest` und `--tournament-selftest` |
 | Tag `v*` | Vollbuild Windows + macOS, Artefakte an GitHub Release anhängen |
+
+**Nachtrag 2026-08-13 (M4-09): die zwei Selbsttests laufen jetzt mit.** Bis dahin prüfte die CI
+nur, was ohne Leitung entscheidbar ist — bei einem Turnier mit verteilten Match-Hosts ist das
+die kleinere Hälfte. `--net-selftest` deckt Handschlag, Discovery, Eingabefluss und Snapshotweg
+ab (T-N-08, T-N-10), `--tournament-selftest` vier parallele Matches mit gleichzeitigem
+Ergebnisversand (T-N-11) und drei gleichzeitige Turniere im selben Netz (T-N-09). Beide binden
+ausschließlich Loopback und eigene Ports, brauchen kein Fenster und laufen in Sekunden.
+
+**Was sie ausdrücklich nicht beantworten:** N-04 und N-05. Ein Läufer hat keine Firewall und
+keine zweite Maschine. Seit M4-09 hängt daran mehr als vorher, weil ein Match-Host einen
+**ephemeren** Port öffnet und nicht mehr nur 21212 freizugeben ist (`05_TOURNAMENT` §8.2). Das
+bleibt Abnahme D2 auf zwei Rechnern.
+
+**Offen und bewusst nicht nebenbei geändert:** Die Build-Jobs hängen an `test`, nicht an
+`protocol`. Ein gescheiterter Protokoll- oder Socket-Lauf hält damit **kein** Release auf. Das
+war schon vor M4-09 so; ob es so bleiben soll, ist eine eigene Entscheidung — und mit den
+Socket-Läufen im Job ist die Frage teurer geworden als vorher.
 
 **Job Windows:** Läuft auf `ubuntu-latest`. Offizielle LÖVE-Win64-ZIP laden, `cat love.exe game.love > VolleyDash.exe`, DLLs und `license.txt` beipacken, zippen. Kein Windows-Runner nötig — <cite index="38-1">der Windows-Build lässt sich von Linux oder macOS aus mit `cat love.exe SuperGame.love > SuperGame.exe` erzeugen.</cite>
 

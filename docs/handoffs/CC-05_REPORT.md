@@ -408,6 +408,8 @@ wie `CLAUDE.md` §5 es verlangt, und sie wurden vorher freigegeben (§5.3).
 | `05_TOURNAMENT` §12 | **T-01 auf ERLEDIGT**, mit den zwei Berichtigungen gegenüber dem ursprünglichen Vorschlag (Median statt Mittel, Setznummer statt `participantId`) |
 | `04_NETCODE` §5 | **0x41 bis 0x46** in der Nachrichtentabelle, die **`s4`-Ausnahme** für 0x40 mit Begründung und Begrenzung, und der Absatz, warum `HELLO`/`REJECT` wiederverwendet werden |
 | `08_ROADMAP` §2 | M4-09 auf ✅, Absatz „Stufe C ist abgeschlossen", T-N-09 erledigt |
+| `12_OPENSOURCE` §5 | Die beiden Selbsttests laufen in der CI, mit dem, was sie **nicht** beantworten (N-04, N-05) und dem offenen Punkt der Release-Gatterung |
+| `.github/workflows/build.yml` | Job `protocol` heißt jetzt „Protokoll und Sockets" und führt `--net-selftest` und `--tournament-selftest` aus |
 | `CLAUDE.md` §12 | Wie der Turniermodus über das Netz läuft, die zwei neuen Abnahmebefehle |
 | `CHANGELOG.md` | `[Unreleased]` um Stufe C ergänzt, C-T-01 unter „Behoben" |
 
