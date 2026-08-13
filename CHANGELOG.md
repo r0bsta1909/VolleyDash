@@ -9,6 +9,10 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
+> Die Arbeitsversion heißt **`0.4.0-dev`**. Ein daraus gebautes Paket ist ausdrücklich **kein**
+> Release — es trägt den Zusatz im Dateinamen, damit es nicht mit `0.3.0` verwechselt wird
+> (`12_OPENSOURCE` §7).
+
 Turniermodus (M4), **Stufe A bis C**: das Turnier, seine Bedienung und das Netz. Menü →
 NETWORK MATCH → „Turnier" richtet aus; wer beitreten will, findet das Turnier in der
 Serverliste wie eine Lobby. Gespielt wird **im** Turnier: Der Turnier-Host ruft auf, einer der

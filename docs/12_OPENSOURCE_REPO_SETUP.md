@@ -162,13 +162,26 @@ Das ist ein anderes Dokument als der interne Index. Reihenfolge nach dem, was ei
 
 ```
 1. CHANGELOG.md ergänzen (Keep-a-Changelog)
-2. VERSION aktualisieren
+2. VERSION aktualisieren (`-dev`-Zusatz entfernen, siehe unten)
 3. git tag -a v1.0.0 -m "Volley Dash 1.0.0"
 4. git push --tags
 5. CI baut, hängt VolleyDash-1.0.0-win64.zip und -macos.zip an den Release
 6. Release-Notes: Änderungen + die zwei Startanleitungen (Win entpacken, Mac Rechtsklick)
 7. Lokal gegenprüfen: beide Artefakte auf einem FREMDEN Rechner starten
+8. VERSION auf die nächste Fassung mit `-dev` setzen
 ```
+
+**Zwischen zwei Releases trägt `VERSION` einen `-dev`-Zusatz** (Nachtrag 2026-08-13, M4-09).
+Grund ist ein gemessener Stolperstein: Ein manuell gebautes Testpaket hieß
+`VolleyDash-0.3.0-win64.zip` und war **nicht** das Release 0.3.0 — verwechseln ließ es sich zwar
+nicht (der Build-Hash unterscheidet sie und der Beitritt vergleicht ihn, M2-07), aber der Name
+log. Mit `0.4.0-dev` heißt die Datei, was sie ist.
+
+**Der Zusatz gehört nicht in die `Info.plist`.** Apple lässt in `CFBundleShortVersionString`
+und `CFBundleVersion` ein bis drei durch Punkte getrennte Zahlen zu. `tools/patch_plist.py`
+schneidet den Zusatz deshalb ab und trägt `0.4.0` ein. Ad-hoc signiert und außerhalb des App
+Store startet die App auch mit einem unsauberen Wert — aber ein Feld, das nur „meistens"
+akzeptiert wird, ist genau die Sorte Fehler, die erst auf einem fremden Mac auffällt.
 
 Schritt 7 ist nicht optional. Ein CI-Build, der grün ist, hat noch nichts über Gatekeeper und SmartScreen bewiesen.
 

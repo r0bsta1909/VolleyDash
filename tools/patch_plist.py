@@ -26,9 +26,22 @@ Das erledigt build.sh unmittelbar danach.
 """
 
 import argparse
+import re
 import plistlib
 import sys
 from pathlib import Path
+
+
+def plist_version(value):
+    """Der Anteil von VERSION, den eine Info.plist tragen darf.
+
+    "0.4.0-dev" -> "0.4.0", "1.0.0" -> "1.0.0". Bleibt nach dem Abschneiden
+    nichts Brauchbares uebrig, wird "0" geliefert -- ein leeres Feld waere
+    schlechter als ein offensichtlich falsches.
+    """
+    head = re.split(r"[^0-9.]", str(value), 1)[0].strip(".")
+    parts = [p for p in head.split(".") if p.isdigit()][:3]
+    return ".".join(parts) if parts else "0"
 
 
 def main() -> int:
@@ -62,9 +75,22 @@ def main() -> int:
         changed.append(f"CFBundleName={args.name}")
 
     if args.version:
-        plist["CFBundleShortVersionString"] = args.version
-        plist["CFBundleVersion"] = args.version
-        changed.append(f"Version={args.version}")
+        # Apple laesst in CFBundleShortVersionString und CFBundleVersion "ein
+        # bis drei durch Punkte getrennte Zahlen" zu. Zwischen zwei Releases
+        # traegt VERSION aber einen Zusatz -- "0.4.0-dev" -- damit ein Testpaket
+        # nicht aussieht wie das letzte Release (`12_OPENSOURCE` §7). Der
+        # Zusatz wird hier abgeschnitten: Er gehoert in den Dateinamen und ins
+        # Menue, nicht in das Feld, das ein Betriebssystem auswertet.
+        #
+        # Ad-hoc signiert und ausserhalb des App Store startet die App auch mit
+        # einem unsauberen Wert -- aber ein Feld, das nur "meistens" akzeptiert
+        # wird, ist genau die Sorte Fehler, die erst auf einem fremden Mac
+        # auffaellt (ADR-012).
+        numeric = plist_version(args.version)
+        plist["CFBundleShortVersionString"] = numeric
+        plist["CFBundleVersion"] = numeric
+        changed.append(f"Version={numeric}"
+                       + ("" if numeric == args.version else f" (aus {args.version})"))
 
     if args.remove_uti:
         if plist.pop("UTExportedTypeDeclarations", None) is not None:
