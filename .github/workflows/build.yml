@@ -104,13 +104,18 @@ jobs:
         shell: bash
         run: |
           set +e
-          "$LOVE_BIN" . --test > test.log 2>&1
-          code=$?
-          cat test.log
+          # `tee` statt `>`: Bei einer Zeitschranke bricht der Laeufer den
+          # Schritt MITTEN im Lauf ab, und ein nachgelagertes `cat` kommt dann
+          # nie dran. Genau so ist Lauf 35 ausgegangen -- drei Minuten, null
+          # Zeilen. Mit `tee` steht alles schon im Joblog, waehrend es passiert.
+          "$LOVE_BIN" . --test 2>&1 | tee test.log
+          code=${PIPESTATUS[0]}
           if [ $code -ne 0 ] || [ ! -s test.log ]; then
             printf '::error title=%s::' "Protokolltest ${{ matrix.os }} (Code $code)"
-            tail -30 test.log | while IFS= read -r line; do printf '%s%%0A' "$line"; done
-            printf '\n'
+            grep -E '^  FAIL|bestanden' test.log | tail -30 | while IFS= read -r line; do
+              printf '%s%%0A' "$line"
+            done
+            echo
           fi
           exit $code
 
@@ -149,14 +154,18 @@ jobs:
         shell: bash
         run: |
           set +e
-          "$LOVE_BIN" . --net-selftest > net.log 2>&1
-          code=$?
-          cat net.log
+          # `tee` statt `>`: Bei einer Zeitschranke bricht der Laeufer den
+          # Schritt MITTEN im Lauf ab, und ein nachgelagertes `cat` kommt dann
+          # nie dran. Genau so ist Lauf 35 ausgegangen -- drei Minuten, null
+          # Zeilen. Mit `tee` steht alles schon im Joblog, waehrend es passiert.
+          "$LOVE_BIN" . --net-selftest 2>&1 | tee net.log
+          code=${PIPESTATUS[0]}
           if [ $code -ne 0 ] || [ ! -s net.log ]; then
             printf '::error title=%s::' "Netz-Selbsttest ${{ matrix.os }} (Code $code)"
-            grep -E '^  FAIL|^\[net\]' net.log | tail -30 \
-              | while IFS= read -r line; do printf '%s%%0A' "$line"; done
-            printf '\n'
+            grep -E '^  FAIL|^\[net\]' net.log | tail -30 | while IFS= read -r line; do
+              printf '%s%%0A' "$line"
+            done
+            echo
           fi
           exit $code
 
@@ -165,14 +174,18 @@ jobs:
         shell: bash
         run: |
           set +e
-          "$LOVE_BIN" . --tournament-selftest > tournament.log 2>&1
-          code=$?
-          cat tournament.log
+          # `tee` statt `>`: Bei einer Zeitschranke bricht der Laeufer den
+          # Schritt MITTEN im Lauf ab, und ein nachgelagertes `cat` kommt dann
+          # nie dran. Genau so ist Lauf 35 ausgegangen -- drei Minuten, null
+          # Zeilen. Mit `tee` steht alles schon im Joblog, waehrend es passiert.
+          "$LOVE_BIN" . --tournament-selftest 2>&1 | tee tournament.log
+          code=${PIPESTATUS[0]}
           if [ $code -ne 0 ] || [ ! -s tournament.log ]; then
             printf '::error title=%s::' "Turnier-Selbsttest ${{ matrix.os }} (Code $code)"
-            grep -E '^  FAIL|^\[turnier\]' tournament.log | tail -30 \
-              | while IFS= read -r line; do printf '%s%%0A' "$line"; done
-            printf '\n'
+            grep -E '^  FAIL|^\[turnier\]' tournament.log | tail -30 | while IFS= read -r line; do
+              printf '%s%%0A' "$line"
+            done
+            echo
           fi
           exit $code
 

@@ -12,8 +12,18 @@
 -- Dasselbe gilt fuer den Netzwerk-Harness aus M2-10: er faehrt Simulation und
 -- Transport, aber nichts, was jemand ansehen muesste.
 -- `arg` steht in love.conf bereits zur Verfuegung.
+--
+-- WER HIER EIN FLAG VERGISST, MERKT ES ERST AUF EINEM LAEUFER OHNE BILDSCHIRM.
+-- Gemessen 2026-08-13: `--tournament-selftest` fehlte in dieser Liste. Lokal
+-- lief er deshalb mit Fenster durch und niemandem fiel etwas auf; in der CI
+-- blieb der Schritt drei Minuten stehen, bis die Zeitschranke ihn abbrach.
+-- Faustregel: Ein Flag, das `M.runTools` bedient, gehoert hierher -- die
+-- Autopiloten (`--net-auto-*`, `--tournament-auto=`) ausdruecklich NICHT, die
+-- fahren das echte Spiel und brauchen das Bild.
 local HEADLESS = {
-    "--test", "--test-no-love", "--net-selftest", "--net-host", "--net-client",
+    "--test", "--test-no-love",
+    "--net-selftest", "--net-host", "--net-client",
+    "--tournament-selftest",
 }
 
 local function isTestRun()

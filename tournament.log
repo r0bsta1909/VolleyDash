@@ -1,0 +1,64 @@
+[turnier] Selbsttest -- Turnier-Wirt, sieben Teilnehmer, ein Prozess
+[turnier] love 11.5.0
+  ok    src/app/scenes/tournament.lua laesst sich uebersetzen
+  ok    src/render/bracket_view.lua laesst sich uebersetzen
+  ok    src/net/match_runner.lua laesst sich uebersetzen
+[turnier] T-N-09 -- drei gleichzeitige Turniere im selben Netz
+  ok    Browser bindet einen fluechtigen Port
+  ok    der Browserport ist ablesbar
+  ok    Bake 1 bindet einen eigenen Port
+  ok    Bake 2 bindet einen eigenen Port
+  ok    Bake 3 bindet einen eigenen Port
+  ok    alle drei erscheinen in der Liste, gefunden: 3
+  ok    drei verschiedene Turniernamen: 3
+  ok    drei verschiedene ENet-Ports: 3
+  ok    drei verschiedene hostIds: 3
+  ok    alle drei sind als Turnier gekennzeichnet
+  ok    eine zweite Antwort desselben Turniers ergibt keinen zweiten Eintrag: 3
+[turnier] T-N-11 -- vier parallele Matches, gleichzeitiger Versand
+  ok    Turnier-Wirt bindet Port 21294
+  ok    Teilnehmer 2 oeffnet einen Socket
+  ok    Teilnehmer 3 oeffnet einen Socket
+  ok    Teilnehmer 4 oeffnet einen Socket
+  ok    Teilnehmer 5 oeffnet einen Socket
+  ok    Teilnehmer 6 oeffnet einen Socket
+  ok    Teilnehmer 7 oeffnet einen Socket
+  ok    Teilnehmer 8 oeffnet einen Socket
+  ok    alle sieben melden sich ueber das Netz an
+  ok    acht Teilnehmer, war 8
+  ok    der Turnierstand kommt bei allen an
+  ok    ausgelost
+  ok    Match-Wirt fuer m_103 bindet einen ephemeren Port
+  ok      und zwar NICHT 21294, sondern 62899
+  ok    Match-Wirt fuer m_104 bindet einen ephemeren Port
+  ok      und zwar NICHT 21294, sondern 62900
+  ok    Match-Wirt fuer m_102 bindet einen ephemeren Port
+  ok      und zwar NICHT 21294, sondern 62901
+  ok    Gast verbindet sich zu 127.0.0.1:62901
+  ok    Gast verbindet sich zu 127.0.0.1:62900
+  ok    Gast verbindet sich zu 127.0.0.1:62899
+  ok    die Auslosung kommt bei allen an
+  ok    alle sehen dasselbe Bracket
+  ok    vier Matches gleichzeitig aufgerufen, waren 4
+  ok    der Leiter ist selbst in einem Match
+  ok    der Turnier-Wirt hostet sein eigenes Match (ADR-022)
+  ok    Match-Wirt fuer m_101 bindet einen ephemeren Port
+  ok      und zwar NICHT 21294, sondern 55129
+  ok    der Leiter veroeffentlicht seinen eigenen Match-Port
+  ok    Gast verbindet sich zu 127.0.0.1:55129
+  ok    alle vier Matches laufen, waren 4
+  ok    jedes laufende Match hat genau einen Wirt und einen Gast
+  ok    die Simulation liefert Statistiken: 2.4 s / 773 px/s
+  ok    alle vier Ergebnisse sind gewertet
+  ok    alle vier stehen richtig im Bracket, richtig: 4
+  ok    die Simulationsstatistiken sind mitgekommen: 4
+  ok    und stehen bei den Spielern (Siegerehrung)
+  ok    Match-Wirt fuer m_106 bindet einen ephemeren Port
+  ok      und zwar NICHT 21294, sondern 62348
+  ok    Gast verbindet sich zu 127.0.0.1:62348
+  ok    das Halbfinale ist aufgerufen, Matches: 2
+  ok    der neue Stand ist bei allen angekommen
+  ok    alle leiten denselben Zustand ab (ADR-023)
+  ok    kein Ereignis ist unterwegs verlorengegangen
+  ok    ein Unbeteiligter kann kein Ergebnis melden (E-08)
+[turnier] alles bestanden

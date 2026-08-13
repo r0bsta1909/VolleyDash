@@ -373,12 +373,15 @@ von F-T-10).
 
 ### Aus dem ersten CI-Lauf mit den Selbsttests (Lauf 34)
 
-Zwei Befunde, und der erste ist ein Fehler in meinem **Test**, nicht im Produkt.
+Drei Befunde, und keiner davon ist ein Fehler im Produkt: einer sitzt im Test, einer in der
+Konfiguration des Testlaufs, einer in der Diagnose. Der Reihe nach aufgetreten, weil jeder den
+nächsten erst sichtbar gemacht hat.
 
 | ID | Befund | Erledigt |
 |----|--------|---|
 | **C-T-06** | **T-N-09 prüfte eine Lage, die es nie gibt.** Der erste Aufbau ließ drei Baken **denselben** Discovery-Port binden. Unter Windows und Linux geht das mit `SO_REUSEADDR`, unter macOS nicht — und die CI hat es zu Recht gemeldet. Der Punkt ist aber nicht die Portteilung: Am Partyabend stehen die drei Turniere auf **drei Rechnern**, und dort bindet jeder seinen Port allein. Ein Test, der drei Binds auf einem Port erzwingt, prüft eine Lage, die nicht vorkommt, und fällt dann ausgerechnet auf der Plattform um, auf der er es am wenigsten soll. **Das Produkt war nie betroffen** — `newBrowser` verträgt einen gescheiterten Zweitbind seit M2 ausdrücklich. Neu gebaut nach dem, was T-N-09 wirklich fragt: Hält der Browser drei Turniere auseinander? Die Baken binden dafür flüchtige Ports und schicken ihre Ankündigung direkt an den Browser — genau das tun sie in echt auch, wenn sie einen `PROBE` unicast beantworten. Dazu ein Fall mehr als vorher: **dieselbe `hostId` zweimal ergibt keinen zweiten Eintrag** | behoben |
-| **C-T-07** | **Ein hängender Lauf hinterließ ein leeres Protokoll.** Auf `windows-latest` blieb der Job nach acht Minuten ohne eine Zeile Ausgabe stehen. Grund ist nicht der Hänger selbst, sondern dass LÖVE seine Ausgabe im Redirect puffert — es gab also genau dann nichts zu lesen, wenn man es gebraucht hätte. Beide Selbsttests schalten die Pufferung jetzt ab, und beide Schritte sind zeitbeschränkt (3 min), damit ein Hänger meldet statt zu stehen. **Die Ursache des Hängers selbst ist damit noch nicht benannt** — der nächste Lauf sagt, wo er stehenbleibt | Diagnose vorbereitet, Ursache offen |
+| **C-T-07** | **`--tournament-selftest` fehlte in der Headless-Liste von `conf.lua`.** Der Lauf startete damit **mit Fenster, Grafik und Audio** — auf einem Läufer ohne Bildschirm bleibt er stehen, bis die Zeitschranke ihn abbricht. Lokal fiel nichts auf, weil hier ein Desktop existiert. Behoben; `conf.lua` trägt jetzt die Faustregel dazu: Ein Flag, das `M.runTools` bedient, gehört in die Liste — die Autopiloten (`--net-auto-*`, `--tournament-auto=`) ausdrücklich nicht, die fahren das echte Spiel und brauchen das Bild |
+| **C-T-08** | **Ein abgebrochener Schritt hinterließ ein leeres Protokoll — zweimal hintereinander.** Erst puffert LÖVE seine Ausgabe im Redirect (behoben mit `setvbuf`), dann brach die Zeitschranke den Schritt ab, **bevor** das nachgelagerte `cat` drankam — drei Minuten, null Zeilen. Beides ist derselbe Denkfehler: Diagnose, die erst nach dem Lauf passiert, gibt es bei einem Abbruch nicht. Die Schritte benutzen jetzt `tee`; damit steht alles im Joblog, **während** es passiert |
 
 ### Bestätigt, nicht neu
 

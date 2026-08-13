@@ -114,9 +114,17 @@ erst entstehen.
 
 **Beide Socket-Schritte sind zeitbeschränkt** (3 min, der Protokollschritt 5 min). Lokal laufen
 sie in unter zwanzig Sekunden; was länger braucht, hängt und soll das melden, statt bis zum
-Sechs-Stunden-Limit des Läufers zu stehen. Beide Selbsttests schalten außerdem die Pufferung
-ihrer Ausgabe ab — umgeleitet hinterlässt ein hängender Lauf sonst ein **leeres** Protokoll,
-also genau dann nichts, wenn man es braucht (gemessen an Lauf 34, 2026-08-13).
+Sechs-Stunden-Limit des Läufers zu stehen.
+
+**Die Schritte schreiben mit `tee`, nicht mit `>`.** Ein Abbruch durch die Zeitschranke trifft
+den Schritt mitten im Lauf; ein nachgelagertes `cat` kommt dann nie dran, und übrig bleibt ein
+leeres Protokoll. Dazu schalten beide Selbsttests die Pufferung ihrer Ausgabe ab. Beides ist
+derselbe Punkt: **Diagnose, die erst nach dem Lauf passiert, gibt es bei einem Abbruch nicht.**
+
+**Ein neues Flag gehört in die Headless-Liste in `conf.lua`.** Fehlt es dort, startet der Lauf
+mit Fenster, Grafik und Audio — lokal fällt das nicht auf, auf einem Läufer ohne Bildschirm
+bleibt er stehen. Faustregel: Was `M.runTools` bedient, gehört in die Liste; die Autopiloten
+nicht, die brauchen das Bild.
 
 **Job Windows:** Läuft auf `ubuntu-latest`. Offizielle LÖVE-Win64-ZIP laden, `cat love.exe game.love > VolleyDash.exe`, DLLs und `license.txt` beipacken, zippen. Kein Windows-Runner nötig — <cite index="38-1">der Windows-Build lässt sich von Linux oder macOS aus mit `cat love.exe SuperGame.love > SuperGame.exe` erzeugen.</cite>
 
