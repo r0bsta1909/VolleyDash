@@ -7,6 +7,46 @@ Alle nennenswerten Änderungen an Volley Dash. Format nach
 Bis 0.1.0 ist das Spiel nicht öffentlich verteilt worden — der erste Eintrag umfasst
 deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
+## [Unreleased]
+
+Netzwerk-Politur (M3). Der Gast war bisher Zuschauer seines eigenen Blobs: Er drückte eine
+Taste und sah die Wirkung zwei Ticks später, und sein Bild blieb still — kein Staub, kein
+Klang. Beides ist behoben.
+
+### Hinzugefügt
+
+- **Der Gast bewegt seinen eigenen Blob sofort.** Er rechnet ihn lokal mit **derselben
+  Physik** wie der Host (`src/net/prediction.lua` ruft `src/sim/` auf, statt es nachzubauen).
+  Ball, Gegner und Punktestand kommen unverändert allein vom Host — die Simulation bleibt
+  host-autoritativ (ADR-002). Weicht die Vorhersage um mehr als 2 px ab, wird das über vier
+  Ticks ausgeglichen, ohne dass das Bild springt. Verglichen wird dabei zeitrichtig: gegen den
+  Eingabetick, den der Host im Snapshot bestätigt — sonst meldete jede Laufbewegung einen
+  Fehler, den niemand gemacht hat (ADR-017).
+- **Der Gast sieht Staub und hört Klänge.** Wandtreffer, Netztreffer, Blobtreffer, Sprung,
+  Landung, Dash, Aufschlag, Fehlerwurf und Punkt werden aus dem Unterschied zweier Snapshots
+  abgeleitet (`src/render/snapshot_events.lua`). Kein zusätzliches Byte auf der Leitung.
+- **Desync-Detektor.** Der Host schickt zweimal je Sekunde eine Prüfsumme über die gepackten
+  Snapshot-Bytes; der Gast packt den gelesenen Snapshot erneut und vergleicht. Das findet den
+  Fall, den der Build-Hash bisher nur **warnte**: zwei Rechner mit verschiedenen Ständen, bei
+  denen der Gast still etwas Falsches anzeigt (ADR-018).
+- **F4 im Netzspiel schreibt einen Messmitschnitt** nach `netlog.csv` — einmal je Sekunde die
+  Werte aus dem F3-Overlay. Für die WLAN-Messung: eine Messreihe statt eines abfotografierten
+  Overlays.
+- Das F3-Overlay füllt das Feld **KORREKTUR** und zeigt zusätzlich **DESYNC**. Zwei
+  Fehlerklassen, zwei Zahlen — ein gemeinsamer Wert sagt im Fehlerfall nicht, welche schuld ist.
+
+### Geändert
+
+- Der Gast greift das Bild jetzt in **jedem** Tick zur Interpolation ab, nicht nur beim
+  Eintreffen eines Snapshots. Bleibt ein Snapshot aus, steht der Ball damit still, statt
+  zwischen zwei alten Ständen hin und her zu gleiten.
+
+### Offen
+
+- Ob die Vorhersage über **WLAN** bei 20–40 ms reicht oder ob der Ball zusätzlich
+  extrapoliert werden muss, ist eine Messfrage und braucht zwei Geräte
+  (`docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`).
+
 ## [0.2.2] — 2026-08-12
 
 **Erste öffentlich veröffentlichte Fassung.** Zweite Nachbesserung aus dem LAN-Test. Die Discovery-Fehler aus 0.2.1 sind bestätigt behoben —

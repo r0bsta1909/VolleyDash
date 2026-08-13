@@ -111,14 +111,20 @@ M3-04 ohnehin Hardware zusammenbringt.
 **Geschlossen in M2:** N-03 (gleiche Bytes auf Windows und macOS) — beantwortet durch T-N-07
 in der CI, mit einer gefundenen Ausnahme beim Vorzeichen der Null (`04_NETCODE` §6).
 
-### M3 — Netzwerk-Politur (10–15 h) — **als Nächstes**, Auftrag: `docs/handoffs/CC-04_M3_NETZPOLITUR.md`
+### M3 — Netzwerk-Politur (10–15 h) — **Code fertig, eine Messung offen**, Auftrag: `docs/handoffs/CC-04_M3_NETZPOLITUR.md`, Bericht: `docs/handoffs/CC-04_REPORT.md`
 
-| ID | Aufgabe | h |
-|----|---------|---|
-| M3-01 | Client-Vorhersage des eigenen Blobs + sanfte Korrektur | 5 |
-| M3-02 | Kosmetik-Ereignisse aus Snapshot-Deltas ableiten (Partikel, Sound) | 3 |
-| M3-03 | Checksum-/Vorhersagefehler-Überwachung + `desync.log` | 2 |
-| M3-04 | WLAN-Test bei RTT 20–40 ms, Bewertung offener Punkt N-01 | 3 |
+| ID | Aufgabe | h | Stand |
+|----|---------|---|---|
+| M3-01 | Client-Vorhersage des eigenen Blobs + sanfte Korrektur | 5 | **fertig** — `src/net/prediction.lua`, ruft die Simulation auf statt sie zu kopieren (ADR-017) |
+| M3-02 | Kosmetik-Ereignisse aus Snapshot-Deltas ableiten (Partikel, Sound) | 3 | **fertig** — `src/render/snapshot_events.lua`, `love`-frei und im Headless-Runner |
+| M3-03 | Checksum-/Vorhersagefehler-Überwachung + `desync.log` | 2 | **fertig** — djb2 über die gepackten Snapshot-Bytes (ADR-018), zwei getrennte Zähler |
+| M3-04 | WLAN-Test bei RTT 20–40 ms, Bewertung offener Punkt N-01 | 3 | **offen: braucht ein WLAN und zwei Menschen.** Vorbereitet: Mitschnitt auf F4, Messanleitung mit vorab festgelegter Entscheidungsregel (`CC-04_WLAN_MESSANLEITUNG.md`) |
+
+**Tests:** 214 bestanden (vorher 179), 183 ohne `love` (vorher 148), Netz-Selbsttest 47 Prüfungen
+(vorher 37), `verify_replays.py` meldet OK.
+
+**Weiterhin offen aus M2:** T-N-02, T-N-03 (Paketverlust mit `clumsy`) und T-N-09 (drei Lobbys).
+Sie hängen an derselben Hardware wie M3-04 und stehen als §6 in der Messanleitung.
 
 ### M4 — Turniermodus (36–48 h)
 

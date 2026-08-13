@@ -50,6 +50,8 @@ volley-dash/
 │   │   ├── snapshot.lua      # State <-> flache Snapshot-Tabelle (M2-01)     [rein]
 │   │   ├── input_queue.lua   # Jitter-Puffer + Repeat-Last je Slot (M2-02)   [rein]
 │   │   ├── lobby.lua         # Lobby-Zustand, Slots, Ready-Status            [rein]
+│   │   ├── prediction.lua    # Vorhersage des eigenen Blobs (M3-01)         [rein]
+│   │   ├── checksum.lua      # djb2 fuer den Desync-Detektor (M3-03)        [rein]
 │   │   ├── host.lua          # Autoritative Instanz: Sim + Snapshot-Versand  [enet]
 │   │   ├── client.lua        # Input-Versand, Snapshot-Empfang, Interpolation[enet]
 │   │   └── discovery.lua     # UDP-Broadcast Announce/Probe                  [socket]
@@ -64,6 +66,9 @@ volley-dash/
 │   │   ├── viewport.lua      # Letterbox-Transformation 800×600 → Fenster
 │   │   ├── game_view.lua     # Blobs, Ball, Netz, Schatten
 │   │   ├── fx.lua            # Partikel, Kamera-Shake
+│   │   ├── fx_events.lua     # Ereignis → Staub, Klang, Wackeln (M2-06)     [love]
+│   │   ├── snapshot_events.lua # Ereignisse aus zwei Snapshots (M3-02)      [rein]
+│   │   ├── netstat.lua       # F3-Overlay, F4-Mitschnitt (M2-09, M3)        [love]
 │   │   ├── hud.lua           # Punkte, Berührungen, Match-Kontext
 │   │   └── bracket_view.lua  # Turnierbaum-Darstellung
 │   │
@@ -94,6 +99,12 @@ volley-dash/
 ```
 
 **Ergänzung M2-01 — warum `src/net/` sieben statt fünf Dateien hat.** Die Klammer hinter jeder Datei nennt, wovon sie abhängt. `protocol.lua` braucht `love.data.pack`, `host.lua`/`client.lua` brauchen `enet`, `discovery.lua` braucht `socket` — diese vier sind im Testrunner der Ebenen A und B nicht lauffähig. Alles, was **entscheidet** statt zu transportieren, ist deshalb herausgezogen und rein: die Abbildung Zustand ↔ Snapshot (`snapshot.lua`, dort sitzt die Phasenkodierung), der Jitter-Puffer mit Repeat-Last (`input_queue.lua`) und der Lobbyzustand (`lobby.lua`). Genau diese drei tragen die Fehler, die am Partyabend teuer sind, und genau sie laufen headless unter `luajit tests/run_headless.lua`.
+
+**Ergänzung M3 — die Regel gilt weiter, und sie hat einen Fall über die Ordnergrenze hinweg.** `prediction.lua` und `checksum.lua` sind nach derselben Frage geschnitten: Sie entscheiden (wann korrigiert wird, ob die Bytes stimmen) und sind deshalb rein und headless prüfbar. Der Transport bleibt in `host.lua`/`client.lua`.
+
+`snapshot_events.lua` liegt dagegen unter `render/`, weil es Kosmetik erzeugt — und ist trotzdem `love`-frei. Das ist kein Widerspruch: Der Ordner sagt, *wozu* eine Datei gehört, die Klammer sagt, *wovon sie abhängt*. Die Ableitung „Ball war rechts von der Wand, jetzt links → Wandtreffer" ist eine reine Funktion über zwei Tabellen und gehört damit in den Testrunner; `04_NETCODE_SPEC` §6 nannte bis M3 `fx.lua` als Ort, und das wäre der falsche gewesen — `fx.lua` zeichnet.
+
+**Ausnahme, protokolliert:** `src/sim/step.lua` macht seit M3-01 zwei lokale Funktionen sichtbar (`applyImpulses`, `updateBlobTimers`), damit die Vorhersage die Simulation *aufrufen* kann, statt sie nachzubauen. Zwei Zuweisungen, keine Zeile Logik, kein Zahlenwert — Begründung in ADR-017.
 
 `src/lib/json.lua` stand hier bis M2-01 und ist gestrichen — ADR-016.
 

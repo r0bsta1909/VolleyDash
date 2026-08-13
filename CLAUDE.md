@@ -222,10 +222,17 @@ Handoff nach `docs/handoffs/CC-XX_REPORT.md`.
 `export PATH="$PATH:/c/Program Files (x86)/GnuWin32/bin"` (oder `ZIP_BIN` setzen).
 Der macOS-Zweig läuft nur auf einem macOS-Runner — `codesign` gibt es lokal nicht.
 
-Im Netzspiel zeigt **F3** RTT, Verlust, Tick und Puffer (M2-09) — genau die Werte, nach denen
-die Fehlervorlage fragt. Zwei Instanzen auf **einem** Rechner teilen sich die Prefs-Datei und
-damit die Spielerkennung; die Testflags nehmen deshalb `--client-id=N`. Paketverlust wird unter
-Windows mit `clumsy` erzeugt, Filter und Begründung stehen im Kopf von `tools/net_test.sh`.
+Im Netzspiel zeigt **F3** RTT, Verlust, Tick, Puffer und seit M3 die beiden Fehlerzähler
+KORREKTUR (Vorhersage, §8) und DESYNC (Protokoll, §9) — genau die Werte, nach denen die
+Fehlervorlage fragt. **F4** schreibt dieselben Werte einmal je Sekunde nach `netlog.csv` in den
+Save-Ordner; das ist das Messinstrument für die WLAN-Abnahme
+(`docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`). Aus dem Quellordner gestartet landet jede
+Abweichung zusätzlich in `desync.log` — in einem gebauten Paket nicht, dort zählt nur das
+Overlay (`07_TEST_PLAN` §5).
+
+Zwei Instanzen auf **einem** Rechner teilen sich die Prefs-Datei und damit die Spielerkennung;
+die Testflags nehmen deshalb `--client-id=N`. Paketverlust wird unter Windows mit `clumsy`
+erzeugt, Filter und Begründung stehen im Kopf von `tools/net_test.sh`.
 
 Alle Aufzeichnungs- und Wiedergabe-Flags sind **temporär** und gehen mit M0-13 im
 Headless-Testrunner auf. `--fixed-dt` gibt es seit M0-05 nicht mehr — der feste Schritt

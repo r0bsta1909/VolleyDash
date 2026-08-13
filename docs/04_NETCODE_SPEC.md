@@ -1,6 +1,15 @@
 # 04 — Netcode-Spezifikation
 
-**Version:** 1.1 · **Stand:** 2026-08-12 · **Bezug:** ADR-002, ADR-003, ADR-016
+**Version:** 1.2 · **Stand:** 2026-08-12 · **Bezug:** ADR-002, ADR-003, ADR-016, ADR-017, ADR-018
+
+**Änderungen gegenüber 1.1** (alle in M3, vor dem Code):
+
+| § | Was | Warum |
+|---|---|---|
+| 6 | Die Auslösererkennung liegt in `src/render/snapshot_events.lua`, nicht in `render/fx.lua`, und ist `love`-frei | Sie ist eine reine Funktion über zwei Snapshots und gehört damit in den Headless-Runner (`07_TEST_PLAN` §7). `fx.lua` zeichnet und kann das nicht sein |
+| 8 | Der Abgleich läuft gegen die gespeicherte Vorhersage zum `ackInputTick` des Snapshots, die Korrektur ist ein Sichtversatz | ADR-017. Ein Vergleich gegen die Gegenwart meldet Laufzeit als Fehler |
+| 9 | Die Prüfsumme ist djb2 über die **gepackten Snapshot-Bytes**, nicht MD5 über den Zustand; Vorhersagefehler zählt der Korrekturzähler getrennt | ADR-018. Über Zahlen gerechnet erzeugt sie Fehlalarme (float32 gegen float64), und der Client kennt den Zustand des Hosts nicht |
+| 13 | N-01 (WLAN) mit Messergebnis beantwortet | M3-04 |
 
 **Änderungen gegenüber 1.0** (alle in M2-01, vor der ersten Zeile Netzcode; Regel aus
 `CLAUDE.md` §2 — erst die Spec, dann der Code):
@@ -210,7 +219,25 @@ ackInputTick            i4        4     zuletzt verarbeiteter Input-Tick des Emp
 
 **`blobNCd` ist quantisiert:** `round(cooldownTimer / ruleset.dashCooldown × 255)`, ein Byte. Der HUD-Balken zeichnet genau dieses Verhältnis; ein Float dafür wäre drei Byte für nichts. Auf der Empfängerseite wird zurückgerechnet — der Wert ist Anzeige, keine Simulationsgröße.
 
-**Kosmetische Ereignisse werden nicht übertragen.** Der Client leitet Partikel, Kamera-Shake und Sounds aus Zustandsübergängen zwischen zwei Snapshots ab (Ball war rechts von der Wand, jetzt links + VX-Vorzeichenwechsel → Wandtreffer). Das spart Bandbreite und ist robust gegen Paketverlust. Auslöserkennung gehört in `render/fx.lua`, nicht in die Simulation. **Umgesetzt wird das in M3-02**; in M2 zeigt der Client den Zustand ohne Partikel und ohne Klang.
+**Kosmetische Ereignisse werden nicht übertragen.** Der Client leitet Partikel, Kamera-Shake und Sounds aus Zustandsübergängen zwischen zwei Snapshots ab (Ball war rechts von der Wand, jetzt links + VX-Vorzeichenwechsel → Wandtreffer). Das spart Bandbreite und ist robust gegen Paketverlust. Die Erkennung liegt in `src/render/snapshot_events.lua` (M3-02): Renderschicht, nicht Simulation — aber **`love`-frei**, weil sie eine reine Funktion über zwei Snapshots ist und damit in den Headless-Runner gehört. Sie erzeugt dieselben Ereignistypen wie `Step.tick`, sodass `src/render/fx_events.lua` unverändert beide Seiten bedient.
+
+**Was sich aus zwei Snapshots ableiten lässt und was nicht:**
+
+| Ereignis | Merkmal im Übergang |
+|---|---|
+| `wall_hit` | Ball am Rand (`x` = Radius bzw. `WIDTH − Radius`) und `ballVX` hat das Vorzeichen gewechselt |
+| `net_hit` | `ballVX` oder `ballVY` wechselt das Vorzeichen, während der Ball den Netzkörper berührt |
+| `blob_hit` | `touchCount` steigt oder `lastTouchPlayer` wechselt auf einen Spieler; ebenso der Übergang `serve` → `play` (das ist der Aufschlag) |
+| `land` | `isGrounded` geht von 0 auf 1 |
+| `jump` | `isGrounded` geht von 1 auf 0 bei negativem `blobVY` |
+| `dash` | der quantisierte Cooldown springt von ~0 auf ~voll; das Dash-Flag unterscheidet Seitwärts- von Aufwärts-Dash |
+| `fault` | `faultPlayer` in den Flags wechselt von 0 auf einen Spieler |
+| `point`, `side_out`, `match_over` | Punktestand steigt, Aufschläger wechselt, Phase wird `gameover` |
+| `rally_reset` | Phase wechselt nach `serve` — der Ball steht ohne Bewegung woanders, die Renderschicht braucht die Sprungstelle |
+| `ground_hit` | **nicht direkt sichtbar:** `Rules.checkGround` setzt den Ballwechsel im selben Tick zurück, der Snapshot zeigt den Ball also nie im Sand. Rekonstruiert aus dem Rallye-Ende plus der Ballhöhe im vorigen Snapshot |
+| `smash`, `dash_save` | **nicht ableitbar.** Beides hängt an einer Taste im Moment des Kontakts und hinterlässt keine Spur im Zustand. Der Gast hört den Treffer, das Wackeln entfällt |
+
+**Umgesetzt in M3-02**; in M2 zeigte der Client den Zustand ohne Partikel und ohne Klang.
 
 ## 7. Eingabe-Redundanz und Verzögerung
 
@@ -236,17 +263,35 @@ Der Client simuliert **ausschließlich seinen eigenen Blob** lokal sofort (die B
 
 Bei jedem Snapshot: Position des eigenen Blobs mit der Host-Position vergleichen. Abweichung > 2 px → sanfte Korrektur über 4 Ticks (kein harter Sprung).
 
+**Gerechnet wird mit derselben Physik, nicht mit einer zweiten.** `src/net/prediction.lua` ruft `Step.applyImpulses`, `Step.updateBlobTimers` und `Physics.updateBlob` auf. Eine eigene Blob-Bewegung im Netzcode wäre eine zweite Wahrheit über die Zahlen aus `02_CODE_AUDIT` §4 und driftete beim ersten Eingriff systematisch gegen den Host (ADR-017).
+
+**Verglichen wird zeitrichtig.** Ein Snapshot beschreibt die Vergangenheit — RTT/2 plus zwei Ticks Puffer. Er trägt deshalb `ackInputTick`: den Eingabetick des Gastes, den der Host darin verarbeitet hat. Die Vorhersage hält ihre letzten 64 Positionen und vergleicht die zu **diesem** Tick. Ein Vergleich mit der aktuellen Position fände bei jedem Lauf rund 30 px Abweichung, ohne dass etwas falsch wäre.
+
+**Steht `ackInputTick` still**, hat der Host die letzte Maske wiederholt, weil ein Eingabepaket fehlte (§7). Dann wird nicht verglichen: Der Host hat mit einer Eingabe gerechnet, die der Gast nie geschickt hat, und die Abweichung wäre keinem Fehler zuzuordnen.
+
+**Korrigiert wird als Sichtversatz.** Die Abweichung geht sofort in die Simulationsposition; gezeichnet wird sie plus einem Versatz, der in vier Ticks linear auf null läuft. Damit rechnen die folgenden Ticks jederzeit mit der Wahrheit des Hosts, und das Bild springt trotzdem nicht.
+
+**Übernahmen sind hart und zählen nicht.** `Rules.resetBall` setzt beide Blobs auf die Aufschlagposition. Das ist kein Vorhersagefehler, sondern eine Ansage des Hosts — sie wird sofort übernommen und erhöht den Korrekturzähler nicht. Sonst stünden nach zehn Punkten zehn „Fehler" im Overlay, die keine sind.
+
+Die Vorhersage läuft **nur beim Gast**. Der Host simuliert autoritativ.
+
 **Warum nur der eigene Blob:** Weil die Blob-Bewegung keine Ballkollision enthält, ist sie fehlerfrei vorhersagbar — außer im Moment eines Ballkontakts, und der verändert die Blob-Position nicht. Den Ball vorherzusagen würde Rollback erfordern; das ist der Punkt, an dem die Komplexität explodiert und der Nutzen bei LAN-Latenz gegen null geht.
 
 **Bewusster Verzicht auf Rollback/GGPO-artige Netcode.** Begründung: Bei RTT < 5 ms ist der Vorteil nicht wahrnehmbar, der Implementierungsaufwand aber um ein Vielfaches höher, und Rollback bringt die Determinismus-Anforderung durch die Hintertür wieder herein.
 
 ## 9. Desync-Detektor (auch ohne Lockstep sinnvoll)
 
-Der Host berechnet alle 30 Ticks eine Prüfsumme über den Simulationszustand (`love.data.hash("md5", packedState)`, erste 4 Byte) und sendet sie als `CHECKSUM`. Der Client, der eine eigene Vorhersage fährt, vergleicht sie mit seiner vorhergesagten eigenen Blob-Position.
+Der Host berechnet alle 30 Ticks eine Prüfsumme über die **gepackten Bytes des Snapshots**, den er diesem Gast in genau diesem Tick geschickt hat — djb2 über die Zeichenkette aus `Protocol.encode`, 32 Bit — und sendet sie als `CHECKSUM` (0x60). Der Client packt den Snapshot, den er gelesen hat, mit seinem eigenen Code erneut und vergleicht.
 
-Das erkennt nicht Desync im Lockstep-Sinne (den es nicht geben kann), sondern **Vorhersagefehler und Protokollfehler**: falsch interpretierte Snapshots, Endianness-Probleme, Ruleset-Abweichungen.
+Das erkennt nicht Desync im Lockstep-Sinne (den es nicht geben kann), sondern **Protokollfehler**: falsch interpretierte Snapshots, Endianness-Probleme, abweichende Feldlisten. Der praktische Fall ist der aus §10, den der Build-Hash nur warnt: zwei Rechner mit verschiedenen `.love`-Ständen. Ohne den Detektor zeigt der Gast dann still etwas Falsches an.
 
-**Voraussetzung, ohne die der Detektor Unsinn meldet:** Er darf nur über Werte laufen, die auf beiden Plattformen bitgleich entstehen. Das Vorzeichen der Null gehört nicht dazu (§6) — es ist in `snapshot.lua` begradigt, bevor etwas gesendet wird. Wer den Detektor in M3-03 baut, prüft das erneut, statt es anzunehmen. In der Entwicklungsphase wird jede Abweichung geloggt; in Release-Builds erscheint sie als stiller Zähler im Debug-Overlay (F3).
+**Vorhersagefehler misst der Detektor nicht** — dafür gibt es den Korrekturzähler aus §8. Zwei Fehlerklassen, zwei Zähler: ein gemeinsamer Wert sagt im Fehlerfall nicht, welche der beiden schuld ist (ADR-018).
+
+**Warum über Bytes und nicht über Zahlen:** Der Host hält float64, über die Leitung gehen float32. Eine Prüfsumme über die Zahlen vergliche zwei verschiedene Werte und schlüge in jedem Tick an, in dem etwas in Bewegung ist. Eine feste Formatierung (`%.3f`) verschöbe das Problem nur auf die Rundungsgrenzen — selten genug, um im Test durchzurutschen, häufig genug, um abends Fehlalarme zu erzeugen. Über die gepackten Bytes ist der Weg float32 → double → float32 verlustfrei, und Fehlalarme sind bauartbedingt ausgeschlossen. Das Vorzeichen der Null (§6, B-N-07) ist zu diesem Zeitpunkt bereits begradigt.
+
+**Ein fehlender Snapshot ist kein Desync.** Kanal 1 ist unzuverlässig; kommt die Prüfsumme zu einem Tick, dessen Snapshot verloren ging, zählt das als *fehlend*.
+
+In der Entwicklungsphase (`version == "dev"`) wird jede Abweichung nach `desync.log` im Save-Ordner geschrieben, höchstens 200 Zeilen je Sitzung. In Release-Builds erscheint sie als stiller Zähler im Debug-Overlay (F3).
 
 ## 10. Ruleset-Abgleich
 
@@ -323,7 +368,7 @@ Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die
 
 | ID | Punkt | Zu klären in |
 |----|-------|--------------|
-| N-01 | Verhalten bei WLAN mit RTT > 30 ms: Reicht Vorhersage des eigenen Blobs, oder braucht der Client eine Ball-Extrapolation? | M3, Playtest über WLAN |
+| N-01 | Verhalten bei WLAN mit RTT > 30 ms: Reicht Vorhersage des eigenen Blobs, oder braucht der Client eine Ball-Extrapolation? | **TEILWEISE, M3-01/M3-04.** Was ohne WLAN belegt ist: Die Vorhersage läuft Tick für Tick auf der Bahn von `Step.tick` (Ebene B, beide Slots), im Loopback 198 Abgleiche und **0 Korrekturen**, und bei künstlich unterschlagenen Eingabepaketen schlägt der Zähler an und holt den Blob binnen vier Ticks ein. **Offen bleibt die Wahrnehmung des Balls** — er wird nicht vorhergesagt (ADR-002), und ob 20–40 ms daran auffallen, entscheidet kein Zähler. Messvorgehen, Zahlen und **vorab festgelegte Entscheidungsregel**: `docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`. Ergebnis gehört hierher, nicht nur in den Report |
 | N-02 | Spectator-Snapshot-Rate: 30 Hz mit Interpolation testen, ob am Beamer sichtbar schlechter | M5 |
 | N-03 | Ob `love.data.pack` mit `f` (float32) auf beiden Plattformen bitidentisch schreibt/liest | **BEANTWORTET, M2-01.** Ja. T-N-07 vergleicht einen vollständigen 72-Byte-Snapshot gegen eine im Test stehende Referenz; der Fall läuft auf `windows-latest` und `macos-latest` durch. **Eine Ausnahme, gefunden statt vermutet:** das Vorzeichen der Null entsteht in der Lua-Arithmetik unterschiedlich (§6), nicht beim Packen. Es wird vor dem Senden begradigt |
 | N-04 | Ob ENet auf macOS ohne zusätzliche Firewall-Freigabe funktioniert (ausgehende Verbindungen ja, eingehende als Host?) | M2, Test auf frischem Mac — **bleibt offen**, ein CI-Image beantwortet das nicht |

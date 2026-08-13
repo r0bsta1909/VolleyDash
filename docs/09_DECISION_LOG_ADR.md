@@ -338,6 +338,75 @@ Format: Kontext → Entscheidung → Begründung → Konsequenzen → Verworfene
 
 ---
 
+## ADR-017 — Die Vorhersage ruft die Simulation auf und gleicht gegen `ackInputTick` ab, nicht gegen die Gegenwart
+
+**Status:** angenommen · 2026-08-12 · **Bezug:** ADR-002, ADR-014, M3-01, `04_NETCODE_SPEC` §8
+
+**Kontext:** Der Gast soll seinen eigenen Blob sofort bewegen sehen. `04_NETCODE_SPEC` §8 legt fest, *was* vorhergesagt wird (nur der eigene Blob) und *wie* korrigiert wird (> 2 px über vier Ticks). Offen war, *wo* das rechnet und *womit* verglichen wird. Beim Bauen zeigten sich drei Fragen, die die Spec nicht beantwortet:
+
+1. Die beiden Schritte, die den Blob bewegen — `updateBlobTimers` und `applyImpulses` — sind in `src/sim/step.lua` **lokal**. Aufrufbar sind sie nicht. Handoff CC-04 verlangt aber ausdrücklich, sie aufzurufen statt sie zu kopieren.
+2. Der Snapshot, gegen den verglichen wird, beschreibt einen Zustand aus der **Vergangenheit** (RTT/2 plus zwei Ticks Puffer). Ein Vergleich mit der aktuellen Vorhersage findet bei jedem Lauf einen Fehler von rund 30 px, obwohl nichts falsch ist — die Korrektur liefe dauernd und der Blob gummibandelte.
+3. Eine Korrektur, die die Simulationsposition langsam verschiebt, verfälscht die Grundlage der nächsten vier Ticks.
+
+**Entscheidung:** Die Vorhersage liegt in `src/net/prediction.lua`, ist `love`-frei und ruft `Step.applyImpulses`, `Step.updateBlobTimers` und `Physics.updateBlob` auf. `src/sim/step.lua` macht die beiden lokalen Funktionen dafür sichtbar — zwei Zuweisungen, keine Zeile Logik. Verglichen wird die **gespeicherte Vorhersage zum Eingabetick `ackInputTick`** aus dem Snapshot, nicht die aktuelle. Die Abweichung wird sofort auf die Simulationsposition addiert und als **Sichtversatz** über vier Ticks abgebaut.
+
+**Begründung:**
+- **Aufrufen statt kopieren:** Sechs Zeilen Blob-Bewegung in `prediction.lua` wären eine zweite Wahrheit über das Spielgefühl. Sie würde beim ersten Eingriff in `02_CODE_AUDIT` §4 auseinanderlaufen, und zwar still — die Vorhersage driftet dann systematisch gegen den Host, und das sieht aus wie ein Netzproblem. Die zwei Exportzeilen ändern kein Verhalten und keinen Zahlenwert; sie machen sichtbar, was ohnehin schon da ist.
+- **`ackInputTick` ist genau dafür im Snapshot** (§6): Er sagt, welchen Eingabetick des Gastes der Host in diesem Snapshot verarbeitet hat. Damit ist der Vergleich zeitrichtig, und die gemessene Abweichung ist ein echter Vorhersagefehler statt Laufzeit.
+- **Steht `ackInputTick` still** — der Host hat die letzte Maske wiederholt, weil ein Paket fehlte (§7) —, wird gar nicht verglichen. Ein Vergleich gegen einen Tick, den der Host mit fremder Eingabe gerechnet hat, meldet einen Fehler, den niemand gemacht hat.
+- **Sichtversatz statt schleichender Position:** Die Simulationsposition springt sofort auf die Wahrheit des Hosts, gezeichnet wird sie plus einem Versatz, der in vier Ticks auf null geht. Damit ist die Grundlage der nächsten Ticks jederzeit korrekt und das Bild trotzdem sprungfrei. Der umgekehrte Weg — die Position langsam verschieben — rechnet vier Ticks lang mit einer Zahl, von der man bereits weiß, dass sie falsch ist.
+- **Kein Rollback.** Es wird nichts neu simuliert, nichts zurückgespult und kein alter Zustand gehalten. Die Blob-Bewegung ist positionslinear: ein Positionsfehler ändert die künftige Geschwindigkeit nicht. ADR-002 bleibt unberührt.
+- **Ein Punktgewinn ist keine Vorhersagefehler.** `Rules.resetBall` setzt beide Blobs auf die Aufschlagposition — ein Sprung, den der Gast nicht vorhersagen kann und nicht weich nachfahren soll. Solche Übernahmen sind hart und zählen nicht in den Korrekturzähler, sonst zeigte das F3-Overlay nach zehn Punkten zehn „Fehler", die keine sind.
+
+**Konsequenzen:**
+- `src/sim/step.lua` bekommt zwei Exportzeilen. Das ist die einzige Änderung unterhalb von `src/sim/` in M3 und ändert kein Verhalten.
+- Die Vorhersage läuft **nur beim Gast**. Der Host simuliert autoritativ; für ihn ist das Modul tot.
+- `prediction.lua` hält einen Ringpuffer von 64 vorhergesagten Positionen (gut eine Sekunde). Reicht der nicht mehr, ist die Verbindung ohnehin unspielbar.
+- Der Korrekturzähler im F3-Overlay misst ab jetzt **echte** Vorhersagefehler: verlorene Eingabepakete und den einen Tick, in dem ein abgelaufener Fehlerwurf die Blob-Bewegung überspringt.
+
+**Verworfen:**
+- *Blob-Bewegung in `prediction.lua` nachbauen:* zweite Wahrheit über die Zahlen aus `02_CODE_AUDIT` §4.
+- *`Step.tick` für den eigenen Blob mitlaufen lassen:* rechnet Ball, Netz und Gegner mit, die der Gast nicht kennt — und wäre damit die Ball-Vorhersage durch die Hintertür, vor der Handoff CC-04 §4 warnt.
+- *Vergleich gegen die aktuelle Vorhersage:* meldet Laufzeit als Fehler und korrigiert dauerhaft gegen eine Vergangenheit.
+- *Harter Sprung auf die Host-Position:* genau das, was §8 ausschließt.
+
+**Revisionsauslöser:** Wenn der Korrekturzähler im LAN über null bleibt, obwohl kein Paket verloren geht. Dann stimmt entweder die Zuordnung über `ackInputTick` nicht oder die Vorhersage rechnet doch nicht dieselbe Physik.
+
+---
+
+## ADR-018 — Der Desync-Detektor prüft die gepackten Snapshot-Bytes mit djb2, nicht den Zustand mit MD5
+
+**Status:** angenommen · 2026-08-12 · **ändert eine Konsequenz von ADR-016** · **Bezug:** M3-03, B-N-07, `04_NETCODE_SPEC` §9
+
+**Kontext:** §9 verlangt eine Prüfsumme alle 30 Ticks über den Simulationszustand, `love.data.hash("md5", packedState)`, erste 4 Byte — und dass der Client sie „mit seiner vorhergesagten eigenen Blob-Position vergleicht". Das ist so nicht ausführbar: Der Client kennt den Simulationszustand des Hosts nicht, er kennt nur den Snapshot. Und eine Prüfsumme über Werte, die der Client selbst gar nicht bilden kann, meldet entweder immer oder nie einen Fehler.
+
+Dazu kommt ein gemessener Fallstrick aus M2: Der Host hält seine Zahlen als float64, über die Leitung gehen float32 (§6). Eine Prüfsumme über die **Zahlen** vergleicht damit zwei verschiedene Werte und schlägt in jedem Tick an, in dem irgendetwas in Bewegung ist. Dasselbe gilt für jede Formatierung mit fester Stellenzahl: `%.3f` kippt, sobald der float32-Rundungsfehler eine Rundungsgrenze überschreitet — selten genug, um im Test nicht aufzufallen, und häufig genug, um am Partyabend alle halbe Stunde einen Fehlalarm zu erzeugen.
+
+**Entscheidung:** Der Host rechnet **djb2 über die gepackten Bytes des Snapshots**, den er diesem Gast gerade geschickt hat. Der Client packt den empfangenen Snapshot mit seinem eigenen Code erneut und rechnet dieselbe Prüfsumme. Vorhersagefehler misst der Detektor **nicht** — dafür gibt es den Korrekturzähler aus ADR-017.
+
+**Begründung:**
+- **Fehlalarme sind bauartbedingt ausgeschlossen.** Der Weg float32 → double → float32 ist verlustfrei; dieselben Felder ergeben dieselben Bytes. Kein Rundungsfenster, keine Rundungsgrenze, kein Vorzeichen der Null (B-N-07, §6) — die Begradigung ist bereits vor dem Packen passiert. Ein Detektor, der zweimal grundlos anschlägt, wird ab dem dritten Mal ignoriert, und dann ist er schlechter als keiner.
+- **Was er findet, ist genau das, was §9 aufzählt:** falsch interpretierte Snapshots, Endianness, abweichende Feldlisten. Der praktische Fall ist der aus §10, den der Build-Hash nur **warnt**: zwei Rechner mit verschiedenen `.love`-Ständen, in denen `Snapshot.FIELDS` nicht mehr übereinstimmt. Heute zeigt der Gast dann still etwas Falsches an. Mit dem erneuten Packen fällt es binnen einer halben Sekunde auf.
+- **djb2 statt MD5** hält es bei einem Hash im Projekt (ADR-016: „zwei Wahrheiten für eine Frage"), ist `love`-frei und damit headless prüfbar, und liefert dieselben 32 Bit wie die ersten vier Byte eines MD5. Gegen Manipulation sichert auch MD5 hier nichts ab — es gibt kein Angreifermodell im LAN.
+- **Zwei Fehlerklassen, zwei Zähler.** Ein gemeinsamer Wert sagt im Fehlerfall nicht, ob die Vorhersage oder das Protokoll schuld ist. Getrennt beantwortet das F3-Overlay genau die Frage, die man abends stellt.
+- **Ein fehlender Snapshot ist kein Desync.** Kommt die Prüfsumme zu einem Tick, dessen Snapshot verloren ging (Kanal 1 ist unzuverlässig, §4), zählt das als *fehlend*, nicht als Abweichung.
+
+**Konsequenzen:**
+- Die Konsequenzzeile aus ADR-016 („Der Desync-Detektor rechnet weiter mit `love.data.hash`") gilt nicht mehr. `love.data.hash` wird im Projekt derzeit nirgends benutzt.
+- `src/net/checksum.lua` ist `love`-frei und läuft im Headless-Runner mit. Das Packen selbst braucht `love.data` und bleibt in `protocol.lua`.
+- Der Detektor prüft **eine Aussage weniger**, als §9 1.1 versprochen hat: Er bestätigt nicht, dass Host und Client denselben Simulationszustand haben. Das kann er nicht, und ADR-002 macht die Frage gegenstandslos — es gibt genau einen Zustand.
+- Kosten: zwei zusätzliche Nachrichten je Sekunde und Gast (8 Byte Nutzlast), ein zweites Packen alle 30 Ticks auf jeder Seite.
+
+**Verworfen:**
+- *MD5 über den gepackten Zustand:* zweiter Hash im Projekt, nicht headless prüfbar, kein Gewinn an Aussage.
+- *Prüfsumme über die Zahlen mit fester Formatierung:* erzeugt seltene, unerklärliche Fehlalarme — der teuerste Fehlertyp, weil er das Vertrauen in den Detektor zerstört, bevor er einmal recht hat.
+- *Prüfsumme nur über die eigene Blob-Position:* misst dasselbe wie der Korrekturzähler, nur gröber und alle 30 Ticks statt jeden Tick.
+- *Hash über die empfangenen Rohbytes:* wäre eine Tautologie — ENet liefert die Bytes, die es bekommen hat. Erst das erneute Packen aus der **gelesenen** Tabelle prüft das Lesen.
+
+**Revisionsauslöser:** Wenn der Detektor bei gleichem Build anschlägt. Dann ist entweder `Snapshot.apply` nicht mehr verlustfrei umkehrbar oder ein Feld wird beim Lesen verändert — beides ist ein echter Befund, kein Grund, den Detektor zu entschärfen.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

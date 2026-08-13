@@ -146,6 +146,11 @@ Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
 | T-N-09 | Discovery mit 3 gleichzeitigen Hosts | Alle 3 in der Liste, korrekt unterscheidbar |
 | T-N-10 | Host beendet Lobby, Client noch verbunden | Client kehrt sauber ins Menü zurück |
 | T-N-11 | 4 parallele Matches mit verteilten Match-Hosts, gleichzeitiger Ergebnisversand | Alle 4 Ergebnisse korrekt im Bracket, keine Race Condition |
+| T-N-12 | Gast spielt mit Vorhersage, kein Paketverlust (M3-01) | Korrekturzähler bleibt bei 0; der eigene Blob steht an derselben Stelle wie beim Host |
+| T-N-13 | Gast spielt mit Vorhersage, 20 % Eingabeverlust | Korrekturzähler steigt, der Blob wird binnen 4 Ticks wieder eingeholt, kein sichtbarer Sprung |
+| T-N-14 | Prüfsumme bei gleichem Build (M3-03) | `desync` bleibt 0 bei mehr als 0 Vergleichen — beide Zahlen zusammen, eine allein sagt nichts |
+| T-N-15 | Prüfsumme bei absichtlich falschem Wert, beide Reihenfolgen | Wird erkannt, egal ob Snapshot oder Prüfsumme zuerst ankommt (sie laufen über verschiedene Kanäle) |
+| T-N-16 | Gast sieht Staub und hört Klänge (M3-02) | Wandtreffer, Netztreffer, Blobtreffer, Landung, Aufschlag und Punkt kommen beim Gast an |
 | T-B-01 | `codesign --verify` auf der gebauten `.app` | „valid on disk"; Build bricht sonst ab (ADR-012) |
 | T-B-02 | `.app` auf einem **fremden** Apple-Silicon-Mac starten | Startet nach Rechtsklick → „Öffnen"; kein Sofortabbruch |
 
@@ -153,11 +158,19 @@ Stelle bewegt, ist er nachweislich eine Umsortierung und keine Änderung.
 
 ## 5. Desync- und Vorhersagefehler-Überwachung
 
-Der Checksum-Mechanismus aus `04_NETCODE` §9 wird zum Testinstrument:
+**Zwei Fehlerklassen, zwei Zahlen** (ADR-018). Ein gemeinsamer Wert sagt im Fehlerfall nicht, welche von beiden schuld ist — und das ist die Frage, die abends gestellt wird.
 
-- **Entwicklungs-Build:** Jede Abweichung zwischen Client-Vorhersage und Host-Zustand > 2 px wird mit Tick, Werten und den letzten 30 Input-Frames nach `desync.log` geschrieben.
-- **Abnahme:** 100 Sätze über echtes LAN, Ziel 0 Einträge über der Schwelle. Einträge unter der Schwelle (normale Korrekturen) werden gezählt und als Rate protokolliert.
-- **Release-Build:** Zähler im F3-Overlay, kein Log.
+| Klasse | Woher | Erwartung |
+|---|---|---|
+| `CORRECTION` | Vorhersage des eigenen Blobs lag > 2 px daneben (`04_NETCODE` §8) | Im LAN 0. Bei Eingabeverlust normal — die **Rate** ist die Aussage, nicht die einzelne Zeile |
+| `DESYNC` | Prüfsumme über die gepackten Snapshot-Bytes passt nicht (`04_NETCODE` §9) | Immer 0. Eine einzige Zeile ist ein Befund und heißt in der Regel: verschiedene Builds |
+
+- **Entwicklungs-Build** (`version == "dev"`): beide Klassen mit Tick und Werten nach `desync.log` im Save-Ordner, höchstens 200 Zeilen je Sitzung. Ohne Deckel füllt ein Fehler, der sich wiederholt, die Platte.
+- **Release-Build:** nur die Zähler im F3-Overlay. Kein Log.
+- **Messmitschnitt:** `F4` im Netzspiel schreibt einmal je Sekunde eine Zeile nach `netlog.csv` — dieselben Werte, die F3 zeigt. Das ist das Instrument für D2 und für die WLAN-Messung aus M3-04; ein abfotografiertes Overlay ist eine Momentaufnahme, eine Zeile je Sekunde ist eine Messreihe.
+- **Abnahme:** ein Satz über echtes WLAN mit offenem Mitschnitt. Ziel: `DESYNC` = 0, Korrekturrate unter 1 je Sekunde, und der Gast kann nicht sagen, ob er Host oder Gast ist.
+
+**Die alte Fassung dieses Abschnitts verlangte etwas anderes** — eine Prüfsumme über den Simulationszustand und ein Log „mit den letzten 30 Input-Frames". Beides ist mit M3-03 fallengelassen: Der Client kennt den Zustand des Hosts nicht (ADR-002), und 30 mitgeschriebene Eingaben beantworten keine Frage, die Tick und Abweichung nicht schon beantworten. Begründung vollständig in ADR-018.
 
 ## 6. Ebene D — Manuelle Abnahme
 
