@@ -29,7 +29,11 @@ local MenuScene
 -- Szenen, die zu einer Netzwerksitzung gehoeren. Sie liegen uebereinander
 -- (Serverliste -> Lobby -> Match) und halten jede fuer sich Sockets, die in
 -- `leave` zugehen muessen.
-local NET_SCENES = { serverlist = true, lobby = true, net_game = true }
+-- `tournament` steht seit M4-09 mit drin: Bis Stufe B hielt der Turniermodus
+-- keine Sockets, jetzt haelt er den Turnier-Wirt auf 21212 oder die
+-- Verbindung dorthin.
+local NET_SCENES = { serverlist = true, lobby = true, net_game = true,
+                     tournament = true }
 
 function App.boot(deterministic)
     -- Kosmetischer Zufall: Namen, Staub, Kamera. Im Aufzeichnungsmodus fest,
@@ -179,11 +183,20 @@ function App.joinLobby(address, port)
         { role = "client", address = address, port = port }))
 end
 
--- Turniermodus (M4-07). Er liegt ueber dem Menue wie eine Netzszene, gehoert
--- aber nicht zu NET_SCENES: In Stufe B haelt er keine Sockets, und `leaveNet`
--- darf ihn deshalb auch nicht mit abraeumen.
+-- Turniermodus (M4-07, seit M4-09 mit Netz). Er haelt jetzt Sockets -- den
+-- Turnier-Wirt auf 21212 samt Bake oder die Verbindung dorthin -- und gehoert
+-- damit zu NET_SCENES: `leaveNet` muss ihn mit abraeumen, sonst bleibt der
+-- Port belegt, wenn jemand aus einem Match ins Menue zurueckfaellt.
 function App.openTournament()
-    Scene.push(require("src.app.scenes.tournament").new(App))
+    Scene.push(require("src.app.scenes.tournament").new(App, { role = "leader" }))
+end
+
+-- Als Teilnehmer beitreten. Der Weg dorthin ist die Serverliste: Ein Turnier
+-- wird genauso gefunden wie eine Lobby, nur fuehrt ENTER woanders hin
+-- (`mode = "tournament"` in der Bake).
+function App.joinTournament(address, port)
+    Scene.push(require("src.app.scenes.tournament").new(App,
+        { role = "client", address = address, port = port }))
 end
 
 function App.leaveTournament()

@@ -23,14 +23,18 @@ function ServerListScene.new(app)
         lastAddress = app.prefs.lastAddress,
         onBack      = function() app.leaveNet() end,
         onRefresh   = function() if self.browser then self.browser:probe() end end,
-        onJoin      = function(address, port, typed)
+        onJoin      = function(address, port, typed, mode)
             if typed then
                 -- Wer eine Adresse getippt hat, tippt sie nach einem Absturz
                 -- nicht gern noch einmal.
                 app.prefs.lastAddress = typed
                 Prefs.save(app.prefs)
             end
-            app.joinLobby(address, port)
+            if mode == "tournament" then
+                app.joinTournament(address, port)
+            else
+                app.joinLobby(address, port)
+            end
         end,
     })
 

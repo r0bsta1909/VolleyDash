@@ -76,7 +76,10 @@ function ServerList:keypressed(key)
             self.typing = true
         else
             local entry = self.entries[self.selection]
-            if entry then self.ctx.onJoin(entry.address, entry.port) end
+            -- `mode` steht seit M2 in der Bake und wurde bis M4-09 nur
+            -- angezeigt. Jetzt entscheidet es, wohin ENTER fuehrt: Ein Turnier
+            -- hat keine Match-Lobby, an der man sich bereit meldet.
+            if entry then self.ctx.onJoin(entry.address, entry.port, nil, entry.mode) end
         end
     elseif key == "f5" then
         self.ctx.onRefresh()

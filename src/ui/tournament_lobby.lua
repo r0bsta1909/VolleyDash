@@ -50,7 +50,13 @@ function TL.new(ctx)
     }, TL)
 
     local running = ctx.running or {}
-    if #running > 0 then
+    if ctx.readOnly then
+        -- Ein Teilnehmer richtet nichts ein. Bis der Turnierstand da ist, hat
+        -- er nichts anzuzeigen -- und die Einrichtungsseite waere nicht nur
+        -- falsch, sondern unbedienbar: Sie liest eine Konfiguration, die es
+        -- vor dem ersten Log-Ereignis noch gar nicht gibt (M4-09).
+        self.mode = "wait"
+    elseif #running > 0 then
         self.mode = "resume"
         self.running = running
     elseif ctx.session and not ctx.session:isSetup() then
@@ -392,6 +398,11 @@ function TL:keypressed(key)
         return true
     end
 
+    if self.mode == "wait" then
+        -- Warten auf den Turnierstand. ESC ist die einzige sinnvolle Taste.
+        if key == "escape" then self.ctx.onLeave() end
+        return true
+    end
     if self.mode == "resume" then return self:resumeKey(key) end
     if self.mode == "setup"  then return self:setupKey(key) end
     return self:runKey(key)
@@ -493,6 +504,12 @@ function TL:runKey(key)
     -- Bedient wird an der vollen Ansicht (siehe Kopf). Die kompakte kennt nur
     -- F2 und ESC.
     if self.view ~= "full" then return true end
+
+    -- Ein TEILNEHMER sieht das Turnier, er fuehrt es nicht (M4-09). Er darf
+    -- die volle Ansicht aufmachen -- wer neben dem Beamer sitzt, will den
+    -- ganzen Baum sehen -- aber eintragen darf er nichts: Das Ergebnis kommt
+    -- vom Match-Wirt (E-08), und das Log hat genau einen Schreiber (ADR-023).
+    if self.ctx.readOnly then return true end
 
     if key == "tab" then
         self.panel = (self.panel == "matches") and "participants" or "matches"

@@ -62,6 +62,22 @@ function NetGame.new(app, opts)
         pauseText   = "",
         pauseLeft   = 0,
         result      = nil,
+
+        -- Turniermatch (M4-09). Beides ist im freien Spiel `nil` und aendert
+        -- dann nichts: `stats` ist der Beobachter fuer die zwei Zahlen aus
+        -- `05_TOURNAMENT` §11, `onFinished` der Weg des Ergebnisses zum
+        -- Turnier-Wirt. Gemessen wird nur beim HOST -- er ist die Autoritaet
+        -- (ADR-002), und ein Gast mit eigener Zaehlung waere eine zweite
+        -- Wahrheit ohne Schiedsrichter.
+        -- ABSICHTLICH NICHT `stats`: Es gibt eine Methode `NetGame:stats()`
+        -- fuer das Netz-Overlay, und ein nil-Feld faellt ueber `__index` auf
+        -- die Methode durch. Der Beobachter waere dann "eine Funktion, die
+        -- `toReport` nicht kennt" -- gemessen 2026-08-13.
+        matchStats  = (opts.role == "host") and opts.stats or nil,
+        onFinished  = opts.onFinished,
+        -- Der Turnier-Wirt bzw. die Verbindung zu ihm. Sie wandert MIT ins
+        -- Match, genau wie die Bake -- siehe `update`.
+        tournament  = opts.tournament,
     }, NetGame)
 
     -- Beide Rollen steuern ihren eigenen Blob mit derselben Belegung. Wer
@@ -102,6 +118,35 @@ end
 -- Ereignisse der Netzschicht
 -- ---------------------------------------------------------------------------
 
+-- Das Ende eines Turniermatches. Genau einmal je Match -- ein zweiter Aufruf
+-- waere kein Fehler (der Turnier-Wirt lehnt ein gewertetes Match ab), aber er
+-- verdeckt, wo der erste geblieben ist.
+--
+-- BEIDE Rollen rufen das, und das ist kein Widerspruch zu E-08: Gemeldet wird
+-- das Ergebnis nur vom Wirt -- er hat als Einziger `stats` und die
+-- autoritativen Zahlen. Der Gast braucht den Rueckruf trotzdem, sonst steht er
+-- nach dem Abpfiff auf einem Endstand und kommt nie ins Turnier zurueck. Genau
+-- das ist beim ersten Durchlauf ueber vier Prozesse passiert.
+function NetGame:reportFinish(reason, scoreA, scoreB)
+    if not self.onFinished or self.reported then return end
+    self.reported = true
+
+    -- Der Rueckruf sagt zurueck, ob das MATCH damit entschieden ist. Bei
+    -- Best-of-3 ist ein Satz noch kein Ergebnis (`05_TOURNAMENT` §2, ab
+    -- Halbfinale) -- dann geht es hier weiter, und zwar ueber denselben Weg
+    -- wie die Revanche im freien Spiel: Der Wirt pfeift an, der Gast setzt auf
+    -- `MATCH_START` hin zurueck.
+    local more = self.onFinished(scoreA or self.state.match.score[1],
+        scoreB or self.state.match.score[2],
+        reason or Protocol.END.NORMAL,
+        self.matchStats and self.matchStats:toReport() or nil)
+
+    if more then
+        self.reported = false
+        if self.role == "host" then self:rematch() end
+    end
+end
+
 function NetGame:onHostEvent(kind, a, b, c)
     if kind == "lost" then
         self.paused = true
@@ -120,6 +165,10 @@ function NetGame:onHostEvent(kind, a, b, c)
         self.result = "Der Gegner ist nicht zurueckgekommen."
         self.paused = false
         self.state.match.phase = "gameover"
+        -- Im Turnier ist das ein Walkover (`04_NETCODE` §12). Gemeldet wird er
+        -- trotzdem als Ergebnis: Der Turnier-Wirt kennt den Grund und muss
+        -- nicht raten, warum das Match aufgehoert hat.
+        self:reportFinish(Protocol.END.DISCONNECT)
 
     elseif kind == "end" then
         self.result = self.result or "Match beendet."
@@ -147,6 +196,10 @@ function NetGame:onClientEvent(kind, a, b, c)
         self.result = (c == Protocol.END.DISCONNECT)
             and "Der Gegner ist weg -- Match gewertet."
             or "Match beendet."
+        -- Im Turnier geht es von hier automatisch weiter (siehe
+        -- `reportFinish`). Im freien Spiel ist `onFinished` nil und es bleibt
+        -- beim Endstand mit Revanchefrage.
+        self:reportFinish(c, a, b)
 
     elseif kind == "failed" then
         self.result = a
@@ -226,6 +279,7 @@ function NetGame:resetMatch()
 
     self.result = nil
     self.paused = false
+    self.reported = false
     self.rematchAsked = false
     self.simTick = 0
     self.accumulator = 0
@@ -275,6 +329,9 @@ function NetGame:tick()
 
         GameView.capture(self.state)
         Step.tick(self.state, mask, self.host:inputFor(2), self.ruleset, self.events)
+        -- Nach dem Schritt, mit dem Zustand DANACH -- der Beobachter liest und
+        -- schreibt nichts zurueck (`src/tournament/match_stats.lua`).
+        if self.matchStats then self.matchStats:observe(self.state) end
         FxEvents.apply(self.events, self.app.prefs.volume, self.state)
         Fx.update(World.TICK_DT)
 
@@ -285,6 +342,7 @@ function NetGame:tick()
             self.host:endMatch(self.state.match.score[1], self.state.match.score[2],
                 Protocol.END.NORMAL)
             self.result = "Match beendet."
+            self:reportFinish(Protocol.END.NORMAL)
         end
         return
     end
@@ -341,6 +399,16 @@ function NetGame:update(dt)
     -- verliert, soll den Host in der Liste wiederfinden und nicht eine IP
     -- abtippen muessen (D2, 2026-08-12).
     if self.beacon then self.beacon:update() end
+
+    -- Und die TURNIERVERBINDUNG genauso, aus demselben Grund und mit
+    -- schlimmeren Folgen (M4-09, gemessen 2026-08-13). Nur die oberste Szene
+    -- bekommt `update` (`src/app/scene.lua`), waehrend des Matches liegt der
+    -- Turniermodus darunter. Ohne diese Zeile wird sein ENet-Wirt vier Minuten
+    -- lang nicht bedient -- nach 5 s Peer-Timeout gilt jeder Teilnehmer als
+    -- offline, der No-Show-Timer laeuft gegen Leute, die gerade spielen, und
+    -- das Ergebnis findet am Ende niemanden mehr. Gemessen: Das Turnier blieb
+    -- nach dem ersten Match stehen.
+    if self.tournament then self.tournament:update(love.timer.getTime()) end
     if self.role == "client" then self.pauseLeft = math.max(0, self.pauseLeft - dt) end
 
     if self.netlog then

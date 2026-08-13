@@ -596,10 +596,27 @@ end
 
 -- ---------------------------------------------------------------------------
 
+-- Ein Teilnehmer, der sich gerade verbindet: Es gibt noch keinen
+-- Turnierstand, und eine leere Tabelle waere schlechter als ein Satz (M4-09).
+local function drawWaiting(ui)
+    Assets.setFont(24)
+    setColor(COLOR.text)
+    love.graphics.printf("TURNIER", 0, H / 2 - 60, W, "center")
+    Assets.setFont(16)
+    setColor(COLOR.dim)
+    love.graphics.printf(ui:currentMessage() or "Verbinde mit dem Turnier ...",
+        0, H / 2 - 10, W, "center")
+    Assets.setFont(13)
+    setColor(COLOR.faint)
+    love.graphics.printf("ESC  zurueck", 0, H - 80, W, "center")
+end
+
 function View.draw(ui, now)
     now = now or 0
 
-    if ui.mode == "resume" then
+    if ui.mode == "wait" then
+        drawWaiting(ui)
+    elseif ui.mode == "resume" then
         drawResume(ui)
     elseif ui.mode == "setup" then
         drawSetup(ui)

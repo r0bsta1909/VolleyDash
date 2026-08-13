@@ -1,34 +1,52 @@
 -- ============================================================================
--- src/app/scenes/tournament.lua -- der Turniermodus als Szene (M4-07, M4-08)
+-- src/app/scenes/tournament.lua -- der Turniermodus als Szene (M4-07 … M4-09)
 --
--- Die Szene besitzt drei Dinge und sonst nichts: die Session
--- (`src/tournament/session.lua`), die Bedienung (`src/ui/tournament_lobby.lua`)
--- und die Uhr. Entschieden wird in der Session, getippt in der Bedienung,
--- gezeichnet in `src/render/bracket_view.lua`.
+-- Die Szene besitzt vier Dinge und sonst nichts: die Session
+-- (`src/tournament/session.lua`), die Bedienung (`src/ui/tournament_lobby.lua`),
+-- die Uhr und -- seit M4-09 -- die Netzverbindung. Entschieden wird in der
+-- Session, getippt in der Bedienung, gezeichnet in `src/render/bracket_view.lua`.
 --
 -- ---------------------------------------------------------------------------
--- Was hier NICHT passiert
+-- Zwei Rollen, ein Bildschirm
 -- ---------------------------------------------------------------------------
 --
--- Kein Netzwerk. Ein Turnier mit 20 Teilnehmern braucht einen zweiten
--- Wirt-Typ: `src/net/lobby.lua` hat zwei Plaetze und startet genau ein Match,
--- und das Format von `TOURNAMENT_STATE` (0x40) ist ein offener ADR
--- (ADR-016, ADR-020). Beides gehoert zu Stufe C / M4-09. Angemeldet wird
--- deshalb am Turnier-Host: Die Naht ist `Session:addParticipant`, und die
--- fuellt spaeter das Netz statt der Tastatur.
+--   LEITER       haelt `TournamentHost` auf 21212 und die Bake. Die Session
+--                gehoert ihm, er traegt ein und korrigiert.
+--   TEILNEHMER   haelt `TournamentClient`. Seine Session ist ein ABBILD, aus
+--                Log-Ereignissen abgeleitet (ADR-023) und schreibgeschuetzt --
+--                das Log hat genau einen Schreiber.
 --
--- Auch kein Matchstart aus dem Turnier heraus. Gespielt wird in Stufe B
--- daneben, das Ergebnis traegt der Turnierleiter ein (M4-11) -- derselbe Weg,
--- den `11_OPS` als Notbetrieb vorsieht, wenn die Automatik ausfaellt.
+-- Beide bekommen ihre Matchzuweisung ueber DENSELBEN Rueckruf (`onAssign`).
+-- Beim Leiter kommt sie ohne Umweg ueber das Netz herein, weil er nicht mit
+-- sich selbst redet -- der Weg dahinter ist aber derselbe, und genau deshalb
+-- gibt es hier keinen zweiten Codepfad fuer den Fall "der Wirt spielt mit".
+--
+-- ---------------------------------------------------------------------------
+-- Warum das Match nicht durch die Lobby-Szene geht
+-- ---------------------------------------------------------------------------
+--
+-- `src/app/scenes/lobby.lua` VERHANDELT: freie Slots, Bereitschaftsschalter,
+-- Ruleset-Abgleich. Ein Turniermatch hat daran nichts zu verhandeln. Die
+-- Paarung kommt aus dem Bracket, das Ruleset ist beim Turnierstart eingefroren
+-- (Datenmodell §4), und die Bereitmeldung geht an den Turnier-Wirt statt an
+-- den Gegner. Wiederverwendet werden die BAUTEILE (`src/net/host.lua`,
+-- `src/net/client.lua`, ueber `src/net/match_runner.lua`), nicht die Szene.
 -- ============================================================================
 
-local Session     = require("src.tournament.session")
-local Persistence = require("src.tournament.persistence")
-local Ruleset     = require("src.sim.ruleset")
-local TL          = require("src.ui.tournament_lobby")
-local BracketView = require("src.render.bracket_view")
-local Assets      = require("src.app.assets")
-local Music       = require("src.app.music")
+local Session          = require("src.tournament.session")
+local Persistence      = require("src.tournament.persistence")
+local Ruleset          = require("src.sim.ruleset")
+local Protocol         = require("src.net.protocol")
+local MatchRunner      = require("src.net.match_runner")
+local MatchStats       = require("src.tournament.match_stats")
+local HostChoice       = require("src.tournament.host_choice")
+local TournamentHost   = require("src.net.tournament_host")
+local TournamentClient = require("src.net.tournament_client")
+local TL               = require("src.ui.tournament_lobby")
+local BracketView      = require("src.render.bracket_view")
+local BuildInfo        = require("src.app.build_info")
+local Assets           = require("src.app.assets")
+local Music            = require("src.app.music")
 
 local TournamentScene = {}
 TournamentScene.__index = TournamentScene
@@ -37,11 +55,18 @@ local function now()
     return love.timer.getTime()
 end
 
-function TournamentScene.new(app)
+function TournamentScene.new(app, opts)
+    opts = opts or {}
     local self = setmetatable({
         name = "tournament",
         app  = app,
+        role = opts.role or "leader",
     }, TournamentScene)
+
+    if self.role == "client" then
+        self:startClient(opts)
+        return self
+    end
 
     -- Ohne Dateizugriff laeuft das Turnier trotzdem -- nur uebersteht es dann
     -- keinen Absturz. Das ist eine Meldung wert und kein Abbruch.
@@ -68,7 +93,7 @@ function TournamentScene.new(app)
 end
 
 -- ---------------------------------------------------------------------------
--- Turnier anlegen und wiederaufnehmen
+-- Turnier anlegen und wiederaufnehmen (Leiter)
 -- ---------------------------------------------------------------------------
 
 function TournamentScene:createSession()
@@ -78,6 +103,8 @@ function TournamentScene:createSession()
     app.applyPreset(app.prefs.preset)
 
     local stamp = os.time()
+    self.choice = HostChoice.new()
+
     local session = Session.new({
         id          = "t_" .. tostring(stamp),
         name        = app.playerName() .. "s Turnier",
@@ -85,7 +112,11 @@ function TournamentScene:createSession()
         ruleset     = app.ruleset,
         rulesetHash = Ruleset.hash(app.ruleset),
         persistence = self.persistence,
-        presence    = "local",
+        -- Seit M4-09 kommt die Anwesenheit aus der Verbindung (§5). Das ist
+        -- ein Schalter, kein zweiter Codeweg -- die Datei darunter ist
+        -- dieselbe wie in Stufe B.
+        presence    = "net",
+        chooseHost  = self.choice:chooser(),
         selfName    = app.playerName(),
         seedMode    = "random",
         -- Der Seed ist von Anfang an sichtbar und aenderbar. Die Uhrzeit ist
@@ -98,7 +129,11 @@ function TournamentScene:createSession()
 
     -- Der Mensch am Rechner steht als Erster im Feld. Wer nur ausrichtet,
     -- streicht sich mit ENTF wieder heraus.
-    session:addParticipant(app.playerName(), stamp)
+    self.selfPid = session:addParticipant(app.playerName(), stamp,
+        app.clientId and app.clientId() or nil)
+    session:setPresence(self.selfPid, true)
+
+    self:startHost()
     return session
 end
 
@@ -108,14 +143,17 @@ function TournamentScene:resumeSession(id)
     local tournament, source, err = self.persistence:load(id)
     if not tournament then return false, tostring(err) end
 
+    self.choice = HostChoice.new()
     local session = Session.resume(tournament, {
         persistence = self.persistence,
-        presence    = "local",
+        presence    = "net",
+        chooseHost  = self.choice:chooser(),
         selfName    = self.app.playerName(),
     }, now())
 
     self.session = session
     self.ui.ctx.session = session
+    self.selfPid = session:selfId()
 
     if source == "bak" then
         self.ui:say("Aus der Sicherungsdatei geladen -- das letzte Ereignis kann fehlen")
@@ -123,7 +161,262 @@ function TournamentScene:resumeSession(id)
         self.ui:say(string.format("%d unterbrochene Matches neu angesetzt (E-06)",
             #session.reopened))
     end
+
+    self:startHost()
     return true
+end
+
+-- ---------------------------------------------------------------------------
+-- Netz
+-- ---------------------------------------------------------------------------
+
+function TournamentScene:startHost()
+    if self.thost then self.thost:close() end
+
+    local app = self.app
+    local thost, err = TournamentHost.new({
+        session   = self.session,
+        hostChoice = self.choice,
+        selfPid   = self.selfPid,
+        hostName  = app.playerName(),
+        buildHash = BuildInfo.buildHash,
+        onEvent   = function(kind, a, b, c) self:onHostEvent(kind, a, b, c) end,
+    })
+
+    if not thost then
+        -- Ohne Netz bleibt das Turnier bedienbar -- angemeldet wird dann an
+        -- der Tastatur wie in Stufe B. Das ist der Notbetrieb aus `11_OPS`
+        -- und kein Grund, den Abend abzubrechen.
+        self.ui:say("Kein Netz: " .. tostring(err) .. " -- Anmeldung nur hier")
+        self.session.presence = "local"
+        self.session:refreshPresence()
+        return
+    end
+
+    self.thost = thost
+    thost:startBeacon({ hostId = app.clientId and app.clientId() or 0 })
+end
+
+function TournamentScene:startClient(opts)
+    local app = self.app
+    local client, err = TournamentClient.new({
+        address   = opts.address, port = opts.port,
+        clientId  = app.clientId and app.clientId() or 0,
+        name      = app.playerName(),
+        buildHash = BuildInfo.buildHash,
+        onEvent   = function(kind, a, b, c) self:onClientEvent(kind, a, b, c) end,
+    })
+
+    self.ui = TL.new({
+        session    = client and client.session or nil,
+        now        = now,
+        readOnly   = true,
+        playerName = function() return app.playerName() end,
+        onCreate   = function() end,
+        onResume   = function() return false end,
+        onLeave    = function() app.leaveTournament() end,
+    })
+
+    if not client then
+        self.ui:say("Kein Netz: " .. tostring(err))
+        return
+    end
+
+    self.tclient = client
+    self.session = client.session
+    self.ui:say("Verbinde mit dem Turnier ...")
+end
+
+function TournamentScene:onHostEvent(kind, a, b, c)
+    if kind == "join" then
+        self.ui:say(tostring(b) .. " ist dabei"
+            .. (c == "new" and "" or " (wieder da)"))
+    elseif kind == "leave" then
+        self.ui:say(tostring(b or a) .. " ist weg")
+    elseif kind == "assign" then
+        self:onAssign(a)
+    elseif kind == "match_lost" then
+        self.ui:say("Kein Ergebnis fuer " .. tostring(a) .. " -- neu angesetzt (E-06)")
+    end
+end
+
+function TournamentScene:onClientEvent(kind, a, b, c)
+    if kind == "welcome" then
+        self.session = self.tclient.session
+        self.ui.ctx.session = self.session
+        self.ui:enterRun()
+        self.ui:say("Angemeldet als " .. tostring(b))
+    elseif kind == "state" then
+        -- Die Session kann nach einem Neuaufbau eine andere Tabelle sein.
+        self.session = self.tclient.session
+        self.ui.ctx.session = self.session
+    elseif kind == "assign" then
+        self:onAssign(a)
+    elseif kind == "failed" then
+        self.ui:say(tostring(a))
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- Ein Turniermatch (§8)
+--
+-- Derselbe Rueckruf fuer Leiter und Teilnehmer. Wer hostet, oeffnet einen
+-- ephemeren Port und meldet ihn; wer Gast ist, wartet auf die Adresse und
+-- verbindet sich dann. Die Wahl trifft weder der eine noch der andere -- sie
+-- steht in der Zuweisung (ADR-022).
+-- ---------------------------------------------------------------------------
+
+function TournamentScene:onAssign(payload)
+    if self.runner and self.runner.matchId == payload.matchId then
+        return   -- schon aufgebaut; die zweite Zuweisung traegt nur die Adresse
+    end
+
+    -- Waehrend eines laufenden Matches wird keine neue Zuweisung angefasst.
+    -- Sie kann hier ankommen, seit die Turnierverbindung ins Match mitwandert
+    -- -- und der alte Laeufer wuerde dann MITTEN in seiner eigenen
+    -- Ereignisschleife geschlossen. Gemessen 2026-08-13: `attempt to index
+    -- field 'host' (a nil value)`. Ein Teilnehmer ist ohnehin nie in zwei
+    -- Matches gleichzeitig; die Zuweisung kommt nach dem Abpfiff erneut,
+    -- weil der Turnier-Wirt sie je Wasserstand verschickt.
+    if self.inMatch or self.closing then return end
+    if self.runner then self.closing = self.runner self.runner = nil end
+
+    local common = {
+        matchId   = payload.matchId,
+        ruleset   = self.session.t.ruleset,
+        selfName  = self.app.playerName(),
+        buildHash = BuildInfo.buildHash,
+        clientId  = self.app.clientId and self.app.clientId() or 0,
+        opponent  = payload.opponent,
+        bestOf    = payload.bestOf,
+    }
+
+    if payload.role == Protocol.ROLE.HOST then
+        local runner, err = MatchRunner.newHost(common)
+        if not runner then
+            self.ui:say("Match laesst sich nicht oeffnen: " .. tostring(err))
+            return
+        end
+        self.runner = runner
+        self.stats  = MatchStats.new()
+        self:accept(payload.matchId, runner.port)
+        self.ui:say("Du bist dran gegen " .. tostring(payload.opponent)
+                    .. " -- warte auf den Gegner")
+
+    elseif payload.address and payload.address ~= "" then
+        common.address = payload.address
+        local runner, err = MatchRunner.newGuest(common)
+        if not runner then
+            self.ui:say("Gegner nicht erreichbar: " .. tostring(err))
+            return
+        end
+        self.runner = runner
+        self:accept(payload.matchId, 0)
+        self.ui:say("Du bist dran gegen " .. tostring(payload.opponent))
+    end
+end
+
+-- Bereitmeldung und -- beim Wirt -- der Port. Der Leiter geht dabei nicht
+-- ueber das Netz: Er IST der Turnier-Wirt.
+function TournamentScene:accept(matchId, port)
+    if self.tclient then
+        self.tclient:accept(matchId, port)
+    elseif self.thost then
+        if port and port > 0 then self.thost:hostSelfMatch(matchId, port) end
+        self.session:confirmReady(matchId, self.selfPid, now())
+    end
+end
+
+-- Das Match kann anfangen, sobald die Gegenseite steht. Beim Wirt heisst das
+-- "der zweite Platz ist belegt", beim Gast "MATCH_START ist da".
+function TournamentScene:pushMatchIfReady()
+    local runner = self.runner
+    if not runner or self.inMatch then return end
+
+    if runner:isHost() then
+        -- Bewusst NICHT `lobby:isStartable()`: Das verlangt zusaetzlich den
+        -- Bereitschaftsschalter beider Plaetze, und den gibt es im Turnier
+        -- nicht. Bereit gemeldet hat sich jeder schon beim Turnier-Wirt
+        -- (`MATCH_ACCEPT`) -- ein zweites Mal danach zu fragen waere eine
+        -- Huerde, die niemand erklaeren kann, und der Gast haette dafuer nicht
+        -- einmal einen Bildschirm.
+        if runner.host.lobby:occupiedCount() < 2 then return end
+        runner.host:startMatch()
+        self:enterMatch(1)
+    elseif runner.client.state == "playing" then
+        self:enterMatch(runner.client.slot or 2)
+    end
+end
+
+function TournamentScene:enterMatch(slot)
+    local runner = self.runner
+    self.inMatch = true
+    self.app.enterNetMatch({
+        role    = runner:isHost() and "host" or "client",
+        host    = runner.host,
+        client  = runner.client,
+        ruleset = runner:isHost() and self.session.t.ruleset or runner.client.ruleset,
+        names   = { self.app.playerName(), runner.opponent or "Gegner" },
+        slot    = slot,
+        stats   = self.stats,
+        -- Die Turnierverbindung wandert mit: Waehrend des Matches bekommt
+        -- diese Szene kein `update` mehr, und ein ENet-Wirt, den vier Minuten
+        -- lang niemand bedient, hat danach keine Teilnehmer mehr.
+        tournament = self.thost or self.tclient,
+        -- Der Rueckgabewert zaehlt: `true` heisst "noch ein Satz" (Best-of-3).
+        -- Ihn zu verschlucken haette dieselbe Wirkung wie ihn nie zu
+        -- schicken -- beide Seiten blieben auf dem Endstand stehen.
+        onFinished = function(scoreA, scoreB, reason, stats)
+            return self:reportResult(runner.matchId, scoreA, scoreB, reason, stats)
+        end,
+    })
+end
+
+-- Der Ergebnisbericht (E-08). Best-of-3 sammelt Saetze, bis einer zwei hat --
+-- erst dann geht die Meldung hinaus.
+function TournamentScene:reportResult(matchId, scoreA, scoreB, reason, stats)
+    local runner = self.runner
+    if not runner or runner.matchId ~= matchId then return end
+
+    local done = runner:addSet(scoreA, scoreB)
+    if not done then
+        -- Best-of-3: noch kein Ergebnis. `true` zurueck heisst fuer die
+        -- Matchszene "noch ein Satz" -- ohne diese Antwort blieben beide
+        -- Seiten auf dem Endstand stehen und das Turnier wartete auf ein
+        -- Ergebnis, das nie kommt. Gemessen 2026-08-13 im Finale.
+        self.ui:say("Satz notiert -- weiter geht es")
+        return true
+    end
+
+    -- Gemeldet wird nur vom Match-Wirt (E-08). Der Gast raeumt hier bloss auf
+    -- und geht zurueck ins Turnier -- wuerde er mitmelden, gaebe es zwei
+    -- Absender fuer ein Ergebnis und die Zusicherung "kann nicht auftreten"
+    -- waere eine Absichtserklaerung.
+    if runner:isHost() then
+        if self.tclient then
+            self.tclient:report(matchId, runner.sets, stats, reason)
+        elseif self.thost then
+            self.session:enterResult(matchId, runner.sets, now(), stats)
+        end
+    end
+
+    self.reportedMatch = matchId
+    self.inMatch = false
+    self.runner = nil
+    self.stats  = nil
+
+    -- Der Socket wird NICHT hier zugemacht. Dieser Rueckruf kommt aus der
+    -- Ereignisschleife von `Client`/`Host` heraus -- die leert ihre Queue in
+    -- einer Schleife, und wer ihr mittendrin den Wirt unter den Fuessen
+    -- wegzieht, bekommt beim naechsten Durchlauf ein `attempt to index field
+    -- 'host' (a nil value)`. Gemessen 2026-08-13 im Vierprozesslauf.
+    self.closing = runner
+    -- Und nicht sofort: Der Wirt hat gerade `MATCH_END` in die Warteschlange
+    -- gelegt. Eine halbe Sekunde weiterbedienen kostet nichts und sorgt
+    -- dafuer, dass die Nachricht auch dann ankommt, wenn ein Paket unterwegs
+    -- wiederholt werden muss.
+    self.closingUntil = now() + 0.5
+    self.app.leaveMatch()
 end
 
 -- ---------------------------------------------------------------------------
@@ -135,11 +428,31 @@ function TournamentScene:enter()
 end
 
 function TournamentScene:update()
+    -- Erst aufraeumen, dann bedienen: Der Laeufer des eben beendeten Matches
+    -- wird hier geschlossen und nicht im Rueckruf (siehe `reportResult`).
+    if self.closing then
+        if now() < (self.closingUntil or 0) then
+            self.closing:update(0)
+        else
+            self.closing:close()
+            self.closing = nil
+        end
+    end
+
+    if self.thost then self.thost:update(now()) end
+    if self.tclient then self.tclient:update(now()) end
+    if self.runner then
+        self.runner:update(0)
+        self:pushMatchIfReady()
+    end
+
     local session = self.session
     if not session then return end
 
     -- Der Takt des Turniers. Er laeuft auch, wenn niemand eine Taste drueckt --
-    -- der No-Show-Timer ist genau der Fall, in dem niemand etwas tut.
+    -- der No-Show-Timer ist genau der Fall, in dem niemand etwas tut. Beim
+    -- Leiter hat `TournamentHost:update` den Automaten schon laufen lassen;
+    -- was hier passiert, ist ausschliesslich das EINSAMMELN des Stroms.
     local events = session:tick(now())
     for _, name in ipairs(self.ui:soundsFor(events)) do
         -- Der Aufruf muss ueber die Menuemusik durchkommen (Klangliste §2);
@@ -173,6 +486,12 @@ end
 
 function TournamentScene:textinput(text)
     self.ui:textinput(text)
+end
+
+function TournamentScene:leave()
+    if self.runner then self.runner:close() self.runner = nil end
+    if self.thost then self.thost:close() self.thost = nil end
+    if self.tclient then self.tclient:close() self.tclient = nil end
 end
 
 return TournamentScene
