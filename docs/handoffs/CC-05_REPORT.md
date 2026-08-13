@@ -712,9 +712,15 @@ Ergebnisse als solche markiert (E-12). Dateizugriff ausschließlich über
 persistence.lua. Ein Tastendruck, kein Menü; frei ist in der vollen Ansicht `X`.
 
 Ausgangszahlen: lovec.exe . --test = 445 bestanden, --test-no-love = 404,
---net-selftest = 47 Prüfungen, --tournament-selftest = 58 Prüfungen,
+--net-selftest = 49 Prüfungen, --tournament-selftest = 59 Prüfungen,
 python tools/verify_replays.py = OK. Was nicht steigen darf, ist die Zahl der
-gescheiterten. CC-05_REPORT.md wird fortgeschrieben, nicht neu geschrieben.
+gescheiterten.
+
+Die CI fährt seit M4-09 beide Selbsttests auf windows-latest und macos-latest,
+und die Paketjobs hängen daran. Ein Push ist erst fertig, wenn der Lauf grün
+ist -- nachsehen mit gh (CLAUDE.md §11), nicht nachfragen.
+
+CC-05_REPORT.md wird fortgeschrieben, nicht neu geschrieben.
 
 Danach dein Plan in maximal 10 Zeilen plus Rückfragen.
 ```
