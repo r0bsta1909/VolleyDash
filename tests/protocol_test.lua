@@ -438,4 +438,142 @@ case("T-N-07: die Referenz laesst sich zurueckdekodieren", function()
     assertEq(out.phase, Snapshot.PHASE_CODE.play, "phase")
 end)
 
+-- ---------------------------------------------------------------------------
+-- Turnier (M4-09, ADR-022 und ADR-023)
+-- ---------------------------------------------------------------------------
+
+case("0x40 traegt Log-Ereignisse und nicht den abgeleiteten Zustand", function()
+    local events = {
+        { event = "participant_joined", at = 12.5, participantId = "p_01",
+          name = "Anna", clientId = 4711 },
+        { event = "match_finished", at = 90, matchId = "m_101", winner = "p_01",
+          sets = { { a = 15, b = 12 }, { a = 15, b = 9 } } },
+    }
+    local out = roundtrip(Protocol.MSG.TOURNAMENT_STATE,
+        { fromIndex = 7, events = events })
+
+    assertEq(out.fromIndex, 7, "fromIndex")
+    assertEq(out.count, 2, "count")
+    assertEq(#out.events, 2, "Ereignisse")
+    assertEq(out.events[1].name, "Anna", "Name")
+    assertEq(out.events[1].clientId, 4711, "clientId")
+    assertEq(out.events[2].sets[1].a, 15, "erster Satz")
+    assertEq(out.events[2].sets[2].b, 9, "zweiter Satz")
+end)
+
+-- Der Grund fuer das `s4` (`04_NETCODE` §5): ein Block aus Ereignissen
+-- ueberschreitet 255 Byte, und ein Feldmass zum Kuerzen gibt es nicht.
+case("0x40 traegt einen vollen Block ueber 255 Byte", function()
+    local events = {}
+    for i = 1, Protocol.STATE_CHUNK do
+        events[i] = { event = "match_called", at = i, matchId = "m_" .. (100 + i) }
+    end
+    local out, data = roundtrip(Protocol.MSG.TOURNAMENT_STATE,
+        { fromIndex = 0, events = events })
+
+    assertTrue(#data > 255, "Nachricht laenger als ein Laengenbyte traegt")
+    assertEq(out.count, Protocol.STATE_CHUNK, "count")
+    assertEq(#out.events, Protocol.STATE_CHUNK, "Ereignisse")
+    assertEq(out.events[Protocol.STATE_CHUNK].matchId,
+        "m_" .. (100 + Protocol.STATE_CHUNK), "letztes Ereignis")
+end)
+
+-- Ein halb angewandtes Log waere schlimmer als ein sichtbar veralteter Stand
+-- (ADR-023). Also: kein Ereignis statt halber Ereignisse.
+case("0x40 mit kaputtem JSON liefert keine Ereignisse, sondern einen Grund", function()
+    local data = Protocol.encode(Protocol.MSG.TOURNAMENT_STATE,
+        { fromIndex = 3, events = { { event = "match_called", matchId = "m_1" } } })
+
+    -- Das JSON in der Mitte anschneiden, Laengenpraefix unberuehrt lassen:
+    -- genau der Fall, den ein abgeschnittener Schreibvorgang erzeugt.
+    local cut = data:sub(1, #data - 4) .. "!!!!"
+    local kind, out = Protocol.decode(cut)
+    assertEq(kind, Protocol.MSG.TOURNAMENT_STATE, "Typ bleibt lesbar")
+    assertEq(out.events, nil, "keine halben Ereignisse")
+    assertTrue(out.error ~= nil, "Grund benannt")
+end)
+
+case("0x41 sagt dem Empfaenger seine Rolle und wohin er sich verbindet", function()
+    local out = roundtrip(Protocol.MSG.TOURNAMENT_ASSIGN, {
+        matchId = "m_142", role = Protocol.ROLE.GUEST, opponent = "Bert",
+        address = "192.168.1.44:56172", bestOf = 3,
+    })
+    assertEq(out.matchId, "m_142", "matchId")
+    assertEq(out.role, Protocol.ROLE.GUEST, "Rolle")
+    assertEq(out.opponent, "Bert", "Gegner")
+    assertEq(out.address, "192.168.1.44:56172", "Adresse")
+    assertEq(out.bestOf, 3, "bestOf")
+end)
+
+case("0x42 traegt den ephemeren Port des Match-Hosts", function()
+    local host = roundtrip(Protocol.MSG.MATCH_ACCEPT,
+        { matchId = "m_142", ready = true, enetPort = 56172 })
+    assertEq(host.enetPort, 56172, "Port")
+    assertTrue(host.ready, "bereit")
+
+    -- Der Gast schickt dieselbe Nachricht ohne Port: fuer ihn ist sie nur die
+    -- Bereitmeldung.
+    local guest = roundtrip(Protocol.MSG.MATCH_ACCEPT,
+        { matchId = "m_142", ready = true })
+    assertEq(guest.enetPort, 0, "kein Port")
+end)
+
+-- Ohne diese zwei Zahlen fehlen bei der Siegerehrung zwei der fuenf
+-- Statistiken aus `05_TOURNAMENT` §11.
+case("0x43 traegt die Saetze UND die beiden Simulationsstatistiken", function()
+    local out = roundtrip(Protocol.MSG.MATCH_REPORT, {
+        matchId = "m_142",
+        sets = { { a = 15, b = 12 }, { a = 11, b = 15 }, { a = 15, b = 13 } },
+        longestRally = 42.5, fastestBall = 812.0, fastestBy = 2,
+        reason = Protocol.END.NORMAL,
+    })
+    assertEq(out.matchId, "m_142", "matchId")
+    assertEq(#out.sets, 3, "drei Saetze")
+    assertEq(out.sets[2].a, 11, "zweiter Satz A")
+    assertEq(out.sets[3].b, 13, "dritter Satz B")
+    assertNear(out.longestRally, 42.5, 0.001, "laengste Rallye")
+    assertNear(out.fastestBall, 812.0, 0.01, "schnellster Ball")
+    assertEq(out.fastestBy, 2, "wer ihn geschlagen hat")
+    assertEq(out.reason, Protocol.END.NORMAL, "Grund")
+end)
+
+case("0x43 vertraegt ein Match ohne Satz und ohne Statistik", function()
+    local out = roundtrip(Protocol.MSG.MATCH_REPORT,
+        { matchId = "m_9", sets = {}, reason = Protocol.END.DISCONNECT })
+    assertEq(#out.sets, 0, "keine Saetze")
+    assertEq(out.longestRally, 0, "keine Rallye")
+    assertEq(out.fastestBy, 0, "niemand")
+end)
+
+case("0x44 und 0x45 sind die zwei Nachfragen", function()
+    local q = roundtrip(Protocol.MSG.RESULT_QUERY, { matchId = "m_142" })
+    assertEq(q.matchId, "m_142", "Ergebnis-Nachfrage")
+
+    local s = roundtrip(Protocol.MSG.STATE_REQUEST, { fromIndex = 118 })
+    assertEq(s.fromIndex, 118, "Log-Nachforderung")
+end)
+
+case("0x46 nennt die Teilnehmerkennung und den TATSAECHLICHEN Namen", function()
+    local out = roundtrip(Protocol.MSG.TOURNAMENT_WELCOME, {
+        participantId = "p_07", name = "Anna 2",
+        tournamentName = "Sommer-LAN", logCount = 118,
+    })
+    assertEq(out.participantId, "p_07", "Kennung")
+    -- Der gewuenschte Name war "Anna". Wer das nicht erfaehrt, findet sich
+    -- spaeter im Baum nicht wieder (§5, Eindeutigkeit).
+    assertEq(out.name, "Anna 2", "vergebener Name")
+    assertEq(out.tournamentName, "Sommer-LAN", "Turniername")
+    assertEq(out.logCount, 118, "Wasserstand")
+end)
+
+case("die Turnier-Nachrichten gehen alle zuverlaessig ueber Kanal 0", function()
+    for _, id in ipairs({ Protocol.MSG.TOURNAMENT_STATE, Protocol.MSG.TOURNAMENT_ASSIGN,
+                          Protocol.MSG.MATCH_ACCEPT, Protocol.MSG.MATCH_REPORT,
+                          Protocol.MSG.RESULT_QUERY, Protocol.MSG.STATE_REQUEST,
+                          Protocol.MSG.TOURNAMENT_WELCOME }) do
+        assertEq(Protocol.channelOf(id), 0, "Kanal von " .. Protocol.NAME[id])
+        assertEq(Protocol.flagOf(id), "reliable", "Modus von " .. Protocol.NAME[id])
+    end
+end)
+
 return T

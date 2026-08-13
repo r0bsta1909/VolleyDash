@@ -51,6 +51,20 @@ function Host.new(opts)
         return nil, "Port " .. port .. " laesst sich nicht binden: " .. tostring(err)
     end
 
+    -- Port 0 heisst "such dir einen" (`05_TOURNAMENT` §8.2). Ein Turniermatch
+    -- laeuft immer so: Der Turnier-Wirt haelt 21212, und ein Prozess kann
+    -- denselben Port nicht zweimal binden -- gemessen 2026-08-13. Welchen wir
+    -- bekommen haben, muss der Gegner erfahren, also wird er zurueckgelesen.
+    if port == 0 then
+        local ok, addr = pcall(function() return server:get_socket_address() end)
+        local actual = ok and tostring(addr):match(":(%d+)$")
+        if not actual then
+            pcall(function() server:destroy() end)
+            return nil, "der vergebene Port laesst sich nicht ablesen"
+        end
+        port = tonumber(actual)
+    end
+
     local self = setmetatable({
         enet      = enet,
         server    = server,
@@ -425,6 +439,14 @@ end
 
 function Host:close()
     if not self.server then return end
+
+    -- ERST hinausschieben, DANN trennen. `disconnect_now` verwirft alles, was
+    -- fuer diesen Peer noch in der Warteschlange steht -- und dort steht im
+    -- Zweifel die letzte Nachricht, die zaehlt. Gemessen 2026-08-13 im
+    -- Turnierbetrieb: Der Match-Wirt schickte `MATCH_END` und raeumte im
+    -- selben Atemzug auf; beim Gast kam nichts an, er blieb auf dem Endstand
+    -- stehen und das Turnier wartete auf ihn.
+    pcall(function() self.server:flush() end)
     for peer in pairs(self.peers) do
         pcall(function() peer:disconnect_now(0) end)
     end

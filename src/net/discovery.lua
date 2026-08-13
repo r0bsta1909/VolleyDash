@@ -88,8 +88,14 @@ function Discovery.newHost(opts)
     }, Discovery)
 end
 
+-- `info` darf eine Tabelle ODER eine Funktion sein. Die Match-Lobby hat feste
+-- Angaben -- zwei Plaetze, ein Name -- und reicht eine Tabelle. Ein Turnier
+-- laeuft einen Abend lang und seine Teilnehmerzahl aendert sich dabei
+-- staendig; eine Tabelle waere dort ab dem zweiten Beitritt falsch, und zwar
+-- still (M4-09).
 function Discovery:announcePacket()
     local info = self.info
+    if type(info) == "function" then info = info() or {} end
     return Protocol.encodeDiscovery(Protocol.MSG.ANNOUNCE, {
         hostId     = info.hostId or 0,
         hostName   = info.hostName or "Host",

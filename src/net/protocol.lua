@@ -32,6 +32,10 @@
 
 local Snapshot = require("src.net.snapshot")
 local Ruleset  = require("src.sim.ruleset")
+-- ADR-023: dieselbe Darstellung wie die Zustandsdatei. `json.lua` ist
+-- love-frei und deckt genau die Ereignisse ab, die `persistence.lua`
+-- schreibt -- die Pruefung, die ADR-020 vor einer Zweitnutzung verlangt.
+local Json     = require("src.tournament.json")
 
 local Protocol = {}
 
@@ -59,7 +63,16 @@ Protocol.MSG = {
     MATCH_END        = 0x23,
     MATCH_PAUSE      = 0x24,
     SPECTATE_REQ     = 0x30,
+    -- Turnier (M4-09). 0x40 traegt Log-Ereignisse, nicht den abgeleiteten
+    -- Zustand -- ADR-023. Der Anmelde-Handschlag ist HELLO/REJECT aus der
+    -- Lobby; neu ist nur die Antwort (0x46), weil ein Turnier keine Slots hat.
     TOURNAMENT_STATE = 0x40,
+    TOURNAMENT_ASSIGN = 0x41,
+    MATCH_ACCEPT     = 0x42,
+    MATCH_REPORT     = 0x43,
+    RESULT_QUERY     = 0x44,
+    STATE_REQUEST    = 0x45,
+    TOURNAMENT_WELCOME = 0x46,
     PING             = 0x50,
     PONG             = 0x51,
     CHECKSUM         = 0x60,
@@ -110,7 +123,21 @@ Protocol.MAX = {
     buildHash = 16,
     text      = 64,
     key       = 32,
+    matchId   = 16,   -- "m_101" -- Bracket.newIdGen
+    pid       = 8,    -- "p_01"
+    address   = 48,   -- "255.255.255.255:65535" mit Luft
 }
+
+-- Rolle in einem Turniermatch (0x41). Wer hostet, entscheidet der Turnier-Host
+-- nach ADR-022 -- der Empfaenger fuehrt aus, er waehlt nicht.
+Protocol.ROLE = {
+    GUEST = 0,
+    HOST  = 1,
+}
+
+-- Ein Block aus Log-Ereignissen (0x40). Groesser waere eine Nachricht, deren
+-- Groesse vom Turnierverlauf abhaengt; 32 Ereignisse sind rund 3 KB.
+Protocol.STATE_CHUNK = 32
 
 -- ---------------------------------------------------------------------------
 -- Hilfen
@@ -374,6 +401,141 @@ CODEC[Protocol.MSG.CHECKSUM] = {
     unpack = function(data, pos)
         local tick, hash = dunpack("<i4I4", data, pos)
         return { tick = tick, hash = hash }
+    end,
+}
+
+-- ---------------------------------------------------------------------------
+-- Turnier (M4-09)
+--
+-- 0x40 traegt LOG-EREIGNISSE, nicht den abgeleiteten Zustand (ADR-023). Damit
+-- ist die Differenz zweier Staende immer ein Suffix, der Empfaenger leitet mit
+-- demselben `Model.applyEvent` ab wie die Recovery, und die Nachricht bleibt
+-- bei rund 100 Byte je Ereignis statt bei 30 KB je Zustand.
+--
+-- Das `s4` ist die einzige im Protokoll (`04_NETCODE` §5): Ein Block aus
+-- Ereignissen ueberschreitet 255 Byte, und ein Feldmass, auf das der Sender
+-- kuerzen koennte, gibt es hier nicht. Das Laengenpraefix bleibt -- eine
+-- fremde Fassung verschiebt den Rest der Nachricht nicht, sie liefert eine
+-- Laenge, die nicht aufgeht.
+-- ---------------------------------------------------------------------------
+
+CODEC[Protocol.MSG.TOURNAMENT_STATE] = {
+    pack = function(t)
+        local text = Json.encode(t.events or {}, false)
+        return dpack("string", "<I4I2s4", t.fromIndex or 0,
+            math.min(65535, #(t.events or {})), text)
+    end,
+    unpack = function(data, pos)
+        local fromIndex, count, text = dunpack("<I4I2s4", data, pos)
+        -- Ein kaputter Block wird verworfen und gezaehlt, nicht halb
+        -- angewandt: ein halb angewandtes Log ist schlimmer als ein sichtbar
+        -- veralteter Stand (ADR-023).
+        local events, err = Json.decode(text)
+        if type(events) ~= "table" then
+            return { fromIndex = fromIndex, count = count, events = nil,
+                     error = err or "kein JSON-Array" }
+        end
+        return { fromIndex = fromIndex, count = count, events = events }
+    end,
+}
+
+CODEC[Protocol.MSG.TOURNAMENT_ASSIGN] = {
+    pack = function(t)
+        return dpack("string", "<s1Bs1s1B",
+            clip(t.matchId, Protocol.MAX.matchId), u8(t.role),
+            clip(t.opponent, Protocol.MAX.name),
+            clip(t.address, Protocol.MAX.address), u8(t.bestOf))
+    end,
+    unpack = function(data, pos)
+        local matchId, role, opponent, address, bestOf = dunpack("<s1Bs1s1B", data, pos)
+        return { matchId = matchId, role = role, opponent = opponent,
+                 address = address, bestOf = bestOf }
+    end,
+}
+
+-- Der Match-Host meldet den Port, den ihm das Betriebssystem gegeben hat
+-- (`05_TOURNAMENT` §8.2). Der Gast schickt dieselbe Nachricht mit Port 0 --
+-- fuer ihn ist sie nur die Bereitmeldung, auf die der Scheduler wartet.
+CODEC[Protocol.MSG.MATCH_ACCEPT] = {
+    pack = function(t)
+        return dpack("string", "<s1BI2", clip(t.matchId, Protocol.MAX.matchId),
+            t.ready and 1 or 0, math.min(65535, math.floor(t.enetPort or 0)))
+    end,
+    unpack = function(data, pos)
+        local matchId, ready, enetPort = dunpack("<s1BI2", data, pos)
+        return { matchId = matchId, ready = ready == 1, enetPort = enetPort }
+    end,
+}
+
+-- Der Ergebnisbericht des Match-Hosts (E-08). Er traegt die Saetze UND die
+-- zwei Statistiken, die in der Simulation anfallen (`05_TOURNAMENT` §11) --
+-- ohne sie fehlen sie bei der Siegerehrung, und ein zweiter Weg fuer zwei
+-- Zahlen waere teurer als diese beiden Felder.
+CODEC[Protocol.MSG.MATCH_REPORT] = {
+    pack = function(t)
+        local sets = t.sets or {}
+        local parts = { dpack("string", "<s1B",
+            clip(t.matchId, Protocol.MAX.matchId), u8(#sets)) }
+        for _, s in ipairs(sets) do
+            parts[#parts + 1] = dpack("string", "<BB", u8(s.a), u8(s.b))
+        end
+        parts[#parts + 1] = dpack("string", "<ffBB",
+            t.longestRally or 0, t.fastestBall or 0,
+            u8(t.fastestBy), u8(t.reason))
+        return table.concat(parts)
+    end,
+    unpack = function(data, pos)
+        local matchId, count
+        matchId, count, pos = dunpack("<s1B", data, pos)
+        local sets = {}
+        for i = 1, count do
+            local a, b
+            a, b, pos = dunpack("<BB", data, pos)
+            sets[i] = { a = a, b = b }
+        end
+        local longestRally, fastestBall, fastestBy, reason =
+            dunpack("<ffBB", data, pos)
+        return { matchId = matchId, sets = sets, longestRally = longestRally,
+                 fastestBall = fastestBall, fastestBy = fastestBy, reason = reason }
+    end,
+}
+
+local matchIdCodec = {
+    pack = function(t)
+        return dpack("string", "<s1", clip(t.matchId, Protocol.MAX.matchId))
+    end,
+    unpack = function(data, pos)
+        local matchId = dunpack("<s1", data, pos)
+        return { matchId = matchId }
+    end,
+}
+CODEC[Protocol.MSG.RESULT_QUERY] = matchIdCodec
+
+CODEC[Protocol.MSG.STATE_REQUEST] = {
+    pack = function(t) return dpack("string", "<I4", t.fromIndex or 0) end,
+    unpack = function(data, pos)
+        local fromIndex = dunpack("<I4", data, pos)
+        return { fromIndex = fromIndex }
+    end,
+}
+
+-- Ein Turnier hat keine Slots und kein Ruleset zu verhandeln -- es hat eine
+-- Teilnehmerkennung und einen Namen, der wegen der Eindeutigkeitsregel (§5)
+-- ein anderer sein kann als der gewuenschte. Deshalb eine eigene Antwort
+-- statt WELCOME.
+CODEC[Protocol.MSG.TOURNAMENT_WELCOME] = {
+    pack = function(t)
+        return dpack("string", "<s1s1s1I4",
+            clip(t.participantId, Protocol.MAX.pid),
+            clip(t.name, Protocol.MAX.name),
+            clip(t.tournamentName, Protocol.MAX.lobby),
+            math.floor(t.logCount or 0))
+    end,
+    unpack = function(data, pos)
+        local participantId, name, tournamentName, logCount =
+            dunpack("<s1s1s1I4", data, pos)
+        return { participantId = participantId, name = name,
+                 tournamentName = tournamentName, logCount = logCount }
     end,
 }
 

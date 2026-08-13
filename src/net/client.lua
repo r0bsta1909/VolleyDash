@@ -407,6 +407,9 @@ function Client:peerLoss()
 end
 
 function Client:close()
+    -- Reihenfolge wie in `host.lua`: erst hinausschieben, dann trennen.
+    -- `disconnect_now` verwirft, was noch in der Warteschlange steht.
+    if self.host then pcall(function() self.host:flush() end) end
     if self.peer then pcall(function() self.peer:disconnect_now(0) end) end
     if self.host then
         pcall(function() self.host:flush() end)
