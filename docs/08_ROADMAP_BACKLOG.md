@@ -146,7 +146,7 @@ Normalfall, nicht der Sonderfall.
 nichts am Turniercode, verengt aber die Annahme A1 auf einen Switch und macht die
 Discovery-Lage berechenbar.
 
-| ID | Aufgabe | h | Stand 2026-08-13 (CC-05, Stufe A) |
+| ID | Aufgabe | h | Stand 2026-08-13 (CC-05, Stufe A und B) |
 |----|---------|---|---|
 | M4-01 | `model.lua`: Datenmodell + append-only Log | 4 | ✅ `src/tournament/model.lua`, `love`-frei. Abgeleiteter Zustand wird nach jedem Ereignis neu gerechnet |
 | M4-02 | `bracket.lua`: Single Elimination inkl. Freilose | 5 | ✅ klassische Setzung, Freilose an die Höchstgesetzten (E-01), für 4–32 geprüft |
@@ -154,16 +154,23 @@ Discovery-Lage berechenbar.
 | M4-03 | `bracket.lua`: Round Robin + Tabellenkriterien E-11 | 4 | ✅ Kreismethode (parallelisierbare Runden), E-11 vollständig, echter Gleichstand wird gemeldet statt gewürfelt |
 | M4-04 | Gruppen → Elim | 3 | ✅ inkl. Reparaturgang: keine Gruppengegner in der ersten K.o.-Runde |
 | M4-05 | `scheduler.lua`: Match-Zustandsautomat, Calling, No-Show-Timer | 5 | ✅ plus E-15/E-16/E-17 (ADR-021) — ohne sie terminiert der Automat nicht |
-| M4-06 | `persistence.lua`: atomares Schreiben, Recovery-Dialog | 4 | ✅ vier Schritte nach §7, JSON (ADR-020). **Dialog-UI fehlt** — die Datenseite steht, `Persistence:running()` liefert sie |
-| M4-07 | Turnier-Lobby-UI, Setzung mit sichtbarem Seed | 4 | ⬜ Stufe B. Der deterministische Generator steht bereits in `bracket.lua` |
-| M4-08 | `bracket_view.lua`: kompakt (Spieler) + voll (Beamer) | 5 | ⬜ Stufe B |
+| M4-06 | `persistence.lua`: atomares Schreiben, Recovery-Dialog | 4 | ✅ vier Schritte nach §7, JSON (ADR-020). Der Dialog „Laufendes Turnier gefunden" ist mit M4-07 dazugekommen |
+| M4-07 | Turnier-Lobby-UI, Setzung mit sichtbarem Seed | 4 | ✅ `src/ui/tournament_lobby.lua` + `src/tournament/session.lua`. Anmeldung **am Turnier-Host** (das Netz ist Stufe C), Seed als Text mit nachrechenbarer Zahl, Wiederaufnahme-Dialog, die drei Klänge. `by_rating` zurückgestellt (§9) |
+| M4-08 | `bracket_view.lua`: kompakt (Spieler) + voll (Beamer) | 5 | ✅ eigene Linie plus „Nächster Gegner" im Spielermenü, Gruppentabellen bzw. K.o.-Baum am Beamer, aufgerufene Matches blinkend mit Countdown (F2 schaltet um) |
 | M4-09 | **Verteilte Match-Hosts bei parallelen Matches — kritischer Pfad, nicht optional** (ADR-013) | 8 | ⬜ Stufe C. Einhängepunkt steht: `Scheduler.new(t, { chooseHost = … })`. T-01 und das Format von `TOURNAMENT_STATE` sind vorher als ADR fällig |
 | M4-10 | Export als Markdown/CSV | 1 | ⬜ Stufe D |
-| M4-11 | Manuelle Ergebniskorrektur mit Protokollierung | 2 | ✅ Datenseite fertig (`manual_override` mit Pflicht-Begründung, im Bracket markiert), **Bedienung fehlt** — die gehört zu M4-07 |
+| M4-11 | Manuelle Ergebniskorrektur mit Protokollierung | 2 | ✅ vollständig. Bedienung mit M4-07: Ergebnis eintragen, korrigieren (Begründung ist Pflicht), No-Show-Timer anhalten, Match abbrechen, Teilnehmer austragen |
 
 **Stufe A ist abgeschlossen** (CC-05, 2026-08-13): Ein 20er-Turnier läuft im Headless-Runner
 vollständig durch — 40 Gruppenmatches, 8 K.o.-Matches, Sieger, inklusive hartem Neustart
 mitten in Runde 2 aus der Datei heraus. Bericht: `docs/handoffs/CC-05_REPORT.md`.
+
+**Stufe B ist abgeschlossen** (CC-05, 2026-08-13): Das Turnier ist bedienbar — Menü →
+NETWORK MATCH → „Turnier". Anmelden, auslosen, spielen, Sieger; ein 8er-Turnier läuft
+ausschließlich über die Tastatur bis zum Sieger durch und steht als Testfall drin.
+**Angemeldet wird am Turnier-Host, nicht über das Netz:** Die Match-Lobby aus M2 hat zwei
+Plätze (`src/net/lobby.lua`) und startet genau ein Match, und das Format von
+`TOURNAMENT_STATE` ist ein offener ADR. Beides gehört zu **M4-09**.
 
 ### M5 — Spectator + Beamer (12–18 h)
 

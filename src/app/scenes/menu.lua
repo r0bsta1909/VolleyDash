@@ -26,6 +26,7 @@ function MenuScene.new(app)
         onLaunch = function(vsBot) app.startMatch(vsBot) end,
         onHost   = function() app.hostLobby() end,
         onBrowse = function() app.openServerList() end,
+        onTournament = function() app.openTournament() end,
         playerName    = function() return app.playerName() end,
         setPlayerName = function(name) app.setPlayerName(name) end,
         onTweaker = function() app.openTweaker() end,

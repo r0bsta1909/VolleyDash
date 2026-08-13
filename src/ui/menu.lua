@@ -175,6 +175,10 @@ function Menu:buildPages()
                 },
                 { name = "Spiel hosten", action = function() ctx.onHost() end },
                 { name = "Spiel suchen", action = function() ctx.onBrowse() end },
+                -- Der Turniermodus steht hier und nicht im Hauptmenue: Er
+                -- gehoert zum LAN-Abend, und wer allein vor dem Rechner sitzt,
+                -- braucht ihn nicht (M4-07).
+                { name = "Turnier", action = function() ctx.onTournament() end },
                 {
                     -- Der Host verteilt das Regelwerk (ADR-005); beim Gast ist
                     -- die Einstellung wirkungslos und steht deshalb hier, nicht

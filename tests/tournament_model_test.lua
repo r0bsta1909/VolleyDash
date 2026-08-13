@@ -401,4 +401,58 @@ case("ein kaputtes Log stuerzt nicht ab, sondern meldet sich", function()
     assertTrue(err:find("abspielbar") ~= nil, "mit Meldung: " .. tostring(err))
 end)
 
+-- B-T-03, gefunden ueber die Teilnehmerliste in `bracket_view.lua`: Bei einem
+-- Freilos ist der Gegnerslot leer. Der Verlierer wurde daraus mit einem
+-- and/or-Ausdruck bestimmt, der in genau diesem Fall auf den SIEGER
+-- durchfaellt -- und damit stand in der Statistik eine Niederlage, die niemand
+-- erlitten hat.
+case("ein Freilos hat einen Sieger und keinen Verlierer (B-T-03)", function()
+    local t = H.newTournament(5, { format = "single_elim" })
+    H.draw(t)
+
+    local bye
+    for _, m in ipairs(t:matchList()) do
+        if Model.hasBye(m) then bye = m break end
+    end
+    assertTrue(bye ~= nil, "bei fuenf Teilnehmern gibt es Freilose")
+
+    local winner = bye.slotA or bye.slotB
+    t:append({ event = "match_bye", matchId = bye.id, at = 0, winner = winner })
+
+    local done = t:match(bye.id)
+    assertEq(done.winner, winner, "der Freilos-Sieger")
+    assertEq(done.loser, nil, "und niemand hat verloren")
+
+    local stats = t.participants[winner].stats
+    assertEq(stats.wins, 1, "ein Sieg")
+    assertEq(stats.losses, 0, "keine Niederlage")
+end)
+
+-- B-T-03, gefunden ueber die Teilnehmerliste in `bracket_view.lua`: Bei einem
+-- Freilos ist der Gegnerslot leer. Der Verlierer wurde daraus mit einem
+-- and/or-Ausdruck bestimmt, der in genau diesem Fall auf den SIEGER
+-- durchfaellt -- und damit stand in der Statistik eine Niederlage, die niemand
+-- erlitten hat.
+case("ein Freilos hat einen Sieger und keinen Verlierer (B-T-03)", function()
+    local t = H.newTournament(5, { format = "single_elim" })
+    H.draw(t)
+
+    local bye
+    for _, m in ipairs(t:matchList()) do
+        if Model.hasBye(m) then bye = m break end
+    end
+    assertTrue(bye ~= nil, "bei fuenf Teilnehmern gibt es Freilose")
+
+    local winner = bye.slotA or bye.slotB
+    t:append({ event = "match_bye", matchId = bye.id, at = 0, winner = winner })
+
+    local done = t:match(bye.id)
+    assertEq(done.winner, winner, "der Freilos-Sieger")
+    assertEq(done.loser, nil, "und niemand hat verloren")
+
+    local stats = t.participants[winner].stats
+    assertEq(stats.wins, 1, "ein Sieg")
+    assertEq(stats.losses, 0, "keine Niederlage")
+end)
+
 return T

@@ -307,7 +307,14 @@ local function finishMatch(self, m, winner, at, status)
     end
     m.status  = status
     m.winner  = winner
-    m.loser   = (winner == m.slotA) and m.slotB or m.slotA
+
+    -- Bewusst KEIN `(winner == m.slotA) and m.slotB or m.slotA`: Bei einem
+    -- Freilos ist der Gegnerslot leer, der Ausdruck faellt auf `slotA` durch --
+    -- und der Freilos-Sieger stand als sein eigener Verlierer im Bracket.
+    -- Folgen: eine Niederlage in der Statistik, die niemand erlitten hat, und
+    -- eine `loser_of`-Referenz, die auf den Sieger zeigt (B-T-03).
+    if winner == m.slotA then m.loser = m.slotB else m.loser = m.slotA end
+
     m.endedAt = at
 end
 

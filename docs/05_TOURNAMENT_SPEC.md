@@ -217,6 +217,10 @@ An ADR-007 ändert das nichts — das Verfahren bleibt „tmp → bak → rename
 
 Standard: `random` mit sichtbarem Seed. Klassische Bracket-Position: 1 gegen n, 2 gegen n-1, usw.
 
+**Stand 2026-08-13 (M4-07).** Gebaut sind `random` (Voreinstellung) und `manual`. **`by_rating` ist zurückgestellt** — das Verfahren steht in `bracket.lua` und nimmt eine Rangliste entgegen, aber sie aus den Vorturnieren desselben Abends zusammenzurechnen ist eigene Arbeit und vor dem zweiten Turnier des Abends wirkungslos. Entscheidung r0btoshi, Begründung im `CC-05_REPORT`.
+
+**Der sichtbare Seed ist ein Text, gerechnet wird mit einer Zahl.** Das Feld nimmt „sommerlan" genauso wie „113355": Eine reine Ziffernfolge gilt als Zahl, alles andere läuft über djb2. Angezeigt werden beide, und die angeschriebene Zahl ergibt wieder eingetippt dasselbe Bracket — sonst wäre der Seed nicht nachrechenbar und damit wertlos. Steht als Testfall in `tests/tournament_session_test.lua`.
+
 ## 10. Darstellung des Brackets
 
 **Im Spieler-Menü:** kompakte Ansicht — nur die eigene Turnierlinie plus „Nächster Gegner: …". Ein vollständiger 32er-Baum auf einem Laptop-Bildschirm ist unlesbar.
@@ -224,6 +228,8 @@ Standard: `random` mit sichtbarem Seed. Klassische Bracket-Position: 1 gegen n, 
 **Am Beamer:** vollständiges Bracket, laufende Matches hervorgehoben, abgeschlossene ausgegraut, aufgerufene Matches blinkend mit Countdown.
 
 **Bei Round Robin:** Tabelle statt Baum, sortiert nach den Kriterien aus E-11, mit noch ausstehenden Matches am Fuß.
+
+**Stand 2026-08-13 (M4-08).** Beides gebaut, umgeschaltet wird mit **F2**. Ein Nachtrag aus der Umsetzung: Der Hinweis „Gleichstand — Stichsatz" darf nicht an einem ungelösten Tabellenblock hängen. Vor dem ersten Spieltag steht in jeder Gruppe alles gleich, und der Hinweis stand damit von Anfang an über jeder Tabelle. Angezeigt wird er unter genau der Bedingung, unter der der Scheduler den Stichsatz auch ansetzt: Gruppe durchgespielt **und** der Gleichstand liegt auf der Trennlinie zum K.o.
 
 ## 11. Statistiken (Minimalumfang v1.0)
 

@@ -9,11 +9,42 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
-Turniermodus (M4), **Stufe A**: das Turnier selbst — ohne Netzwerk und ohne Bild. Es ist noch
-nichts davon bedienbar; wer die Version startet, sieht dasselbe Spiel wie in 0.3.0. Der
-Eintrag steht hier, weil der Unterbau steht und geprüft ist.
+Turniermodus (M4), **Stufe A und B**: das Turnier selbst und seine Bedienung. Es ist jetzt
+spielbar — Menü → NETWORK MATCH → „Turnier": Namen eintragen, auslosen, Ergebnisse eintragen,
+Sieger. **Noch ohne Netzwerk:** Angemeldet wird am Turnier-Host, und gespielt wird daneben.
+Die verteilten Match-Hosts sind Stufe C (M4-09).
 
-### Hinzugefügt
+### Hinzugefügt (Stufe B — die Bedienung)
+
+- **Turnier-Lobby.** Teilnehmer werden am Turnier-Host eingetragen; nach ENTER steht der Cursor
+  wieder im leeren Feld, weil zwanzig Namen sonst niemand tippt. Doppelte Namen werden
+  abgewandelt statt abgelehnt (E-14), Streichen geht mit ENTF, und der Name ist danach wieder
+  frei. Format, Parallelität und Setzung stehen daneben.
+- **Der Seed ist sichtbar und nachrechenbar** (`05_TOURNAMENT` §9). Das Feld nimmt Text
+  („sommerlan") wie Zahlen; angezeigt werden beide. Wer die angeschriebene Zahl abliest und
+  wieder eintippt, bekommt dasselbe Bracket — sonst wäre ein sichtbarer Seed wertlos.
+- **Zwei Ansichten, F2 schaltet um** (§10). Kompakt für den Spieler: die eigene Linie, groß
+  „Nächster Gegner" und die Restzeit des No-Show-Timers. Voll für den Beamer: Gruppentabellen
+  bzw. der K.o.-Baum, laufende Matches hervorgehoben, fertige ausgegraut, aufgerufene blinkend
+  mit Countdown.
+- **Die drei Klänge spielen.** `tournament_call` beim Aufruf des eigenen Matches,
+  `tournament_warn` 30 s vor Ablauf des No-Show-Timers, `tournament_done` beim Sieger. Ohne den
+  Aufruf verliert ein Match, wer nichts gehört hat — der Timer läuft seit Stufe A wirklich.
+- **Bedienung des Turnierleiters (M4-11 vollständig):** Ergebnis eintragen (`15:12`, Best-of-3
+  nimmt mehrere Sätze), Ergebnis korrigieren mit Pflicht-Begründung (E-12, im Bracket markiert),
+  No-Show-Timer anhalten (E-02), Match abbrechen und neu ansetzen (E-06), Teilnehmer austragen
+  (E-04). In der kompakten Ansicht ist davon nichts erreichbar: Ein Spieler soll sein eigenes
+  Ergebnis nicht eintragen können.
+- **Der Dialog „Laufendes Turnier gefunden"** (§7). Er kommt vor allem anderen — wer die Frage
+  übergeht, legt ein zweites Turnier an. Unterbrochene Matches werden neu angesetzt, nicht
+  gewertet.
+- **`src/tournament/session.lua`** hält Modell, Scheduler und Persistenz zusammen und liefert
+  der Anzeige alles Gerechnete: Restzeit, eigene Linie, Bedienliste. Die Anzeige liest, sie
+  rechnet nicht — sonst gäbe es für die Restzeit zwei Rechnungen.
+- **61 neue Testfälle**, alle `love`-frei, darunter ein 8er-Turnier, das ausschließlich über die
+  Tastatur bis zum Sieger durchläuft.
+
+### Hinzugefügt (Stufe A — das Turnier)
 
 - **`src/tournament/` — Datenmodell, Auslosung, Zustandsautomat, Persistenz.** Alle vier
   Dateien sind `love`-frei und laufen im Headless-Testrunner; nur `persistence.lua` fasst
@@ -41,6 +72,11 @@ Eintrag steht hier, weil der Unterbau steht und geprüft ist.
 
 ### Behoben
 
+- **Ein Freilos machte seinen Sieger zu seinem eigenen Verlierer.** Der Verlierer wurde mit
+  einem `and/or`-Ausdruck bestimmt, der bei leerem Gegnerslot auf den Sieger durchfällt. Folge:
+  eine Niederlage in der Statistik, die niemand erlitten hat — bei 20 Teilnehmern in einem
+  32er-Bracket zwölf Mal. Aufgefallen an der Teilnehmerliste am Beamer, die die Zahlen zum
+  ersten Mal zeigt (B-T-03).
 - `assets/CREDITS.md` gab die Klänge als **44,1 kHz** an. Sie liegen sämtlich in **48 kHz**
   vor, und zwar seit jeher — nachgemessen aus den RIFF-Kopfdaten. Am Verhalten ändert das
   nichts, LÖVE liest beide Raten; falsch war nur die Zahl, nach der sich künftige Beiträge

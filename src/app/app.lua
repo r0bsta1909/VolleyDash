@@ -179,6 +179,17 @@ function App.joinLobby(address, port)
         { role = "client", address = address, port = port }))
 end
 
+-- Turniermodus (M4-07). Er liegt ueber dem Menue wie eine Netzszene, gehoert
+-- aber nicht zu NET_SCENES: In Stufe B haelt er keine Sockets, und `leaveNet`
+-- darf ihn deshalb auch nicht mit abraeumen.
+function App.openTournament()
+    Scene.push(require("src.app.scenes.tournament").new(App))
+end
+
+function App.leaveTournament()
+    Scene.popWhile(function(scene) return scene.name == "tournament" end)
+end
+
 function App.enterNetMatch(opts)
     Scene.push(require("src.app.scenes.net_game").new(App, opts))
 end

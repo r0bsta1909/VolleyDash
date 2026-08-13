@@ -35,6 +35,12 @@ Runner.SUITES = {
     "tests.tournament_scheduler_test",
     "tests.tournament_persistence_test",
     "tests.tournament_run_test",
+
+    -- M4 -- Turnier (Stufe B: Laufzeit und Bedienung, ebenfalls love-frei;
+    -- gezeichnet wird in `src/render/bracket_view.lua`, und das wird hier
+    -- nicht geprueft -- ein Bild widerlegt kein Verhalten)
+    "tests.tournament_session_test",
+    "tests.tournament_lobby_test",
 }
 
 -- Suiten, die LOEVE brauchen (M2-01).

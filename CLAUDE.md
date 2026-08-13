@@ -237,6 +237,16 @@ Save-Ordner; das ist das Messinstrument für die WLAN-Abnahme
 Abweichung zusätzlich in `desync.log` — in einem gebauten Paket nicht, dort zählt nur das
 Overlay (`07_TEST_PLAN` §5).
 
+Der Turniermodus liegt im Menü unter **NETWORK MATCH → Turnier** (M4-07). **F2** schaltet
+zwischen der kompakten Spieleransicht (eigene Linie, nächster Gegner, Restzeit) und der vollen
+Beamer-Ansicht um; bedient wird nur in der vollen — TAB wechselt zwischen Matches und
+Teilnehmern, ENTER tut, was in der Fußzeile steht, `E` trägt ein Ergebnis ein, `K` korrigiert
+eines, `P` hält den No-Show-Timer an, `A` bricht ein Match ab, `W` trägt jemanden aus. Der
+Turnierstand liegt als JSON unter `tournaments/` im Save-Ordner und wird nach jedem Ereignis
+geschrieben (ADR-007, ADR-020) — ein laufendes Turnier wird beim nächsten Betreten des
+Turniermodus zur Wiederaufnahme angeboten. **Angemeldet wird am Turnier-Host**, nicht über das
+Netz; das kommt mit M4-09.
+
 Zwei Instanzen auf **einem** Rechner teilen sich die Prefs-Datei und damit die Spielerkennung;
 die Testflags nehmen deshalb `--client-id=N`. Paketverlust wird unter Windows mit `clumsy`
 erzeugt, Filter und Begründung stehen im Kopf von `tools/net_test.sh`.
