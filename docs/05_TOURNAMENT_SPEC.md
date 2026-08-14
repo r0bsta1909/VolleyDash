@@ -196,6 +196,8 @@ An ADR-007 ändert das nichts — das Verfahren bleibt „tmp → bak → rename
 
 **Zusätzliche Absicherung: Export.** Jederzeit per Tastendruck ein Export des Brackets als Markdown/CSV in den Speicherordner. Falls die Software komplett versagt, kann man mit dem Ausdruck weitermachen. Kostet 30 Zeilen Code und ist die einzige echte Versicherung.
 
+**Stand 2026-08-14 (M4-10).** Die Taste ist **X** in der vollen Ansicht — sie schreibt **beide** Formate in einem Zug: `tournaments/{id}_bracket.md` (Kopf, „Als Nächstes: wer gegen wen", Gruppentabellen in Beamer-Sortierung, K.o.-Runden, alle Ergebnisse) und `tournaments/{id}_statistik.csv` (die fünf Statistiken aus §11 je Spieler, Einheiten im Spaltenkopf). Feste Dateinamen je Turnier — der Export ist immer der letzte Stand, die Historie trägt das Log der `.json`. Exportieren darf **jeder**, auch ein Teilnehmer: Die Taste ist rein lesend, und eine angeschriebene Taste, die nichts tut, lädt zum Probieren ein (C-T-14). Der Export ist für einen Menschen **ohne Software** geschrieben: Namen statt Kennungen, offene Matches mit Herkunft („Sieger aus Match 7"), korrigierte Ergebnisse markiert samt Begründung (E-12). Er wird von der Software nie zurückgelesen und deshalb direkt geschrieben, ohne das tmp→bak-Verfahren — ein missglückter Export wird durch den nächsten Tastendruck ersetzt, die `.json` bleibt die Recovery-Quelle.
+
 ## 8. Rollenverteilung im Netzwerk
 
 | Rolle | Aufgabe |
