@@ -46,7 +46,15 @@ end
 -- Ohne laufendes Match ist das Menue der Normalzustand und die Menueliste
 -- laeuft weiter.
 function MenuScene:enter()
-    if self.app.matchRunning() then Music.pause() else Music.play("menu") end
+    if self.app.matchRunning() then
+        Music.pause()
+    elseif not self.app.netMatchBelowMenu() then
+        -- Ueber einem NETZMATCH bleibt die Matchmusik an: das Match laeuft
+        -- unter dem Menue weiter (ADR-024), nur die Tasten gehoeren dem
+        -- Menue -- ein Rueckfall auf die Menueliste waere hier ein
+        -- Musikwechsel mitten im Ballwechsel.
+        Music.play("menu")
+    end
 end
 
 function MenuScene:leave()

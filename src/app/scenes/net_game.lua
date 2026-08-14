@@ -38,6 +38,7 @@ local Hud         = require("src.render.hud")
 local Netstat     = require("src.render.netstat")
 local Assets      = require("src.app.assets")
 local BuildInfo   = require("src.app.build_info")
+local Music       = require("src.app.music")
 
 local Scene = require("src.app.scene")
 
@@ -651,6 +652,11 @@ function NetGame:leave()
     local back = self.previousOnEvent or function() end
     if self.role == "host" then self.host.onEvent = back end
     if self.role == "client" then self.client.onEvent = back end
+
+    -- Zurueck zur Menueliste. Lobby und Turnier liegen darunter, aber ihr
+    -- `enter` laeuft beim Aufdecken nicht erneut -- ohne diesen Aufruf
+    -- spielte die Matchmusik im Bracket weiter.
+    Music.play("menu")
 end
 
 return NetGame
