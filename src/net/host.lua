@@ -395,6 +395,16 @@ end
 -- Takt
 -- ---------------------------------------------------------------------------
 
+-- Schiebt hinaus, was die Ticks dieses Frames in die Warteschlange gelegt
+-- haben. `peer:send` uebergibt nur an ENet; auf die Leitung geht ein Paket
+-- erst beim naechsten `service()` -- und der laeuft am ANFANG des naechsten
+-- Frames. Ohne den Stoss hier truege jeder Snapshot eine volle Frame-
+-- Verspaetung in sich (§4; netlog 2026-08-14: App-RTT bis 77 ms bei
+-- ENet-RTT ~20 ms und 0 % Verlust).
+function Host:flush()
+    if self.server then pcall(function() self.server:flush() end) end
+end
+
 function Host:update(dt)
     self:service()
 

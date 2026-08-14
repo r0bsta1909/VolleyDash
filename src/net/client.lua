@@ -402,6 +402,12 @@ function Client:update(dt)
     end
 end
 
+-- Das Gegenstueck zu `Host:flush`: die Eingaben der Ticks dieses Frames gehen
+-- JETZT hinaus statt mit dem `service()` des naechsten Frames (§4).
+function Client:flush()
+    if self.host then pcall(function() self.host:flush() end) end
+end
+
 function Client:setReady(ready)
     self:send(Protocol.MSG.SET_READY, { ready = ready })
 end

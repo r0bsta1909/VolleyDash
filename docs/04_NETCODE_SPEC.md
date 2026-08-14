@@ -103,6 +103,8 @@ while event do
 end
 ```
 
+Ebenso wichtig, in Senderichtung: **`peer:send` übergibt nur an die ENet-Warteschlange.** Auf die Leitung geht ein Paket erst beim nächsten `service()` oder `flush()`. Wer beides ausschließlich am Frame-Anfang aufruft, verschickt die Snapshots und Eingaben, die die Ticks dieses Frames erzeugt haben, erst einen Frame später — je Richtung eine volle Frame-Verspätung (~16 ms), die im Overlay wie Netz-Latenz aussieht, aber keine ist. Deshalb ruft die Match-Szene am **Ende jedes Frames** `flush()` auf, nachdem alle Ticks gefahren sind. Gemessen 2026-08-14 (netlog, Kabel, 0 % Verlust): App-RTT bis 77 ms bei ENet-RTT ~20 ms — die Differenz waren genau diese Warteschlangen-Frames beider Seiten.
+
 ## 5. Nachrichtenformat
 
 Alle Nachrichten beginnen mit einem 3-Byte-Header. Serialisierung via `love.data.pack` mit **Little-Endian und explizit dimensionierten Typen** (`<` Präfix, `i4`, `f`), damit Win/macOS identisch interpretieren.
