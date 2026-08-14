@@ -280,8 +280,13 @@ function M.selftest(App)
         .. "%d empfangen, %d gehalten", ticks, applied,
         client.stats.received, client.stats.held))
 
-    check(applied > ticks * 0.9, "fast jeder Tick kommt als Snapshot an")
-    check(client.stats.received > 0, "Snapshots kommen an")
+    -- Seit ADR-025 zaehlt nicht mehr, in wie vielen Ticks ein Snapshot ANLAG
+    -- -- ein Laeufer mit stossweiser Zustellung haelt und setzt im naechsten
+    -- Tick neu auf, genau dafuer traegt die lokale Simulation. Was zaehlt,
+    -- ist der STROM: Es darf nichts verlorengehen.
+    check(client.stats.received > ticks * 0.9,
+        "fast jeder Tick kommt als Snapshot an (" .. client.stats.received .. ")")
+    check(applied > 0, "und der neueste wird angewandt (" .. applied .. ")")
     check(host.queues[2].received > 0, "Eingaben des Gastes kommen an")
     check(host.queues[2].invalid == 0, "keine ungueltige Maske")
 
