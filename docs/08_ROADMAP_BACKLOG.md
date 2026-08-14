@@ -158,7 +158,7 @@ Discovery-Lage berechenbar.
 | M4-07 | Turnier-Lobby-UI, Setzung mit sichtbarem Seed | 4 | ✅ `src/ui/tournament_lobby.lua` + `src/tournament/session.lua`. Anmeldung **am Turnier-Host** (das Netz ist Stufe C), Seed als Text mit nachrechenbarer Zahl, Wiederaufnahme-Dialog, die drei Klänge. `by_rating` zurückgestellt (§9) |
 | M4-08 | `bracket_view.lua`: kompakt (Spieler) + voll (Beamer) | 5 | ✅ eigene Linie plus „Nächster Gegner" im Spielermenü, Gruppentabellen bzw. K.o.-Baum am Beamer, aufgerufene Matches blinkend mit Countdown (F2 schaltet um) |
 | M4-09 | **Verteilte Match-Hosts bei parallelen Matches — kritischer Pfad, nicht optional** (ADR-013) | 8 | ✅ `src/net/tournament_host.lua`, `tournament_client.lua`, `match_runner.lua`, `src/tournament/host_choice.lua`, `match_stats.lua`. T-01 ist **ADR-022**, das Format von `TOURNAMENT_STATE` **ADR-023**. Abnahme mit `--tournament-selftest` (T-N-11, T-N-09) und einem Vierprozesslauf |
-| M4-10 | Export als Markdown/CSV | 1 | ⬜ Stufe D |
+| M4-10 | Export als Markdown/CSV | 1 | ✅ Taste **X** in der vollen Ansicht, auch für Teilnehmer. `src/tournament/export.lua` (Text, `love`-frei) + `Persistence:export` (Schreiben). Namen statt Kennungen, Herkunft offener Plätze, Korrekturen mit Begründung (E-12), die fünf Statistiken (§11) |
 | M4-11 | Manuelle Ergebniskorrektur mit Protokollierung | 2 | ✅ vollständig. Bedienung mit M4-07: Ergebnis eintragen, korrigieren (Begründung ist Pflicht), No-Show-Timer anhalten, Match abbrechen, Teilnehmer austragen |
 
 **Stufe A ist abgeschlossen** (CC-05, 2026-08-13): Ein 20er-Turnier läuft im Headless-Runner
@@ -191,6 +191,11 @@ simuliert die ganze Welt lokal vor (BV2-Modell), der Interpolationspuffer ist en
 der Ball wird beim Gast außen am Blob getroffen. Am nächsten LAN-Abend zu prüfen:
 `CC-06_AP4_MESSANLEITUNG.md` §5.
 Auftrag: `docs/handoffs/CC-06_C2_NACHARBEIT.md`, Bericht: `CC-05_REPORT.md` (fortgeschrieben).
+
+**Stufe D ist abgeschlossen** (CC-05, 2026-08-14): Export als Markdown/CSV mit **X**
+(`05_TOURNAMENT` §7, Nachtrag dort). **Damit sind alle Aufgaben von M4 erledigt.** Offen aus
+der M4-Abnahme bleibt nur, was Hardware braucht, die es hier nicht gibt: das Chaos-Szenario D3
+und die Firewall-Frage des ephemeren Match-Ports auf fremden Rechnern (`11_OPS`, N-04/N-05).
 
 ### M5 — Spectator + Beamer (12–18 h)
 

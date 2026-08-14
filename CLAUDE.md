@@ -266,7 +266,9 @@ Der Turniermodus liegt im Menü unter **NETWORK MATCH → Turnier** (M4-07). **F
 zwischen der kompakten Spieleransicht (eigene Linie, nächster Gegner, Restzeit) und der vollen
 Beamer-Ansicht um; bedient wird nur in der vollen — TAB wechselt zwischen Matches und
 Teilnehmern, ENTER tut, was in der Fußzeile steht, `E` trägt ein Ergebnis ein, `K` korrigiert
-eines, `P` hält den No-Show-Timer an, `A` bricht ein Match ab, `W` trägt jemanden aus. Der
+eines, `P` hält den No-Show-Timer an, `A` bricht ein Match ab, `W` trägt jemanden aus, `X`
+exportiert den Stand als Markdown und CSV in den Save-Ordner (M4-10, `05_TOURNAMENT` §7) —
+das darf als Einziges auch ein Teilnehmer. Der
 Turnierstand liegt als JSON unter `tournaments/` im Save-Ordner und wird nach jedem Ereignis
 geschrieben (ADR-007, ADR-020) — ein laufendes Turnier wird beim nächsten Betreten des
 Turniermodus zur Wiederaufnahme angeboten. Der Bildschirm **„Gespeicherte Turniere"**

@@ -9,14 +9,24 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
-> **Stufe C.2 ist vollständig erledigt** — auch AP-4: Die Zweirechner-Messung vom
-> 2026-08-14 hat C-T-23 gefunden und in **ADR-025** gemündet (siehe unten). Als Nächstes
-> kommt der Export (M4-10, Stufe D). Am nächsten LAN-Abend zu prüfen:
-> `CC-06_AP4_MESSANLEITUNG.md` §5.
+> **M4 ist fertig** — mit Stufe D (Export, M4-10) ist die letzte Aufgabe des Meilensteins
+> erledigt. Offen bleibt, was echte Hardware braucht: das Chaos-Szenario D3 und die
+> AP-4-Sichtprüfung (`CC-06_AP4_MESSANLEITUNG.md` §5) am nächsten LAN-Abend.
 >
 > Die Arbeitsversion heißt **`0.4.0-dev`**. Ein daraus gebautes Paket ist ausdrücklich **kein**
 > Release — es trägt den Zusatz im Dateinamen, damit es nicht mit `0.3.0` verwechselt wird
 > (`12_OPENSOURCE` §7).
+
+### Hinzugefügt (Stufe D — der Export als Versicherung, M4-10)
+
+- **`X` in der vollen Turnieransicht exportiert den Stand** als
+  `tournaments/{id}_bracket.md` und `tournaments/{id}_statistik.csv` in den Save-Ordner
+  (`05_TOURNAMENT` §7: „Falls die Software komplett versagt, kann man mit dem Ausdruck
+  weitermachen"). Der Export ist für einen Menschen ohne Software: Namen statt Kennungen,
+  „Als Nächstes: wer gegen wen" ganz oben, offene Plätze mit Herkunft („Sieger aus
+  Match 7"), korrigierte Ergebnisse markiert samt Begründung (E-12), die fünf Statistiken
+  je Spieler mit Einheiten (§11). Exportieren darf **jeder** — auch ein Teilnehmer; die
+  Taste ist rein lesend und schreibt auf den eigenen Rechner.
 
 ### Geändert (ADR-025 — der Gast simuliert die ganze Welt vor)
 

@@ -1,11 +1,11 @@
 # CC-05 — Rückmeldung (M4 Turniermodus)
 
-**Datum:** 2026-08-14 (fortgeschrieben; Stufe C.2) · **Auftrag:** `docs/handoffs/CC-05_M4_TURNIER.md`, Stufe C.2 aus `CC-06_C2_NACHARBEIT.md`
-**Ausgangsstand:** 9f40dc7 (`v0.3.0`) · **Stufe B ab** 72a579a · **Stufe C ab** e7aeb2b · **Stufe C.2 ab** 403e1a4
-**Tests:** 456 bestanden, 0 gescheitert (Stufe C.2: 456, C: 445, B: 411, A: 349, vorher 214) · **ohne `love`:** 415
+**Datum:** 2026-08-14 (fortgeschrieben; Stufe D) · **Auftrag:** `docs/handoffs/CC-05_M4_TURNIER.md`, Stufe C.2 aus `CC-06_C2_NACHARBEIT.md`
+**Ausgangsstand:** 9f40dc7 (`v0.3.0`) · **Stufe B ab** 72a579a · **Stufe C ab** e7aeb2b · **Stufe C.2 ab** 403e1a4 · **Stufe D ab** 2883262
+**Tests:** 469 bestanden, 0 gescheitert (Stufe D: 469, C.2: 456, C: 445, B: 411, A: 349, vorher 214) · **ohne `love`:** 428
 **Netz-Selbsttest:** 49 Prüfungen, alle grün
 **Turnier-Selbsttest:** 81 Prüfungen, alle grün (T-N-11, T-N-09, seit C.2 auch C-T-20 und C-T-22)
-**Vierprozesslauf:** 4er-Turnier, Sieger auf allen vier Prozessen derselbe — seit C.2 mit **Aussteiger** (`--tournament-auto=escaper`): mitten im Match raus, nach unter zehn Sekunden zurück im selben Match
+**Vierprozesslauf:** 4er-Turnier, Sieger auf allen vier Prozessen derselbe — mit **Aussteiger** (`--tournament-auto=escaper`): mitten im Match raus, nach 4,2 s zurück im selben Match (Lauf vom 2026-08-14, Stufe D)
 **Referenzen:** `python tools/verify_replays.py` meldet OK
 
 > **Dieser Bericht wird fortgeschrieben.** Stand der Stufen aus §2 des Handoffs:
@@ -17,7 +17,7 @@
 > | **C** | AP-6 — verteilte Match-Hosts, `TOURNAMENT_STATE` | ✅ **abgeschlossen** (M4-09, ADR-022, ADR-023) |
 > | **C.1** | Nacharbeit aus dem ersten LAN-Abend — sechs Befunde | ✅ **abgeschlossen** (C-T-11 … C-T-16) |
 > | **C.2** | Nacharbeit aus dem **zweiten** LAN-Abend — vier Punkte | ✅ **abgeschlossen** (C-T-20 … C-T-23, ADR-025) |
-> | **D** | AP-7 — Export (M4-10) | ⬜ offen — **jetzt dran** |
+> | **D** | AP-7 — Export (M4-10) | ✅ **abgeschlossen** (2026-08-14) — **damit ist M4 fertig** |
 >
 > **AP-4 ist am selben Tag zu Ende gegangen:** Die Zweirechner-Messung (r0btoshi, Host im
 > WLAN, RTT ~21 ms) fand die Puffer-Ratsche **C-T-23** und beerdigte die Frage „Puffer 1
@@ -38,6 +38,21 @@
 ---
 
 ## 0. Was jetzt geht
+
+### Nach Stufe D (2026-08-14, sechste Sitzung)
+
+**Der Ausdruck, mit dem man weiterspielt, wenn die Software versagt.** `X` in der vollen
+Ansicht schreibt `tournaments/{id}_bracket.md` und `tournaments/{id}_statistik.csv` in den
+Save-Ordner — beide auf einen Druck, fester Name je Turnier (der Export ist immer der letzte
+Stand, die Historie trägt das Log der `.json`). Der Inhalt ist für einen Menschen **ohne
+Software**: „Als Nächstes: wer gegen wen" ganz oben, Namen statt Kennungen, offene Plätze mit
+Herkunft („Sieger aus Match 7" — und Match 7 steht mit seiner Paarung in der Rundenliste
+darunter), Gruppentabellen in Beamer-Sortierung (E-11), korrigierte Ergebnisse markiert samt
+Begründung (E-12), die fünf Statistiken je Spieler mit Einheiten (§11). Exportieren darf
+**jeder**, auch ein Teilnehmer — die Taste ist rein lesend, schreibt auf den eigenen Rechner,
+und die Versicherung ist mehr wert, wenn sie auf jedem Rechner liegt (Freigabe r0btoshi,
+2026-08-14, zusammen mit den beiden anderen Zuschnittsfragen: beide Formate auf einen Druck,
+fester Dateiname).
 
 ### Nach Stufe C.2 (2026-08-14, fünfte Sitzung)
 
@@ -126,6 +141,19 @@ auch die richtige Reihenfolge: Was entscheidet, ist jetzt prüfbar, bevor irgend
 | — | M4-11 | Die **Datenseite** der manuellen Korrektur ist fertig: `manual_override` verlangt eine Begründung und markiert das Match sichtbar. Die Bedienung gehört zu M4-07 |
 | **AP-5** | **M4-07, M4-08, M4-11** | **Stufe B, siehe §1a** |
 | **AP-6** | **M4-09** | **Stufe C, siehe §1b** |
+| **AP-7** | **M4-10** | **Stufe D, siehe §1d** — M4-11 war schon mit Stufe B fertig |
+
+### 1d. Stufe D im Einzelnen (2026-08-14)
+
+| Datei | Was sie tut |
+|---|---|
+| `src/tournament/export.lua` | **Neu.** Baut die beiden Texte aus der Session — nur Text, kein Dateizugriff, `love`-frei und damit headless prüfbar. Liest ausschließlich über die Anzeige-Abfragen (`operationList`, `standingsOf`, `elimColumns`-Daten via `t.rounds`, `scoreText`, `roundLabel`), rechnet nichts nach |
+| `src/tournament/persistence.lua` | `Persistence:export(session, stamp)` — schreibt beide Dateien über den vorhandenen Unterbau. **Direkt**, ohne tmp→bak: Der Export wird nie zurückgelesen, ein missglückter wird vom nächsten Tastendruck ersetzt, die Recovery-Quelle bleibt die `.json` (Begründung im Code und in §7 der Spec) |
+| `src/ui/tournament_lobby.lua` | `X` in der vollen Ansicht, **vor** der readOnly-Schranke — der Export ist rein lesend und steht auch dem Teilnehmer offen (C-T-14: angeschriebene Tasten müssen tun) |
+| `src/app/scenes/tournament.lua` | `onExport` für beide Rollen. Der Teilnehmer hat sonst keine Persistence — für den Export bekommt er eine; geschrieben wird in den Save-Ordner des eigenen Rechners |
+| `src/render/bracket_view.lua` | „X Export" in beiden Fußzeilen (Leiter und Teilnehmer) |
+| `tests/tournament_export_test.lua` | **Neu, 10 Fälle.** Geprüft wird der **Inhalt**: Namen statt Kennungen, Herkunft offener Plätze, Korrektur samt Begründung, Sieger, Gruppentabellen, Freilos ohne `nil`, CSV-Kopf mit Einheiten, Komma im Namen zerlegt keine Zeile, fester Dateiname beim zweiten Druck |
+| `tests/tournament_lobby_test.lua` | drei Fälle dazu: X exportiert beim Leiter und beim Teilnehmer (der weiterhin nichts eintragen kann), und aus der kompakten Ansicht nicht |
 
 ### 1c. Stufe C.2 im Einzelnen (2026-08-14)
 
@@ -602,6 +630,16 @@ Was sich dadurch geändert hat:
    gleich aussehen" hat die Lösung ausgewählt, nicht die Millisekunden-Tabelle. Die
    Rangfolge der Anforderungen zu kennen ist die halbe Architekturentscheidung.
 
+### Aus Stufe D — keine neue Nummer
+
+Stufe D hat keinen Befund hinterlassen, der eine C-T-Nummer verdient: kein Fehler im
+Bestandscode, keine Lücke in der Spec. Ein Stolperer aus der Umsetzung gehört trotzdem
+notiert: `Session:standingsOf` liefert `{ rows = …, unresolved = … }`, kein Array — der
+erste Wurf des Exports iterierte über den Container und schrieb **leere Gruppentabellen**,
+bei ansonsten fehlerfreiem Lauf. Gefunden hat es der Inhalts-Test („ein Erstplatzierter
+steht da"), nicht der Durchlauf: **Ein Export, der läuft, ist nicht dasselbe wie ein Export,
+auf dem etwas steht.** Deshalb prüfen alle zehn neuen Fälle Inhalt, nicht Erfolg.
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |
@@ -615,6 +653,18 @@ Was sich dadurch geändert hat:
 ## 4. Spec-Änderungen
 
 Alle **vor** dem Code eingetragen, wie `CLAUDE.md` §2 es verlangt.
+
+### Aus Stufe D
+
+Vor dem Code eingetragen. **Kein neuer ADR:** ADR-007/020 decken Dateizugriff und Format der
+Persistenz ab; der Export ist eine reine Ausgabe daneben, keine Architekturentscheidung.
+
+| Datei | Änderung |
+|---|---|
+| `05_TOURNAMENT` §7 | Nachtrag M4-10: Taste X, beide Dateien mit festen Namen, jeder darf exportieren, und warum der Export **ohne** tmp→bak direkt geschrieben wird |
+| `08_ROADMAP` §2 | M4-10 auf ✅, Absatz „Stufe D ist abgeschlossen — damit sind alle Aufgaben von M4 erledigt" |
+| `CLAUDE.md` §12 | X in der Tastenliste des Turniermodus |
+| `CHANGELOG.md` | `[Unreleased]` um Stufe D ergänzt, Kopfabsatz auf „M4 ist fertig" |
 
 | Datei | Änderung |
 |---|---|
@@ -673,6 +723,18 @@ vorhandenen hinausgeht: Die Anmeldegrenze ist eine Auftragsentscheidung (§5.1) 
 ---
 
 ## 5. Entscheidungen für r0btoshi
+
+### 5.4 Aus Stufe D — drei Zuschnittsfragen, alle vor dem Code freigegeben (2026-08-14)
+
+1. **Beide Formate auf einen Druck.** §7 sagt „Markdown/CSV" ohne Wahl — die Versicherung
+   soll vollständig sein, nicht konfigurierbar. Markdown fürs Bracket, CSV für die
+   Statistiken.
+2. **Fester Dateiname je Turnier**, der Export überschreibt den vorigen. Der Ausdruck ist
+   immer der letzte Stand; die Historie trägt ohnehin das append-only Log der `.json`.
+   Zeitstempel-Dateien hätten den Save-Ordner über den Abend zugemüllt.
+3. **Jeder darf exportieren**, auch ein Teilnehmer. Die Taste ist rein lesend, schreibt auf
+   den eigenen Rechner — und die Lektion aus C-T-14 gilt auch andersherum: Eine Taste, die
+   für alle nützlich wäre und nur beim Leiter geht, ist eine vermeidbare Überraschung.
 
 ### 5.3 Aus Stufe C — die zwei fälligen ADRs, beide vor dem Code freigegeben
 
@@ -853,41 +915,28 @@ Sache gehört dazu, die neu ist — der ephemere Match-Port und die Firewall (§
 
 ---
 
-## 7. Nächster Schritt — Stufe D
+## 7. Nächster Schritt — M4 ist fertig
 
-### C.2 ist vollständig erledigt (2026-08-14)
+### Stufe D ist erledigt (2026-08-14)
 
-AP-1 bis AP-3 sind gebaut, geprüft und in §3 als C-T-20 bis C-T-22 dokumentiert. **AP-4 ist
-am selben Tag zu Ende gegangen:** Die Zweirechner-Messung fand C-T-23, die Entscheidung
-fiel als **ADR-025** und ist umgesetzt — Details in §3. **N-01 ist damit erledigt**, nicht
-mehr zurückgestellt: Die Frage „reicht die Vorhersage im WLAN?" stellt sich neu als „sieht
-man Ball-Schnapper bei Gegnerberührung?", und sie steht als Prüfliste in
-`CC-06_AP4_MESSANLEITUNG.md` §5 für den nächsten LAN-Abend.
+M4-10 ist gebaut und geprüft (§1d): `X` exportiert Markdown und CSV, die Inhalte sind mit
+zehn Headless-Fällen festgenagelt, die Bedienung mit drei weiteren. Damit ist **jede Aufgabe
+von M4 abgeschlossen** (M4-01 … M4-11, `08_ROADMAP` §2).
 
-### Stufe D — Export (M4-10, JETZT)
+### Was jetzt ansteht
 
-**Export als Markdown/CSV per Tastendruck**, rund drei Stunden. `05_TOURNAMENT` §7 nennt ihn
-„die einzige echte Versicherung": Wenn die Software versagt, macht man mit dem Ausdruck weiter.
-
-### Was dafür schon dasteht
-
-| Was der Export braucht | Wo es liegt |
-|---|---|
-| Der vollständige Turnierstand | `Session.t` — Teilnehmer, Runden, Matches, Tabellen, Statistiken, alles abgeleitet und aktuell |
-| Tabellen in der richtigen Reihenfolge | `Session:standingsOf(groupIndex)` — dieselbe Sortierung, die der Beamer zeigt (E-11) |
-| Der K.o.-Baum spaltenweise | `Session:elimColumns()` |
-| Die Markierung korrigierter Ergebnisse | `m.overridden` und der Begründungstext im Log (E-12) — **beides gehört in den Export**, sonst ist der Ausdruck geschönter als die Datei |
-| Die fünf Statistiken je Spieler | `p.stats`, seit M4-09 vollständig (§11) |
-| Dateizugriff | `src/tournament/persistence.lua` ist die **einzige** Datei des Moduls, die `love.filesystem` anfassen darf — der Export gehört dorthin oder daneben, nicht in die Szene |
-
-### Zwei Dinge, die dabei zu bedenken sind
-
-1. **Der Export ist für einen Menschen ohne Software.** Wer ihn ausdruckt, hat gerade keinen
-   funktionierenden Rechner mehr. Also gehören dort **Namen** hinein und keine Kennungen,
-   **offene Matches** und nicht nur gespielte, und der Hinweis, wer als Nächstes gegen wen
-   spielt — genau die Frage, die der Ausdruck beantworten muss.
-2. **Ein Tastendruck, nicht ein Menü.** §7 sagt „jederzeit per Tastendruck". Frei ist in der
-   vollen Ansicht noch `X`; `E`, `K`, `P`, `A`, `W` und `TAB` sind vergeben (`CLAUDE.md` §12).
+1. **Der nächste LAN-Abend gehört r0btoshi, nicht einer Session:** die AP-4-Sichtprüfung
+   (`CC-06_AP4_MESSANLEITUNG.md` §5, Ball-Schnapper bei Gegnerberührung) und — sobald genug
+   Rechner da sind — das **Chaos-Szenario D3** (`07_TEST_PLAN` §6: 20 Teilnehmer, gezielte
+   Abstürze, höchstens zwei Eingriffe). D3 ist die blockierende Turnier-Abnahme; sie braucht
+   Hardware, die eine Session nicht hat.
+2. **Die nächste Bauarbeit ist M5** (Spectator + Beamer, `08_ROADMAP`). Dafür gibt es noch
+   **kein Handoff** — nach der Arbeitsweise des Projekts (`CLAUDE.md` §10) kommt es als
+   `CC-07_M5_*.md` von r0btoshi. Zwei Dinge aus M4 gehören hinein: F-T-10 (die Zeichenroutinen
+   brauchen für die Beamer-Szene ein dauerhaftes Bildschirmfoto-Werkzeug statt Wegwerfskripte)
+   und M5-04 (Live-Statistiken) kann auf `match_stats.lua` aufsetzen.
+3. **Vor einem Release 0.4.0** gilt `12_OPENSOURCE` §7: CHANGELOG konsolidieren, VERSION,
+   Freigabe. Nicht Sache dieser Session.
 
 ### Was danach noch offen ist und nicht zu M4 gehört
 
@@ -908,41 +957,27 @@ man Ball-Schnapper bei Gegnerberührung?", und sie steht als Prüfliste in
 ## 8. Der Startprompt für die nächste Session
 
 ```
-Lies CLAUDE.md, dann docs/handoffs/CC-05_M4_TURNIER.md §2 (AP-7, Stufe D,
-M4-10) -- das ist der Auftrag. Danach docs/handoffs/CC-05_REPORT.md: den Kopf,
-§7 ("Was dafür schon dasteht") und die Befunde C-T-20 bis C-T-23 samt dem
-ADR-025-Abschnitt in §3. Dazu 05_TOURNAMENT §7 (der Export ist die
-Versicherung, wenn die Software versagt) und §11 (die fünf Statistiken).
+Lies CLAUDE.md. M4 ist KOMPLETT fertig -- alle Stufen A bis D, geprüft,
+committet, gepusht (docs/handoffs/CC-05_REPORT.md, Kopftabelle). Davon wird
+nichts neu gebaut.
 
-M4 Stufe A, B, C, C.1 und C.2 sind KOMPLETT fertig, geprüft, committet und
-gepusht -- davon wird nichts neu gebaut. Auch AP-4 ist entschieden und
-umgesetzt: ADR-025, der Gast simuliert die ganze Welt vor, es gibt keinen
-Interpolationspuffer und kein prefs.netBuffer mehr. Was der nächste LAN-Abend
-dazu prüfen soll, steht in CC-06_AP4_MESSANLEITUNG.md §5 -- das macht
-r0btoshi, nicht du.
+Die nächste Bauarbeit ist M5 (Spectator + Beamer, 08_ROADMAP). Dafür gibt es
+noch KEIN Handoff -- wenn dir kein docs/handoffs/CC-07_M5_*.md vorliegt, ist
+deine Aufgabe NICHT zu bauen, sondern das Handoff mit mir zu entwerfen: Lies
+08_ROADMAP (M5-01 bis M5-05), 04_NETCODE (was ein Spectator abonniert),
+CC-05_REPORT §3 F-T-10 (die Zeichenroutinen brauchen ein dauerhaftes
+Bildschirmfoto-Werkzeug) und §1b zu match_stats.lua (M5-04 setzt darauf auf).
+Dann Vorschlag für den Stufenschnitt plus Rückfragen, KEIN Code.
 
-Nimm dir NUR M4-10 vor: Export als Markdown/CSV per Tastendruck. X in der
-vollen Ansicht ist frei (E, K, P, A, W, TAB sind vergeben, CLAUDE.md §12). Der
-Export gehört nach src/tournament/persistence.lua oder daneben -- die einzige
-Datei des Moduls, die love.filesystem anfassen darf. Er ist für einen Menschen
-OHNE Software: Namen statt Kennungen, offene Matches mit "wer gegen wen als
-Nächstes", korrigierte Ergebnisse markiert (m.overridden samt Begründung aus
-dem Log, E-12), die fünf Statistiken je Spieler. Alles, was er braucht, liegt
-in Session: standingsOf, elimColumns, p.stats -- die Tabelle steht in
-CC-05_REPORT §7.
+Nicht deine Aufgabe: die AP-4-Sichtprüfung und das Chaos-Szenario D3 -- beides
+braucht den LAN-Abend und macht r0btoshi (CC-06_AP4_MESSANLEITUNG.md §5,
+07_TEST_PLAN §6).
 
-Ausgangszahlen: lovec.exe . --test = 456 bestanden, --test-no-love = 415,
+Ausgangszahlen: lovec.exe . --test = 469 bestanden, --test-no-love = 428,
 --net-selftest = 49 Prüfungen, --tournament-selftest = 81 Prüfungen,
-python tools/verify_replays.py = OK. Der Vierprozesslauf hat seit C.2 einen
-Aussteiger: einer der drei Teilnehmer läuft als --tournament-auto=escaper
---client-id=N und muss nach dem Ausstieg zurück ins selbe Match, sonst Exit 1
--- beide Rollen (Gast 4,2 s, Match-Wirt 9,9 s) sind gemessen. Was nicht
-steigen darf, ist die Zahl der gescheiterten. gh ist installiert: den CI-Stand
-selbst nachsehen, nicht nachfragen (CLAUDE.md §11). Ein Push ist erst fertig,
-wenn der Lauf grün ist.
+python tools/verify_replays.py = OK, Vierprozesslauf mit Aussteiger alle
+Exit 0. Was nicht steigen darf, ist die Zahl der gescheiterten. gh ist
+installiert: den CI-Stand selbst nachsehen, nicht nachfragen (CLAUDE.md §11).
 
-CC-05_REPORT.md wird fortgeschrieben, die Befunde laufen als C-T-24 ff. weiter.
 Keine Aufwandsschätzungen.
-
-Danach dein Plan in maximal 10 Zeilen plus Rückfragen.
 ```
