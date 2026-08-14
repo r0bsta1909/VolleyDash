@@ -320,6 +320,7 @@ function TournamentScene:onAssign(payload)
         clientId  = self.app.clientId and self.app.clientId() or 0,
         opponent  = payload.opponent,
         bestOf    = payload.bestOf,
+        bufferTicks = self.app.prefs and self.app.prefs.netBuffer or nil,
     }
 
     if payload.role == Protocol.ROLE.HOST then

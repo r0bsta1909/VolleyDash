@@ -525,7 +525,7 @@ function NetGame:stats()
         rtt = self.client.rtt, peerRtt = self.client:peerRtt(),
         loss = self.client:peerLoss() or 0,
         buffer = self.client:bufferDepth(),
-        bufferTicks = require("src.net.client").BUFFER_TICKS,
+        bufferTicks = self.client and self.client.bufferTicks or nil,
         received = self.client.stats.received,
         held = self.client.stats.held,
         dropped = self.client.stats.dropped,

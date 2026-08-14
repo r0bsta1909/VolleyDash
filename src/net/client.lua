@@ -9,8 +9,7 @@
 --
 -- Warum ueberhaupt ein Puffer: Snapshots kommen mit Jitter an. Ohne Vorrat
 -- steht das Bild bei jeder Verzoegerung still und springt danach. Die
--- Verzoegerung ist der Preis dafuer -- siehe die Begruendung an
--- `BUFFER_TICKS`, warum sie seit dem 2026-08-14 halbiert ist.
+-- Verzoegerung ist der Preis dafuer -- die Abwaegung steht an `BUFFER_TICKS`.
 -- ============================================================================
 
 local Protocol = require("src.net.protocol")
@@ -21,20 +20,27 @@ local Checksum = require("src.net.checksum")
 local Client = {}
 Client.__index = Client
 
--- Interpolationspuffer (§8). Der Gast zeigt den Zustand um so viele Ticks
--- verzoegert, damit Jitter das Bild nicht ruckeln laesst.
+-- Interpolationspuffer (§8) in Ticks: So weit in der Vergangenheit zeigt der
+-- Gast den Zustand, damit Jitter das Bild nicht ruckeln laesst.
 --
--- Seit dem 2026-08-14 EINS statt zwei. Gemeldet aus dem ersten LAN-Abend: Der
--- Ball wird beim Gast mitten im Blob getroffen statt aussen, und nur im
--- Sprung. Der eigene Blob wird vorhergesagt und im Jetzt gezeichnet (ADR-017),
--- der Ball kommt aus diesem Puffer -- Blob bei T, Ball bei T-33 ms. Das haengt
--- NICHT an der RTT; bei RTT null sind es dieselben 33 ms.
+-- ZWEI, und die Zahl ist gemessen und nicht gesetzt. Aus dem LAN-Abend kam die
+-- Meldung, der Ball werde beim Gast mitten im Blob getroffen statt aussen --
+-- der eigene Blob wird vorhergesagt und im Jetzt gezeichnet (ADR-017), der
+-- Ball kommt aus diesem Puffer. Das sind 33 ms, und zwar unabhaengig von der
+-- RTT; bei null sind es dieselben 33 ms. Eins waere die halbe Verzoegerung.
 --
--- Der Wert ist rein lokal und gehoert zu `Prefs`, nicht zum `Ruleset`
--- (ADR-005): Er veraendert keine Simulation, und die beiden Seiten muessen
--- sich darueber nicht einig sein. Der gemessene Versatz steht im F3-Overlay --
--- ob eins reicht, wird nachgemessen und nicht geschaetzt.
-Client.BUFFER_TICKS = 1
+-- Der Versuch mit eins ist in der CI auf `macos-latest` durchgefallen: statt
+-- 203 von 206 Snapshots kamen nur 146 zur Anzeige, 68 wurden gehalten. Ein
+-- Tick Vorrat reicht dort nicht, um Ankunftsschwankungen zu ueberbruecken --
+-- der Gast haette bei knapp einem Drittel der Ticks ein stehendes Bild. Das
+-- ist genau der Preis, den §8 nennt, und er ist hoeher als gedacht.
+--
+-- Der Wert ist deshalb EINSTELLBAR (`prefs.netBuffer`) und steht auf zwei. Am
+-- naechsten LAN-Abend laesst er sich umschalten und der Versatz im F3-Overlay
+-- ablesen -- entschieden wird dann mit Zahlen von echter Hardware und nicht
+-- mit denen eines CI-Laeufers. Rein lokal, gehoert zu `Prefs` und nicht zum
+-- `Ruleset` (ADR-005).
+Client.BUFFER_TICKS = 2
 Client.MAX_BUFFER   = 8      -- darueber wird aufgeholt, statt nachzuhinken
 Client.PEER_TIMEOUT_MS = 5000
 Client.PING_INTERVAL = 0.5
@@ -76,6 +82,8 @@ function Client.new(opts)
         buildHash = opts.buildHash or "",
         clock     = opts.clock or function() return love.timer.getTime() end,
         onEvent   = opts.onEvent or function() end,
+
+        bufferTicks = opts.bufferTicks or Client.BUFFER_TICKS,
 
         state     = "connecting",   -- connecting | lobby | playing | ended | failed
         message   = "",
@@ -370,7 +378,7 @@ function Client:nextSnapshot()
         self.stats.dropped = self.stats.dropped + 1
     end
 
-    if #queue <= Client.BUFFER_TICKS then
+    if #queue <= self.bufferTicks then
         self.stats.held = self.stats.held + 1
         return nil
     end

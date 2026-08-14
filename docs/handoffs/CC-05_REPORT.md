@@ -451,9 +451,21 @@ Drei Wege, keiner umsonst:
 | Eigenen Blob zum **Zeichnen** ebenfalls verzögern | Blob und Ball wieder konsistent, dafür 33 ms Eingabeverzögerung — also das, was die Vorhersage abschaffen sollte |
 | `Client.BUFFER_TICKS` von 2 auf 1 senken | halbiert den Effekt, kostet Ruckelfestigkeit bei Jitter; über Kabel vertretbar |
 
-**Empfehlung: der dritte zuerst**, weil er billig und messbar ist, und die Extrapolation nur,
-wenn er nicht reicht. Das ist eine ADR-Entscheidung und gehört nicht in eine Fehlerbehebung —
-deshalb hier als Befund und nicht als Änderung.
+**Der dritte Weg ist versucht und gemessen durchgefallen.** Mit `BUFFER_TICKS = 1` kamen in der
+CI auf `macos-latest` statt 203 von 206 Snapshots nur **146** zur Anzeige, 68 wurden gehalten —
+der Gast hätte bei knapp einem Drittel der Ticks ein stehendes Bild gehabt. Auf
+`windows-latest` fiel es nicht auf. Das ist genau der Preis, den §8 nennt, und er ist höher als
+beim Hinschreiben angenommen.
+
+**Ergebnis:** Die Vorgabe bleibt **2**, der Wert ist umschaltbar (`prefs.netBuffer`, Menü →
+Settings → „Netz-Puffer (Gast)"), und der gemessene Versatz steht im **F3-Overlay**. Damit ist
+die Frage am nächsten LAN-Abend an echter Hardware zu beantworten, statt sie nach den Zahlen
+eines CI-Läufers zu entscheiden — der treibt Host und Gast in einer Schleife im selben Prozess
+und hat ein anderes Ankunftsmuster als ein Switch.
+
+**Das ist der eigentliche Gewinn dieser Runde:** Vorher war es eine Vermutung gegen eine andere.
+Jetzt gibt es einen Schalter, eine Zahl im Overlay und eine erste Messung, die sagt, dass es
+nicht umsonst ist.
 
 ### Aus ADR-024 — das Menü über dem Netzspiel
 

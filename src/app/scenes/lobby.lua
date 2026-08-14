@@ -113,6 +113,7 @@ function LobbyScene:startClient(opts)
         clientId  = app.clientId(),
         name      = playerName(app),
         buildHash = BuildInfo.buildHash,
+        bufferTicks = app.prefs.netBuffer,
         onEvent   = function(kind, a, b, c) self:onClientEvent(kind, a, b, c) end,
     })
 

@@ -236,6 +236,27 @@ function Menu:buildPages()
             selection = 1,
             items = {
                 {
+                    -- Rein lokal (ADR-005) und deshalb hier und nicht im
+                    -- Ruleset. Weniger Puffer heisst weniger Versatz zwischen
+                    -- dem eigenen vorhergesagten Blob und dem Ball -- und
+                    -- weniger Vorrat gegen Ankunftsschwankungen. Was ueberwiegt,
+                    -- zeigt der Versatz im F3-Overlay am echten Netz.
+                    name = "Netz-Puffer (Gast)",
+                    getValue = function()
+                        local n = prefs.netBuffer or 2
+                        return string.format("%d Ticks  (%d ms)", n,
+                            math.floor(n * 1000 / 60 + 0.5))
+                    end,
+                    onLeft = function()
+                        prefs.netBuffer = math.max(1, (prefs.netBuffer or 2) - 1)
+                        self:save()
+                    end,
+                    onRight = function()
+                        prefs.netBuffer = math.min(4, (prefs.netBuffer or 2) + 1)
+                        self:save()
+                    end,
+                },
+                {
                     name = "Master Volume",
                     getValue = function() return math.floor(prefs.volume * 100) .. "%" end,
                     onLeft = function()
