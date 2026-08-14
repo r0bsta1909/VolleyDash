@@ -178,7 +178,12 @@ function Menu:buildPages()
                 -- Der Turniermodus steht hier und nicht im Hauptmenue: Er
                 -- gehoert zum LAN-Abend, und wer allein vor dem Rechner sitzt,
                 -- braucht ihn nicht (M4-07).
-                { name = "Turnier", action = function() ctx.onTournament() end },
+                --
+                -- "erstellen" statt nur "Turnier": Seit M4-09 gibt es beide
+                -- Rollen, und beigetreten wird ueber "Spiel suchen" -- ein
+                -- Eintrag, der nur "Turnier" heisst, sieht nach dem Weg fuer
+                -- beide aus. Am Abend des 2026-08-13 gemeldet.
+                { name = "Turnier erstellen", action = function() ctx.onTournament() end },
                 {
                     -- Der Host verteilt das Regelwerk (ADR-005); beim Gast ist
                     -- die Einstellung wirkungslos und steht deshalb hier, nicht

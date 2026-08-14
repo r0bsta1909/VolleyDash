@@ -61,12 +61,12 @@ function TL.new(ctx)
         self.running = running
     elseif ctx.session and not ctx.session:isSetup() then
         self:enterRun()
-    else
-        -- Der Cursor steht sofort im Namensfeld. Der erste Handgriff eines
-        -- Turniers ist immer derselbe, und er soll keinen Tastendruck kosten
-        -- (CLAUDE.md §3.5).
-        self:beginEdit("add", "")
     end
+    -- Der Cursor stand hier bis M4-09 sofort im Namensfeld -- der erste
+    -- Handgriff eines Turniers war ja das Tippen von zwanzig Namen. Seit die
+    -- Teilnehmer sich ueber das Netz anmelden, ist das falsch: Man landet in
+    -- einer Eingabe, die man nicht braucht, und kommt an die Einstellungen
+    -- erst ueber ESC. Der Cursor steht jetzt auf der ersten Einstellung.
     return self
 end
 
@@ -119,16 +119,18 @@ local function cycle(list, current, direction)
     return list[((index - 1 + direction) % #list) + 1]
 end
 
+-- Reihenfolge: erst die Einstellungen, dann der Start, dann die Teilnehmer.
+--
+-- Bis M4-09 stand die Anmeldung oben, weil der Turnierleiter zwanzig Namen
+-- tippen musste. Seit die Teilnehmer sich ueber das Netz anmelden, ist das
+-- Tippen der Notbetrieb -- und die Einstellungen lagen damit hinter der
+-- gesamten Namensliste. Am Abend des 2026-08-13 gemeldet: "erst ESC druecken
+-- und mit der Pfeiltaste durch alle Namen nach unten" (C-T-15). Jetzt sind
+-- Format, Setzung und Start in fuenf Tastendruecken erreichbar, egal wie viele
+-- schon dabei sind.
 function TL:setupItems()
     local s = self:session()
     local items = {}
-
-    items[#items + 1] = { kind = "add", label = "Teilnehmer eintragen", edit = "add" }
-
-    for _, pid in ipairs(s:activeIds()) do
-        local p = s.t.participants[pid]
-        items[#items + 1] = { kind = "participant", pid = pid, label = p.name }
-    end
 
     items[#items + 1] = {
         kind  = "format",
@@ -171,6 +173,18 @@ function TL:setupItems()
         blocked = not ok,
         note    = why,
     }
+
+    -- Darunter die Anmeldung. Der Zusatz "von Hand" ist kein Schmuck: Wer
+    -- ueber das Netz beitritt, taucht hier von allein auf, und ohne den Zusatz
+    -- sieht das Feld nach dem Weg aus, den alle gehen muessten.
+    items[#items + 1] = { kind = "add", label = "Teilnehmer von Hand eintragen",
+                          edit = "add" }
+
+    for _, pid in ipairs(s:activeIds()) do
+        local p = s.t.participants[pid]
+        items[#items + 1] = { kind = "participant", pid = pid, label = p.name }
+    end
+
     items[#items + 1] = { kind = "back", label = "Zurueck ins Menue" }
     return items
 end

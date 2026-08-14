@@ -400,6 +400,59 @@ identisch, samt Endposition auf zwei Nachkommastellen.
 ist jetzt so groß wie das halbe Feld statt zwei Pixel, damit ist die Marge um Größenordnungen
 besser — aber die Aussage macht der nächste CI-Lauf, nicht ich.
 
+### Aus dem ersten echten LAN-Abend (2026-08-13) — Stufe C.1
+
+**Der kritische Pfad hat gehalten.** Beitreten über die Serverliste, Zuweisung, Match zwischen
+zwei Nicht-Hosts, Ergebnis zurück ins Bracket, nächste Runde — über echte Rechner, Windows und
+macOS gemischt. **Damit ist die Firewall-Frage für den ephemeren Match-Port beantwortet:** Er
+kommt durch. Das war der Grund, warum vier Rechner nötig waren, und es hat funktioniert.
+
+Was nicht gehalten hat, sind fünf Dinge — und alle fünf sind in Stufe C entstanden.
+
+| ID | Befund | Erledigt |
+|----|--------|---|
+| **C-T-11** | **Die HUD-Namen waren beim Gast vertauscht.** Derselbe Stand las sich auf zwei Rechnern spiegelverkehrt: „Slime 0 / r0b 6" gegen „Slime 6 / r0b 0", bei identischem Bild — r0b links und blau auf beiden, der Name einmal links und einmal rechts. `Hud.draw` ordnet `names[1]` dem **Slot 1** zu; die Turnier-Szene übergab dagegen stur `{eigener, Gegner}`. Wer als Gast auf Slot 2 sitzt, beschriftete damit den Host mit seinem eigenen Namen. Die Punktzahlen waren nie falsch, nur die Beschriftung. `LobbyScene:names()` macht es seit M2 richtig — ich hatte es in der neuen Szene nachgebaut statt benutzt | behoben |
+| **C-T-12** | **Der No-Show-Timer zeigte beim Teilnehmer 15 Minuten statt der eingestellten drei.** Das Log trägt **Host-Zeitstempel**: `calledAt` ist `love.timer.getTime()` beim Wirt, also Sekunden seit **dessen** Prozessstart. Der Teilnehmer rechnete `deadline − seine eigene` Prozesszeit — die Differenz zweier Startzeitpunkte. Lief der Wirt zwölf Minuten länger, kamen fünfzehn heraus. In Stufe B gab es nur einen Prozess, deshalb konnte das nie auffallen. Der Versatz kommt jetzt aus dem PING des Turnier-Wirts, den es zweimal je Sekunde ohnehin gibt; die Szene rechnet durchgehend mit **einer** Uhr | behoben |
+| **C-T-13** | **ESC im Match warf einen aus dem ganzen Turnier, ohne Weg zurück.** `net_game` ruft mitten im Satz `leaveNet()`, und das räumt seit M4-09 auch den Turniermodus ab — der hält jetzt Sockets. Man kam zwar wieder herein und sah, gegen wen man dran ist, aber weder von allein noch über eine der angeschriebenen Tasten zurück ins Match: Der Turnier-Wirt führte die Zuweisung als **angenommen** und schickte sie nicht erneut. Beim *nächsten* Gegner klappte es, weil das eine neue Zuweisung ist — genau so beobachtet. Jetzt wird nur das Match verlassen, die Bereitmeldung mit `MATCH_ACCEPT{ready=false}` zurückgenommen, und der Wirt zieht die Folge: läuft das Match noch nicht, wird neu zugewiesen; war der Aussteiger der **Match-Wirt**, greift E-06 (neu ansetzen, kein Walkover); war er der Gast, hält ihm der Match-Wirt 30 s frei (`04_NETCODE` §12) — das ist der Wiedereinstieg, den es seit M2 gibt | behoben |
+| **C-T-14** | **Jeder sah die Bedienhinweise, nur der Turnierleiter konnte sie ausführen.** Die Tasten waren für Teilnehmer stummgeschaltet, die Fußzeile wusste nichts davon. Angeschriebene Tasten, die nichts tun, sind schlechter als keine Fußzeile — sie laden zum Probieren ein, und genau das ist passiert | behoben |
+| **C-T-15** | **Die Einstellungen lagen hinter der gesamten Namensliste.** Gemeldet als „erst ESC drücken und mit der Pfeiltaste durch alle Namen nach unten". Das Namensfeld stand seit M4-07 ganz oben und der Cursor sprang beim Betreten hinein — richtig, solange der Turnierleiter zwanzig Namen tippen musste. Seit sie sich über das Netz anmelden, ist das Tippen der **Notbetrieb** und lag trotzdem im Weg. Jetzt: Format, Parallelität, Setzung, Seed und „Auslosen und starten" zuerst, die Anmeldung („von Hand") darunter, die Liste zuletzt. Der Weg zu den Einstellungen ist damit unabhängig von der Teilnehmerzahl — es gibt einen Testfall, der genau das festnagelt | behoben |
+| **C-T-16** | **Nach dem Abpfiff riss es einen sofort ins nächste Match.** „Man spielt zu Ende, sieht 1 s die Lobby und ist direkt im nächsten Spiel." Zwei Ursachen: Die Matchszene wurde im Moment des Ergebnisses abgeräumt, und die nächste Zuweisung wurde ohne Pause angenommen. Jetzt bleibt der Endstand **fünf Sekunden** stehen (ESC kürzt ab), danach folgen **drei Sekunden** im Bracket, bevor die nächste Zuweisung greift. Die geht dabei nicht verloren — der Wirt wiederholt sie alle zwei Sekunden, bis sie angenommen ist. Die Frist läuft ab dem Auftauchen der Szene und nicht ab dem Abpfiff: Während der Endstand steht, bekommt der Turniermodus kein `update`, und eine dort gestartete Frist wäre beim Auftauchen längst abgelaufen | behoben |
+
+**Was diese sechs gemeinsam haben — wieder dasselbe wie bei C-T-01 bis C-T-05:** Keiner ist ein
+Fehler in einer Turnierregel. Alle sitzen an einer Naht, und drei davon (C-T-11, C-T-12, C-T-13)
+sind erst dadurch entstanden, dass es seit Stufe C **zwei Prozesse mit zwei Uhren und zwei
+Rollen** gibt. Der Vierprozesslauf findet sie; der Selbsttest kann es nicht, weil er die Szene
+nicht fährt.
+
+### Der Ball-Verzug beim Gast — kein Fehler, sondern die Architektur
+
+Gemeldet mit ungewöhnlicher Präzision: **Eingaben flüssig, aber der Ball wird nicht außen am
+Blob getroffen, sondern mitten im Blob — und nur im Sprung, nicht im Stehen.** Auf jedem
+Nicht-Host-Rechner, Windows wie macOS, gegen jeden Host.
+
+Das ist die sichtbare Folge zweier Entscheidungen, die für sich richtig sind: Der Gast sagt
+seinen **eigenen Blob** vorher und zeigt ihn im Jetzt (ADR-017); den **Ball** zeigt er zwei
+Ticks verzögert aus dem Snapshot-Puffer (`04_NETCODE` §8). Blob bei T, Ball bei T − 33 ms. Im
+Stehen bewegt sich der Blob kaum und es fällt nicht auf; im Sprung bewegt er sich schnell, und
+dann sieht man die 33 ms als Eindringtiefe.
+
+**Das korrigiert eine Annahme, die seit ADR-019 im Log steht.** N-01 wurde zurückgestellt, weil
+über Kabel die RTT bei 1–2 ms liegt. Das stimmt — nur hat der Effekt **nichts mit RTT zu tun**.
+Der Puffer sind 33 ms auch bei RTT null. Es ist keine Netz-, sondern eine Anzeigefrage, und sie
+ist ohne WLAN und ohne Paketverlust reproduzierbar.
+
+Drei Wege, keiner umsonst:
+
+| Weg | Preis |
+|---|---|
+| Ball zwei Ticks extrapolieren | genau das, was N-01 als Frage stellt; wird bei Richtungswechsel sichtbar zappeln |
+| Eigenen Blob zum **Zeichnen** ebenfalls verzögern | Blob und Ball wieder konsistent, dafür 33 ms Eingabeverzögerung — also das, was die Vorhersage abschaffen sollte |
+| `Client.BUFFER_TICKS` von 2 auf 1 senken | halbiert den Effekt, kostet Ruckelfestigkeit bei Jitter; über Kabel vertretbar |
+
+**Empfehlung: der dritte zuerst**, weil er billig und messbar ist, und die Extrapolation nur,
+wenn er nicht reicht. Das ist eine ADR-Entscheidung und gehört nicht in eine Fehlerbehebung —
+deshalb hier als Befund und nicht als Änderung.
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |

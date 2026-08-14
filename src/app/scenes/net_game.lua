@@ -42,6 +42,14 @@ local BuildInfo   = require("src.app.build_info")
 local NetGame = {}
 NetGame.__index = NetGame
 
+-- Wie lange der Endstand nach dem Abpfiff eines TURNIERMATCHES stehen bleibt.
+--
+-- Ohne das reisst es einen aus dem Match und ins naechste hinein: Am Abend des
+-- 2026-08-13 gemeldet als "man spielt zu Ende, sieht 1 s die Lobby und ist
+-- direkt im naechsten Spiel" (C-T-16). Im freien Spiel gibt es das nicht --
+-- dort bleibt der Endstand stehen, bis jemand eine Taste drueckt.
+NetGame.TOURNAMENT_LINGER = 5
+
 function NetGame.new(app, opts)
     local self = setmetatable({
         name        = "net_game",
@@ -278,6 +286,7 @@ function NetGame:resetMatch()
     Rules.resetBall(self.state, self.ruleset, 1, self.events)
 
     self.result = nil
+    self.leaveAt = nil          -- Best-of-3: der naechste Satz zaehlt neu
     self.paused = false
     self.reported = false
     self.rematchAsked = false
@@ -410,6 +419,18 @@ function NetGame:update(dt)
     -- nach dem ersten Match stehen.
     if self.tournament then self.tournament:update(love.timer.getTime()) end
     if self.role == "client" then self.pauseLeft = math.max(0, self.pauseLeft - dt) end
+
+    -- Turniermatch: Der Endstand bleibt einen Moment stehen, dann geht es von
+    -- allein zurueck ins Bracket. ESC kuerzt das ab.
+    if self.tournament and self.result then
+        local t = love.timer.getTime()
+        if not self.leaveAt then self.leaveAt = t + NetGame.TOURNAMENT_LINGER end
+        if t >= self.leaveAt then
+            self.leaveAt = nil
+            self.app.leaveMatch()
+            return
+        end
+    end
 
     if self.netlog then
         local now = love.timer.getTime()
@@ -566,7 +587,14 @@ function NetGame:keypressed(key)
         -- Nach dem Abpfiff geht es zurueck in die Lobby: das naechste Match
         -- kostet dann keinen neuen Handschlag. Mitten im Satz ist ESC dagegen
         -- ein Abbruch der ganzen Sitzung, und der Gegner merkt es sofort.
-        if self.state.match.phase == "gameover" then
+        --
+        -- IM TURNIER NICHT (C-T-13, gemessen am Abend des 2026-08-13):
+        -- `leaveNet` raeumt seit M4-09 auch den Turniermodus ab, weil der
+        -- Sockets haelt. Wer im Match ESC drueckt, flog damit aus dem ganzen
+        -- Turnier -- und kam nicht zurueck, weil der Turnier-Wirt die
+        -- Zuweisung als angenommen fuehrte. Hier wird nur das Match verlassen;
+        -- was daraus folgt, entscheidet der Turnier-Wirt (E-05, E-06).
+        if self.state.match.phase == "gameover" or self.tournament then
             self.app.leaveMatch()
         else
             self.app.leaveNet()

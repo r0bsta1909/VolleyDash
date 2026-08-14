@@ -57,15 +57,6 @@ local function typeText(ui, text)
     for i = 1, #text do ui:textinput(text:sub(i, i)) end
 end
 
-local function enterName(ui, name)
-    typeText(ui, name)
-    ui:keypressed("return")
-end
-
-local function fill(env, n)
-    for i = 1, n do enterName(env.ui, NAMES[i] or ("Blob " .. i)) end
-end
-
 -- Bis zum Eintrag mit der gesuchten Art laufen.
 local function selectKind(ui, kind, items)
     items = items or ui:setupItems()
@@ -75,15 +66,62 @@ local function selectKind(ui, kind, items)
     error("kein Eintrag der Art " .. kind, 2)
 end
 
+-- Seit M4-09 steht der Cursor beim Betreten NICHT mehr im Namensfeld: Die
+-- Teilnehmer melden sich ueber das Netz an, das Tippen ist der Notbetrieb.
+-- Der Weg dorthin ist damit Teil dessen, was hier geprueft wird.
+local function beginEntry(ui)
+    if ui.editing then return end
+    selectKind(ui, "add")
+    ui:keypressed("return")
+end
+
+local function enterName(ui, name)
+    beginEntry(ui)
+    typeText(ui, name)
+    ui:keypressed("return")
+end
+
+local function fill(env, n)
+    for i = 1, n do enterName(env.ui, NAMES[i] or ("Blob " .. i)) end
+end
+
 -- ---------------------------------------------------------------------------
 -- Anmeldung
 -- ---------------------------------------------------------------------------
 
-case("der Cursor steht beim Betreten im Namensfeld", function()
+-- Umgekehrt zu M4-07 und mit Absicht (C-T-15): Seit die Teilnehmer sich ueber
+-- das Netz anmelden, ist das Namensfeld der Notbetrieb. Wer beim Betreten
+-- darin landet, muss erst ESC druecken, um an Format und Setzung zu kommen --
+-- am Abend des 2026-08-13 genau so gemeldet.
+case("beim Betreten laeuft keine Eingabe, und oben stehen die Einstellungen", function()
     local env = newEnv()
     assertEq(env.ui.mode, "setup", "Anmeldebildschirm")
-    assertTrue(env.ui.editing ~= nil, "Eingabe laeuft")
-    assertEq(env.ui.editing.field, "add", "und zwar im Namensfeld")
+    assertEq(env.ui.editing, nil, "keine Eingabe im Weg")
+
+    local items = env.ui:setupItems()
+    assertEq(items[1].kind, "format", "erster Eintrag ist eine Einstellung")
+    assertEq(env.ui.sel, 1, "und der Cursor steht darauf")
+end)
+
+-- Der eigentliche Punkt der Umsortierung: Die Zahl der Teilnehmer darf den Weg
+-- zu den Einstellungen NICHT verlaengern. Vorher lagen sie hinter der ganzen
+-- Namensliste.
+case("Einstellungen und Start bleiben erreichbar, egal wie viele dabei sind", function()
+    local env = newEnv()
+    local before = #env.ui:setupItems()
+    local drawAt
+    for i, item in ipairs(env.ui:setupItems()) do
+        if item.kind == "draw" then drawAt = i end
+    end
+
+    fill(env, 12)
+    local after = {}
+    for i, item in ipairs(env.ui:setupItems()) do after[item.kind] = i end
+
+    assertEq(after.format, 1, "Format bleibt oben")
+    assertEq(after.draw, drawAt, "und 'Auslosen' steht an derselben Stelle")
+    assertTrue(after.add > drawAt, "die Anmeldung liegt darunter")
+    assertTrue(#env.ui:setupItems() > before, "die Liste ist trotzdem gewachsen")
 end)
 
 case("nach ENTER steht der Cursor wieder im leeren Feld -- zwanzig Namen am Stueck", function()
@@ -99,6 +137,7 @@ end)
 
 case("ESC beendet die Eingabe, ohne den Bildschirm zu verlassen", function()
     local env = newEnv()
+    beginEntry(env.ui)
     env.ui:keypressed("escape")
     assertEq(env.ui.editing, nil, "Eingabe beendet")
     assertEq(env.left, 0, "aber die Szene bleibt stehen")

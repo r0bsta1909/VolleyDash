@@ -48,6 +48,34 @@ der Export (M4-10, Stufe D).
   Match-Hosts ist das die kleinere Hälfte. N-04 und N-05 beantwortet das ausdrücklich nicht:
   Ein Läufer hat keine Firewall und keine zweite Maschine.
 
+### Behoben (Stufe C.1 — nach dem ersten echten LAN-Abend)
+
+Der kritische Pfad hat gehalten: Beitreten, Zuweisung, Match zwischen zwei Nicht-Hosts,
+Ergebnis zurück ins Bracket — über echte Rechner, Windows und macOS gemischt. **Damit kommt
+auch der ephemere Match-Port durch die Firewall.** Was nicht gehalten hat, waren sechs Dinge,
+und alle sechs sind in Stufe C entstanden.
+
+- **Die Namen im HUD waren beim Gast vertauscht.** Derselbe Stand las sich auf zwei Rechnern
+  spiegelverkehrt. `Hud.draw` ordnet die Namen den **Slots** zu; die Turnier-Szene übergab
+  „ich und der andere". Die Punktzahlen waren nie falsch, nur die Beschriftung.
+- **Der No-Show-Timer zeigte beim Teilnehmer 15 Minuten statt drei.** Das Log trägt
+  Host-Zeitstempel, der Teilnehmer rechnete gegen seine eigene Prozesszeit — die Differenz
+  zweier Programmstarts. Der Versatz kommt jetzt aus dem PING, den es ohnehin gibt.
+- **ESC im Match warf einen aus dem ganzen Turnier, ohne Weg zurück.** Jetzt wird nur das Match
+  verlassen; wer der Match-Host war, löst E-06 aus (neu ansetzen), wer Gast war, bekommt die
+  Zuweisung erneut und steigt wieder ein (`04_NETCODE` §12).
+- **Die Bedienhinweise sah jeder, ausführen konnte sie nur der Turnierleiter.**
+- **Die Einstellungen lagen hinter der gesamten Namensliste.** Format, Setzung und „Auslosen"
+  stehen jetzt oben — der Weg dorthin ist unabhängig von der Teilnehmerzahl. Der Cursor springt
+  nicht mehr ins Namensfeld: Angemeldet wird über das Netz, das Tippen ist der Notbetrieb.
+- **Nach dem Abpfiff riss es einen sofort ins nächste Match.** Der Endstand bleibt fünf
+  Sekunden stehen, danach drei Sekunden im Bracket.
+
+### Geändert (Stufe C.1)
+
+- Der Menüeintrag heißt **„Turnier erstellen"**. Beigetreten wird über „Spiel suchen" — ein
+  Eintrag, der nur „Turnier" heißt, sieht nach dem Weg für beide Rollen aus.
+
 ### Behoben (Stufe C)
 
 - **Die Turnierverbindung starb während des Matches.** Nur die oberste Szene bekommt `update`,

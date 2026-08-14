@@ -95,6 +95,13 @@ end
 
 function TournamentClient:now() return self.clock() end
 
+-- Die Uhr, mit der die Anzeige rechnen muss: die des Turnier-Wirts. Solange
+-- noch kein PING angekommen ist, gibt es keinen Versatz -- dann steht die
+-- Restzeit kurz falsch, statt gar nicht dazusein.
+function TournamentClient:hostNow()
+    return self:now() - (self.hostOffset or 0)
+end
+
 function TournamentClient:send(msgType, payload)
     if not self.peer then return false end
     local ok, data = pcall(Protocol.encode, msgType, payload)
@@ -188,6 +195,19 @@ function TournamentClient:receive(data)
         self.onEvent("result_query", payload.matchId)
 
     elseif msgType == Protocol.MSG.PING then
+        -- Nebenbei die Uhr des Turnier-Wirts mitnehmen (C-T-12).
+        --
+        -- Das Log traegt HOST-Zeitstempel: `calledAt` ist `love.timer.getTime()`
+        -- beim Wirt, also Sekunden seit DESSEN Prozessstart. Wer den
+        -- No-Show-Timer daraus gegen seine EIGENE Prozesszeit rechnet, bekommt
+        -- die Differenz zweier Startzeitpunkte -- am Abend des 2026-08-13 war
+        -- das ein Countdown von 15 Minuten statt der eingestellten drei.
+        --
+        -- Der PING traegt die Host-Zeit ohnehin, zweimal je Sekunde. Der
+        -- Versatz kostet damit keine eigene Nachricht; die halbe Laufzeit, die
+        -- darin steckt, ist im LAN ein Bruchteil einer Millisekunde und gegen
+        -- eine 180-s-Frist bedeutungslos.
+        self.hostOffset = self:now() - (payload.timestamp or 0) / 1000
         self:send(Protocol.MSG.PONG, { timestamp = payload.timestamp })
 
     elseif msgType == Protocol.MSG.PONG then
@@ -258,9 +278,15 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Bereitmeldung. Der Match-Wirt gibt seinen Port mit; der Gast schickt 0.
-function TournamentClient:accept(matchId, enetPort)
+--
+-- `ready = false` ist die RUECKNAHME (C-T-13): "ich bin doch nicht dabei". Sie
+-- braucht keine eigene Nachricht -- das Feld sagt bereits genau das aus, und
+-- ein zweiter Nachrichtentyp fuer die Verneinung eines Wahrheitswerts waere
+-- Protokoll ohne Gewinn.
+function TournamentClient:accept(matchId, enetPort, ready)
+    if ready == nil then ready = true end
     return self:send(Protocol.MSG.MATCH_ACCEPT,
-        { matchId = matchId, ready = true, enetPort = enetPort or 0 })
+        { matchId = matchId, ready = ready, enetPort = enetPort or 0 })
 end
 
 -- Der Ergebnisbericht (E-08). Er wird gemerkt, damit die Nachfrage aus §8

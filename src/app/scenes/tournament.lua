@@ -51,8 +51,28 @@ local Music            = require("src.app.music")
 local TournamentScene = {}
 TournamentScene.__index = TournamentScene
 
+-- Verschnaufpause, bevor die naechste Zuweisung angenommen wird.
+--
+-- Die Matchszene laesst den Endstand stehen (`NetGame.TOURNAMENT_LINGER`);
+-- danach steht man wieder im Bracket -- und wurde bis M4-09 im selben Moment
+-- ins naechste Match gezogen. Die Zuweisung geht dabei nicht verloren: Der
+-- Turnier-Wirt wiederholt sie, bis sie angenommen ist.
+TournamentScene.BREATHER = 3
+
 local function now()
     return love.timer.getTime()
+end
+
+-- Die Uhr, mit der diese Szene rechnet.
+--
+-- Beim Leiter ist das die eigene. Beim TEILNEHMER ist es die des Turnier-Wirts
+-- (`TournamentClient:hostNow`): Das Log traegt Host-Zeitstempel, und `calledAt`
+-- gegen die eigene Prozesszeit zu rechnen liefert die Differenz zweier
+-- Startzeitpunkte statt einer Restzeit (C-T-12). Eine Uhr fuer die ganze
+-- Szene, damit Ton, Einblendung und Countdown nicht auseinanderlaufen.
+function TournamentScene:clock()
+    if self.tclient then return self.tclient:hostNow() end
+    return now()
 end
 
 function TournamentScene.new(app, opts)
@@ -209,7 +229,7 @@ function TournamentScene:startClient(opts)
 
     self.ui = TL.new({
         session    = client and client.session or nil,
-        now        = now,
+        now        = function() return self:clock() end,
         readOnly   = true,
         playerName = function() return app.playerName() end,
         onCreate   = function() end,
@@ -279,6 +299,11 @@ function TournamentScene:onAssign(payload)
     -- Matches gleichzeitig; die Zuweisung kommt nach dem Abpfiff erneut,
     -- weil der Turnier-Wirt sie je Wasserstand verschickt.
     if self.inMatch or self.closing then return end
+
+    -- Gerade erst aus einem Match gekommen: kurz durchatmen. Der Turnier-Wirt
+    -- schickt die Zuweisung in zwei Sekunden noch einmal (C-T-16).
+    if now() < (self.readyAt or 0) then return end
+
     if self.runner then self.closing = self.runner self.runner = nil end
 
     local common = {
@@ -320,7 +345,7 @@ end
 -- ueber das Netz: Er IST der Turnier-Wirt.
 function TournamentScene:accept(matchId, port)
     if self.tclient then
-        self.tclient:accept(matchId, port)
+        self.tclient:accept(matchId, port, true)
     elseif self.thost then
         if port and port > 0 then self.thost:hostSelfMatch(matchId, port) end
         self.session:confirmReady(matchId, self.selfPid, now())
@@ -351,12 +376,26 @@ end
 function TournamentScene:enterMatch(slot)
     local runner = self.runner
     self.inMatch = true
+    self.wasInMatch = true
+
+    local other = (slot == 1) and 2 or 1
+    local names = {}
+    names[slot]  = self.app.playerName()
+    names[other] = runner.opponent or "Gegner"
+
     self.app.enterNetMatch({
         role    = runner:isHost() and "host" or "client",
         host    = runner.host,
         client  = runner.client,
         ruleset = runner:isHost() and self.session.t.ruleset or runner.client.ruleset,
-        names   = { self.app.playerName(), runner.opponent or "Gegner" },
+        -- Die Namen gehoeren zu den SLOTS, nicht zu "ich und der andere".
+        -- `Hud.draw` ordnet names[1] dem Slot 1 zu; wer als Gast auf Slot 2
+        -- sitzt und hier stur seinen eigenen Namen zuerst schreibt,
+        -- beschriftet damit den Host mit seinem Namen. Am Abend des
+        -- 2026-08-13 gemessen: derselbe Stand las sich auf zwei Rechnern
+        -- spiegelverkehrt (C-T-11). `LobbyScene:names()` macht es seit M2
+        -- richtig, diese Szene tat es nicht.
+        names   = names,
         slot    = slot,
         stats   = self.stats,
         -- Die Turnierverbindung wandert mit: Waehrend des Matches bekommt
@@ -370,6 +409,39 @@ function TournamentScene:enterMatch(slot)
             return self:reportResult(runner.matchId, scoreA, scoreB, reason, stats)
         end,
     })
+end
+
+-- Das Match wurde verlassen, nicht beendet.
+--
+-- Was daraus folgt, entscheidet der Turnier-Wirt und nicht der, der geht:
+--
+--   * Als GAST nehmen wir die Bereitmeldung zurueck. Der Wirt schickt die
+--     Zuweisung daraufhin erneut, und wir bauen die Verbindung neu auf --
+--     laeuft das Match schon, ist das der Wiedereinstieg aus `04_NETCODE` §12
+--     mit derselben `clientId`. Wer nicht binnen 30 s zurueck ist, verliert es
+--     per Walkover, und auch das ist bereits gebaut (E-05).
+--   * Als MATCH-WIRT ist das Match weg, sobald der Socket zugeht. Das ist
+--     E-06: neu ansetzen, kein Walkover -- der Absturz ist nicht die Schuld
+--     eines Spielers. Der Leiter kann das selbst; ein Teilnehmer sagt es dem
+--     Wirt mit derselben Ruecknahme, und der zieht die Folge.
+function TournamentScene:abandonMatch()
+    local runner = self.runner
+    self.inMatch = false
+    self.stats   = nil
+
+    if runner then
+        self.runner = nil
+        self.closing = runner
+        self.closingUntil = now() + 0.5
+
+        if self.tclient then
+            self.tclient:accept(runner.matchId, 0, false)
+        elseif self.thost and runner:isHost() then
+            self.session:abortMatch(runner.matchId, self:clock())
+        end
+    end
+
+    self.ui:say("Match verlassen -- der Turnier-Wirt setzt es neu an")
 end
 
 -- Der Ergebnisbericht (E-08). Best-of-3 sammelt Saetze, bis einer zwei hat --
@@ -416,7 +488,8 @@ function TournamentScene:reportResult(matchId, scoreA, scoreB, reason, stats)
     -- dafuer, dass die Nachricht auch dann ankommt, wenn ein Paket unterwegs
     -- wiederholt werden muss.
     self.closingUntil = now() + 0.5
-    self.app.leaveMatch()
+    -- Kein `leaveMatch()` hier: Die Matchszene laesst den Endstand stehen und
+    -- geht danach von allein zurueck. Zwei Wege hinaus waeren zwei Zeitpunkte.
 end
 
 -- ---------------------------------------------------------------------------
@@ -439,8 +512,24 @@ function TournamentScene:update()
         end
     end
 
+    -- Bekommt diese Szene wieder `update`, liegt keine Matchszene mehr
+    -- darueber -- `src/app/scene.lua` treibt nur die oberste. Das ist der
+    -- einzige verlaessliche Zeitpunkt fuer beides:
+    --
+    --   * Steht `inMatch` noch, wurde das Match VERLASSEN und nicht beendet
+    --     (ESC mitten im Satz, C-T-13).
+    --   * Die Verschnaufpause laeuft ab HIER und nicht ab dem Abpfiff -- waehrend
+    --     der Endstand steht, bekommt diese Szene kein `update`, und eine dort
+    --     gestartete Frist waere beim Auftauchen laengst abgelaufen (C-T-16).
+    if self.wasInMatch then
+        self.wasInMatch = false
+        if self.inMatch then self:abandonMatch() end
+        self.readyAt = now() + TournamentScene.BREATHER
+    end
+
     if self.thost then self.thost:update(now()) end
     if self.tclient then self.tclient:update(now()) end
+    local clock = self:clock()
     if self.runner then
         self.runner:update(0)
         self:pushMatchIfReady()
@@ -453,7 +542,7 @@ function TournamentScene:update()
     -- der No-Show-Timer ist genau der Fall, in dem niemand etwas tut. Beim
     -- Leiter hat `TournamentHost:update` den Automaten schon laufen lassen;
     -- was hier passiert, ist ausschliesslich das EINSAMMELN des Stroms.
-    local events = session:tick(now())
+    local events = session:tick(clock)
     for _, name in ipairs(self.ui:soundsFor(events)) do
         -- Der Aufruf muss ueber die Menuemusik durchkommen (Klangliste §2);
         -- die Vorgabe des Pools ist 0.25.
@@ -477,7 +566,7 @@ function TournamentScene:update()
 end
 
 function TournamentScene:draw()
-    BracketView.draw(self.ui, now())
+    BracketView.draw(self.ui, self:clock())
 end
 
 function TournamentScene:keypressed(key)

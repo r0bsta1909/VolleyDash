@@ -486,7 +486,33 @@ function TournamentHost:onAccept(record, payload)
         -- die Zuweisung alle zwei Sekunden erneut hinaus.
         a.accepted[record.pid] = true
         session:confirmReady(id, record.pid, self:now())
+        return
     end
+
+    -- RUECKNAHME (C-T-13): Jemand hat sein Match verlassen. Zwei Faelle, und
+    -- der Unterschied ist der zwischen "wartet noch" und "war schon dabei".
+    a.accepted[record.pid] = nil
+    a.told[record.pid] = nil          -- damit die Zuweisung erneut hinausgeht
+
+    local m = session.t.matches[id]
+    if m and m.status == Model.STATUS.LIVE and a.host == record.pid then
+        -- Der MATCH-WIRT ist weg, also ist das Match weg. E-06: neu ansetzen,
+        -- kein Walkover -- ein Abbruch ist nicht die Schuld eines Spielers.
+        self.assigned[id] = nil
+        self.lostSince[id] = nil
+        self.queried[id] = nil
+        self.choice:forgetMatch(id)
+        self.stats.aborts = self.stats.aborts + 1
+        session:abortMatch(id, self:now())
+        self.onEvent("match_lost", id)
+        return
+    end
+
+    -- Ein GAST ist gegangen. Laeuft das Match schon, gehoert es ihm weiterhin:
+    -- Der Match-Wirt pausiert und haelt ihm 30 s frei (`04_NETCODE` §12), und
+    -- die erneut geschickte Zuweisung ist genau der Weg zurueck. Kommt er
+    -- nicht, endet es dort per Walkover.
+    self.onEvent("match_left", id, record.pid)
 end
 
 function TournamentHost:onReport(record, payload)

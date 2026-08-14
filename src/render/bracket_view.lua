@@ -585,9 +585,24 @@ local function drawFull(ui, now)
     drawSidebar(ui, s, now, 610, 88, 170, H - 150)
 
     -- Fusszeile: was ENTER gerade tut, steht ausgeschrieben da.
-    local _, actionText = ui:primaryAction()
+    --
+    -- Ein TEILNEHMER bekommt hier eine andere Zeile (C-T-14). Er darf die
+    -- volle Ansicht sehen -- wer neben dem Beamer sitzt, will den ganzen Baum
+    -- --, aber er kann nichts eintragen: Das Ergebnis kommt vom Match-Wirt
+    -- (E-08) und das Log hat genau einen Schreiber (ADR-023). Ihm Tasten
+    -- anzuschreiben, die nichts tun, ist schlechter als gar keine Fusszeile;
+    -- am Abend des 2026-08-13 hat genau das jemanden probieren lassen.
     Assets.setFont(12)
     setColor(COLOR.text, 0.42)
+
+    if ui.ctx.readOnly then
+        love.graphics.print(
+            "F2 Ansicht   ESC zurueck        Eintragen und korrigieren kann nur der Turnierleiter",
+            20, H - 26)
+        return
+    end
+
+    local _, actionText = ui:primaryAction()
     love.graphics.print(string.format(
         "TAB %s   ENTER %s   E Ergebnis   K Korrektur   P Timer   A Abbruch   W austragen   F2 Ansicht   ESC zurueck",
         ui.panel == "matches" and "Teilnehmer" or "Matches",
