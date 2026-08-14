@@ -201,13 +201,14 @@ function Persistence:list()
             local tournament, source = self:load(id)
             if tournament then
                 out[#out + 1] = {
-                    id      = tournament.id,
-                    name    = tournament.name,
-                    status  = tournament.status,
-                    format  = tournament.format,
-                    round   = Persistence.currentRound(tournament),
-                    rounds  = #tournament.rounds,
-                    source  = source,
+                    id        = tournament.id,
+                    name      = tournament.name,
+                    status    = tournament.status,
+                    format    = tournament.format,
+                    round     = Persistence.currentRound(tournament),
+                    rounds    = #tournament.rounds,
+                    createdAt = tournament.createdAt,
+                    source    = source,
                 }
             end
         end
@@ -222,6 +223,20 @@ function Persistence:running()
         if entry.status == Model.TOURNAMENT_STATUS.RUNNING then out[#out + 1] = entry end
     end
     return out
+end
+
+-- AP-1 (CC-06): Loeschen heisst ALLE DREI Formen loeschen. Wer nur die
+-- `.json` entfernt, laesst eine `.bak` zurueck -- und `load` faellt genau
+-- dorthin zurueck, das Turnier stuende beim naechsten Betreten wieder da.
+-- Eine Datei, die fehlt, ist kein Fehler: `remove` schluckt das (siehe
+-- Unterbau), und geloescht ist geloescht.
+function Persistence:delete(id)
+    if not id or id == "" then return false, "Turnier ohne Kennung" end
+    local json, tmp, bak = self:paths(id)
+    self.fs.remove(tmp)
+    self.fs.remove(bak)
+    self.fs.remove(json)
+    return true
 end
 
 -- Die niedrigste Runde, in der noch etwas offen ist -- die Zahl aus dem

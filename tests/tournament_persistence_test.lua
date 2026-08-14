@@ -279,4 +279,65 @@ case("ohne Dateizugriff gibt es kein Objekt, aber auch keinen Absturz", function
     end
 end)
 
+-- ---------------------------------------------------------------------------
+-- Loeschen (AP-1, CC-06)
+-- ---------------------------------------------------------------------------
+
+case("loeschen entfernt .json UND .bak -- das andere Turnier bleibt unberuehrt", function()
+    local p, fs = store()
+    local a = H.newTournament(8, { format = "single_elim" }, { id = "t_a" })
+    local b = H.newTournament(8, { format = "single_elim" }, { id = "t_b" })
+    p:save(a) H.draw(a) p:save(a)   -- zweimal, damit die .bak existiert
+    p:save(b) H.draw(b) p:save(b)
+
+    local jsonB = fs.files["tournaments/t_b.json"]
+    local bakB  = fs.files["tournaments/t_b.json.bak"]
+    assertTrue(fs.files["tournaments/t_a.json.bak"] ~= nil, "die .bak von A steht")
+
+    assertTrue(p:delete("t_a"), "geloescht")
+    assertEq(fs.files["tournaments/t_a.json"], nil, "die .json ist weg")
+    assertEq(fs.files["tournaments/t_a.json.bak"], nil,
+        "die .bak auch -- sonst holt `load` das Turnier daraus zurueck")
+    assertEq(fs.files["tournaments/t_a.json.tmp"], nil, "und keine .tmp uebrig")
+    assertEq(fs.files["tournaments/t_b.json"], jsonB, "B ist unberuehrt")
+    assertEq(fs.files["tournaments/t_b.json.bak"], bakB, "samt seiner Sicherung")
+    assertEq(#p:list(), 1, "die Liste kennt nur noch B")
+end)
+
+case("eine fehlende Datei ist beim Loeschen kein Fehler", function()
+    local p = store()
+    assertTrue(p:delete("t_nie_gesehen"), "geloescht ist geloescht")
+    assertFalse(p:delete(nil), "aber ohne Kennung geht nichts")
+    assertFalse(p:delete(""), "auch nicht leer")
+end)
+
+case("die Liste traegt Status und Datum -- die Verwaltung braucht beide", function()
+    local p = store()
+    local t = H.newTournament(8, { format = "single_elim" }, { id = "t_x" })
+    p:save(t)
+    local entry = p:list()[1]
+    assertEq(entry.status, "setup", "nie gestartet -- genau die Sorte, die liegen bleibt")
+    assertTrue(entry.createdAt ~= nil, "mit Datum")
+end)
+
+case("loeschen, waehrend dasselbe Turnier geladen ist, ueberlebt das naechste Ereignis nicht", function()
+    -- Die Sperre sitzt in der Bedienung (`manageKey`) und in der Szene. Auf
+    -- DIESER Ebene ist das Verhalten trotzdem festgelegt und soll so bleiben:
+    -- `attach` schreibt nach jedem Ereignis (§7), ein geloeschtes, aber noch
+    -- geladenes Turnier taucht also von selbst wieder auf. Verloren waere nur
+    -- die .bak -- genau deshalb bietet die Bedienung das gar nicht erst an.
+    local p, fs = store()
+    local t = H.newTournament(8, { format = "single_elim" }, { id = "t_l" })
+    p:attach(t)
+    H.draw(t)
+    assertTrue(fs.files["tournaments/t_l.json"] ~= nil, "gespeichert")
+
+    p:delete("t_l")
+    assertEq(fs.files["tournaments/t_l.json"], nil, "weg")
+
+    t:append({ event = "participant_joined", participantId = "x_9", name = "X9" })
+    assertTrue(fs.files["tournaments/t_l.json"] ~= nil,
+        "und nach dem naechsten Ereignis wieder da")
+end)
+
 return T

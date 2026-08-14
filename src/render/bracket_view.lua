@@ -110,6 +110,91 @@ local function drawResume(ui)
 end
 
 -- ---------------------------------------------------------------------------
+-- Bildschirm 4: gespeicherte Turniere (AP-1, CC-06)
+-- ---------------------------------------------------------------------------
+
+local function drawManage(ui)
+    backdrop()
+    Assets.setFont(34)
+    setColor(COLOR.title)
+    love.graphics.printf("GESPEICHERTE TURNIERE", 0, 40, W, "center")
+
+    local items = ui:manageItems()
+
+    if #items == 1 then   -- nur "Zurueck"
+        Assets.setFont(16)
+        setColor(COLOR.dim)
+        love.graphics.printf("Keine gespeicherten Turniere.", 0, 140, W, "center")
+    end
+
+    local perPage = 12
+    local first = 1
+    if ui.sel > perPage then first = ui.sel - perPage + 1 end
+
+    local y = 120
+    for i = first, math.min(#items, first + perPage - 1) do
+        local item = items[i]
+        local selected = (i == ui.sel)
+
+        if item.kind == "back" then
+            Assets.setFont(18)
+            setColor(selected and COLOR.text or COLOR.dim)
+            love.graphics.print((selected and "> " or "  ") .. item.label, 90, y + 8)
+        else
+            Assets.setFont(17)
+            setColor(selected and COLOR.text or COLOR.dim)
+            love.graphics.print((selected and "> " or "  ") .. clip(item.label, 24), 90, y)
+            Assets.setFont(13)
+            setColor(item.loaded and COLOR.live or COLOR.faint)
+            love.graphics.print(item.loaded and "geoeffnet" or item.status, 420, y + 2)
+            setColor(COLOR.faint)
+            love.graphics.print(item.when, 570, y + 2)
+        end
+        y = y + 32
+    end
+
+    Assets.setFont(13)
+    setColor(COLOR.text, 0.4)
+    love.graphics.printf("ENTER loescht (mit Sicherheitsabfrage)   ESC zurueck",
+        0, H - 34, W, "center")
+end
+
+-- Die Sicherheitsabfrage. Sie braucht keine Session -- in der Wiederaufnahme
+-- gibt es noch keine.
+local function drawDeleteDialog(ui)
+    local d = ui.dialog
+
+    love.graphics.setColor(0.02, 0.02, 0.02, 0.98)
+    love.graphics.rectangle("fill", 120, 190, W - 240, 210)
+    setColor(COLOR.warn, 0.6)
+    love.graphics.rectangle("line", 120, 190, W - 240, 210)
+
+    Assets.setFont(20)
+    setColor(COLOR.warn)
+    love.graphics.printf("TURNIER LOESCHEN?", 0, 210, W, "center")
+
+    Assets.setFont(20)
+    setColor(COLOR.text)
+    love.graphics.printf(clip(d.label, 30), 0, 248, W, "center")
+
+    Assets.setFont(14)
+    setColor(COLOR.text, 0.55)
+    love.graphics.printf(string.format("%s%s", d.status or "",
+        (d.when and d.when ~= "") and ("   angelegt " .. d.when) or ""),
+        0, 278, W, "center")
+
+    Assets.setFont(15)
+    setColor(COLOR.text, 0.7)
+    love.graphics.printf("Datei und Sicherung sind danach unwiederbringlich weg.",
+        0, 310, W, "center")
+
+    Assets.setFont(16)
+    setColor(COLOR.text)
+    love.graphics.printf("J  loescht endgueltig        ESC  bricht ab",
+        0, 348, W, "center")
+end
+
+-- ---------------------------------------------------------------------------
 -- Bildschirm 2: Anmeldung (§9)
 -- ---------------------------------------------------------------------------
 
@@ -128,6 +213,18 @@ local function drawSetup(ui)
     setColor(COLOR.text, 0.6)
     love.graphics.print(string.format("Teilnehmer %d  (%d bis %d)",
         count, Session.MIN_PARTICIPANTS, Session.MAX_PARTICIPANTS), 40, 80)
+
+    -- Die eigene Adresse (AP-2, CC-06) -- gross genug zum Vorlesen, wie in
+    -- der Match-Lobby. Genau hier sitzt der Turnierleiter, waehrend die
+    -- anderen ihn in der Serverliste suchen.
+    if ui.ctx.address then
+        Assets.setFont(13)
+        setColor(COLOR.text, 0.5)
+        love.graphics.print("Falls die Serverliste leer bleibt:", 470, 92)
+        Assets.setFont(22)
+        setColor(COLOR.live)
+        love.graphics.print(ui.ctx.address, 470, 110)
+    end
 
     -- Links die Liste, rechts die Einstellungen. Zwanzig Namen untereinander
     -- passen nicht auf 600 Pixel, also zwei Spalten zu je zehn.
@@ -197,7 +294,8 @@ local function drawSetup(ui)
                 text = ui.editing.buffer .. "_"
                 setColor(COLOR.live)
             end
-            if item.kind == "draw" or item.kind == "back" then
+            if item.kind == "draw" or item.kind == "back"
+               or item.kind == "manage" then
                 text = (selected and "> " or "  ") .. item.label
             end
             love.graphics.print(text, 470, y + 18)
@@ -348,6 +446,13 @@ local function drawHeader(ui, s)
         Assets.setFont(20)
         setColor(COLOR.title)
         love.graphics.printf("SIEGER: " .. tostring(s:winnerName()), W - 420, 16, 400, "right")
+    elseif ui.ctx.address then
+        -- Die Adresse des Turnier-Wirts (AP-2, CC-06): fuer alle, die spaeter
+        -- dazukommen und deren Serverliste leer bleibt (`04_NETCODE` §11).
+        -- Nach dem Sieger raeumt sie das Feld -- dann traegt sie nichts mehr.
+        Assets.setFont(16)
+        setColor(COLOR.live, 0.9)
+        love.graphics.printf("IP " .. tostring(ui.ctx.address), W - 420, 16, 400, "right")
     end
 end
 
@@ -633,6 +738,8 @@ function View.draw(ui, now)
         drawWaiting(ui)
     elseif ui.mode == "resume" then
         drawResume(ui)
+    elseif ui.mode == "manage" then
+        drawManage(ui)
     elseif ui.mode == "setup" then
         drawSetup(ui)
     elseif ui.view == "full" then
@@ -641,7 +748,13 @@ function View.draw(ui, now)
         drawCompact(ui, now)
     end
 
-    if ui.dialog then drawDialog(ui, ui:session()) end
+    if ui.dialog then
+        if ui.dialog.kind == "delete" then
+            drawDeleteDialog(ui)
+        else
+            drawDialog(ui, ui:session())
+        end
+    end
 
     local message = ui:currentMessage()
     if message then

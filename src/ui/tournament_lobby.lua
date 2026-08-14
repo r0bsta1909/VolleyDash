@@ -13,6 +13,14 @@
 --   setup    Anmeldung, Format, Setzung. Endet mit der Auslosung.
 --   run      Das laufende Turnier. Zwei Ansichten (F2): kompakt fuer den
 --            Spieler, voll fuer den Beamer (§10).
+--   manage   Die gespeicherten Turniere (AP-1, CC-06). Jedes angelegte
+--            Turnier liegt als Datei im Save-Ordner -- auch nie ausgeloste
+--            und laengst abgeschlossene. Hier werden sie geloescht, mit
+--            Sicherheitsabfrage (`J` bestaetigt) und bewusst NICHT auf
+--            demselben Tastenweg wie "Teilnehmer streichen" (ENTF ohne
+--            Rueckfrage): Die Datei ist die Versicherung aus §7, und ein
+--            Loeschweg, den man versehentlich trifft, ist schlimmer als
+--            eine volle Platte.
 --
 -- ---------------------------------------------------------------------------
 -- Warum die Bedienung in der VOLLEN Ansicht sitzt
@@ -105,8 +113,84 @@ function TL:resumeItems()
         }
     end
     items[#items + 1] = { kind = "new",  label = "Neues Turnier anlegen" }
+    if self.ctx.savedList then
+        items[#items + 1] = { kind = "manage", label = "Gespeicherte Turniere verwalten" }
+    end
     items[#items + 1] = { kind = "back", label = "Zurueck" }
     return items
+end
+
+-- ---------------------------------------------------------------------------
+-- Bildschirm 4: gespeicherte Turniere (AP-1, CC-06)
+-- ---------------------------------------------------------------------------
+
+-- Was der Mensch statt der rohen Statuskennung liest.
+TL.SAVED_STATUS = {
+    setup    = "nie gestartet",
+    running  = "laeuft",
+    finished = "abgeschlossen",
+    aborted  = "abgebrochen",
+}
+
+function TL:manageItems()
+    local items = {}
+    for _, e in ipairs(self.ctx.savedList and self.ctx.savedList() or {}) do
+        local status = TL.SAVED_STATUS[e.status] or tostring(e.status)
+        if e.status == Model.TOURNAMENT_STATUS.RUNNING and e.round then
+            status = string.format("laeuft, Runde %s von %s",
+                tostring(e.round), tostring(e.rounds))
+        end
+        items[#items + 1] = {
+            kind   = "saved",
+            id     = e.id,
+            label  = e.name or e.id,
+            status = status,
+            -- Das Datum gehoert zur Liste (CC-06 §2): Nach drei LAN-Abenden
+            -- heissen alle Turniere gleich, und die Uhrzeit ist dann das
+            -- einzige Merkmal, an dem man das richtige erkennt.
+            when   = (e.createdAt and e.createdAt > 0)
+                     and os.date("%d.%m.%Y %H:%M", e.createdAt) or "",
+            loaded = e.loaded or false,
+        }
+    end
+    items[#items + 1] = { kind = "back", label = "Zurueck" }
+    return items
+end
+
+function TL:enterManage()
+    self.manageFrom, self.manageSel = self.mode, self.sel
+    self.mode, self.sel = "manage", 1
+end
+
+function TL:leaveManage()
+    self.mode = self.manageFrom or "setup"
+    self.sel  = self.manageSel or 1
+    self.manageFrom, self.manageSel = nil, nil
+end
+
+function TL:manageKey(key)
+    local items = self:manageItems()
+    if key == "up"     then self:move(items, -1) return true end
+    if key == "down"   then self:move(items, 1)  return true end
+    if key == "escape" then self:leaveManage()   return true end
+    if key ~= "return" and key ~= "kpenter" and key ~= "delete" then return true end
+
+    local item = items[self.sel]
+    if not item then return true end
+    if item.kind == "back" then self:leaveManage() return true end
+
+    if item.loaded then
+        -- Das geoeffnete Turnier schreibt sich nach jedem Ereignis selbst
+        -- wieder auf die Platte (§7) -- eine geloeschte Datei stuende nach
+        -- dem naechsten Ereignis wieder da und haette nur die Sicherung
+        -- gekostet. Also gar nicht erst anbieten.
+        self:say("Dieses Turnier ist gerade geoeffnet")
+        return true
+    end
+
+    self.dialog = { kind = "delete", id = item.id,
+                    label = item.label, status = item.status, when = item.when }
+    return true
 end
 
 -- ---------------------------------------------------------------------------
@@ -185,6 +269,9 @@ function TL:setupItems()
         items[#items + 1] = { kind = "participant", pid = pid, label = p.name }
     end
 
+    if self.ctx.savedList then
+        items[#items + 1] = { kind = "manage", label = "Gespeicherte Turniere" }
+    end
     items[#items + 1] = { kind = "back", label = "Zurueck ins Menue" }
     return items
 end
@@ -292,6 +379,32 @@ function TL:dialogKey(key)
 
     if key == "escape" then
         self.dialog = nil
+        return true
+    end
+
+    -- Die Sicherheitsabfrage des Loeschens (AP-1). `J` bestaetigt -- bewusst
+    -- NICHT ENTER: ENTER hat den Dialog geoeffnet, und wer zweimal schnell
+    -- drueckt, haette sonst geloescht statt gefragt.
+    if d.kind == "delete" then
+        if key == "j" then
+            local ok, err
+            if self.ctx.onDelete then ok, err = self.ctx.onDelete(d.id)
+            else ok, err = false, "Loeschen ist hier nicht moeglich" end
+            self.dialog = nil
+            if ok then
+                -- Die Wiederaufnahme-Liste zieht nach: Ein geloeschtes
+                -- Turnier darf beim naechsten Betreten nicht mehr angeboten
+                -- werden -- das war die Haelfte der Meldung aus CC-06.
+                for i = #(self.running or {}), 1, -1 do
+                    if self.running[i].id == d.id then table.remove(self.running, i) end
+                end
+                self:say("Geloescht -- Datei und Sicherung sind weg")
+            else
+                self:say(tostring(err))
+            end
+        elseif key == "return" or key == "kpenter" then
+            self:say("J loescht endgueltig -- ESC bricht ab")
+        end
         return true
     end
 
@@ -418,6 +531,7 @@ function TL:keypressed(key)
         return true
     end
     if self.mode == "resume" then return self:resumeKey(key) end
+    if self.mode == "manage" then return self:manageKey(key) end
     if self.mode == "setup"  then return self:setupKey(key) end
     return self:runKey(key)
 end
@@ -444,6 +558,8 @@ function TL:resumeKey(key)
         self.ctx.onCreate()
         self.mode, self.sel = "setup", 1
         self:beginEdit("add", "")
+    elseif item.kind == "manage" then
+        self:enterManage()
     else
         self.ctx.onLeave()
     end
@@ -500,6 +616,8 @@ function TL:setupKey(key)
         if ok then self:enterRun() else self:say(tostring(err)) end
     elseif item.kind == "participant" then
         self:say("ENTF streicht den Eintrag")
+    elseif item.kind == "manage" then
+        self:enterManage()
     elseif item.kind == "back" then
         self.ctx.onLeave()
     end

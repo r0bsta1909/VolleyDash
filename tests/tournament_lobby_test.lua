@@ -608,4 +608,136 @@ case("wer stattdessen neu anlegt, landet im Anmeldebildschirm", function()
     assertEq(env.ui.mode, "setup", "Anmeldebildschirm")
 end)
 
+-- ---------------------------------------------------------------------------
+-- Gespeicherte Turniere verwalten (AP-1, CC-06)
+-- ---------------------------------------------------------------------------
+
+-- Ein Kontext mit Dateiliste und Loeschweg, wie ihn die Szene stellt.
+local function newManageEnv(opts)
+    opts = opts or {}
+    local env = newEnv(opts)
+    env.saved = opts.saved or {
+        { id = "t_alt",  name = "Fruehjahrs-LAN", status = "finished",
+          createdAt = 1746000000 },
+        { id = "t_leer", name = "Robs Turnier",   status = "setup",
+          createdAt = 1754000000 },
+        { id = "t_1754900000", name = "Testturnier", status = "running",
+          round = 1, rounds = 3, createdAt = 1754900000, loaded = true },
+    }
+    env.deleted = {}
+    env.ui.ctx.savedList = function() return env.saved end
+    env.ui.ctx.onDelete = function(id)
+        env.deleted[#env.deleted + 1] = id
+        for i = #env.saved, 1, -1 do
+            if env.saved[i].id == id then table.remove(env.saved, i) end
+        end
+        return true
+    end
+    return env
+end
+
+case("die Verwaltung ist aus Anmeldung UND Wiederaufnahme erreichbar", function()
+    local env = newManageEnv()
+    selectKind(env.ui, "manage")
+    env.ui:keypressed("return")
+    assertEq(env.ui.mode, "manage", "Verwaltung offen")
+    env.ui:keypressed("escape")
+    assertEq(env.ui.mode, "setup", "und ESC fuehrt dorthin zurueck, wo man herkam")
+
+    local env2 = newManageEnv({ noSession = true, running = {
+        { id = "t_1", name = "Sommer-LAN", round = 2, rounds = 3, status = "running" },
+    } })
+    local items = env2.ui:resumeItems()
+    selectKind(env2.ui, "manage", items)
+    env2.ui:keypressed("return")
+    assertEq(env2.ui.mode, "manage", "auch aus der Wiederaufnahme")
+    env2.ui:keypressed("escape")
+    assertEq(env2.ui.mode, "resume", "und zurueck in die Wiederaufnahme")
+end)
+
+case("die Liste traegt Status, Datum und die Marke des geoeffneten Turniers", function()
+    local env = newManageEnv()
+    env.ui:enterManage()
+    local items = env.ui:manageItems()
+    assertEq(#items, 4, "drei Turniere plus Zurueck")
+    assertEq(items[1].status, "abgeschlossen", "Statuskennung uebersetzt")
+    assertEq(items[2].status, "nie gestartet", "auch fuer setup")
+    assertTrue(items[3].status:find("Runde 1 von 3") ~= nil, "laufend mit Runde")
+    assertTrue(items[1].when ~= "", "mit Datum")
+    assertTrue(items[3].loaded, "das geladene traegt die Marke")
+end)
+
+case("geloescht wird erst nach der Sicherheitsabfrage -- ENTER allein tut es nicht", function()
+    local env = newManageEnv()
+    env.ui:enterManage()
+    env.ui.sel = 1   -- "Fruehjahrs-LAN"
+    env.ui:keypressed("return")
+    assertTrue(env.ui.dialog ~= nil, "die Abfrage steht")
+    assertEq(env.ui.dialog.kind, "delete", "und ist die richtige")
+
+    -- Wer ENTER doppelt drueckt, hat noch nichts geloescht: ENTER hat den
+    -- Dialog geoeffnet, J bestaetigt ihn (CC-06 §2, "Sicherheitsabfrage").
+    env.ui:keypressed("return")
+    assertEq(#env.deleted, 0, "ENTER loescht nicht")
+    assertTrue(env.ui.dialog ~= nil, "die Abfrage steht noch")
+
+    env.ui:keypressed("escape")
+    assertEq(env.ui.dialog, nil, "ESC bricht ab")
+    assertEq(#env.deleted, 0, "und nichts ist weg")
+
+    env.ui:keypressed("return")
+    env.ui:keypressed("j")
+    assertEq(#env.deleted, 1, "J loescht")
+    assertEq(env.deleted[1], "t_alt", "genau das gewaehlte")
+    assertEq(#env.ui:manageItems(), 3, "die Liste ist nachgezogen")
+end)
+
+case("das geoeffnete Turnier laesst sich nicht loeschen", function()
+    local env = newManageEnv()
+    env.ui:enterManage()
+    env.ui.sel = 3   -- das geladene
+    env.ui:keypressed("return")
+    assertEq(env.ui.dialog, nil, "keine Abfrage")
+    assertEq(#env.deleted, 0, "nichts geloescht")
+    assertTrue(env.ui:currentMessage() ~= nil, "sondern eine Meldung")
+end)
+
+case("ein geloeschtes Turnier verschwindet aus der Wiederaufnahme-Liste", function()
+    local env = newManageEnv({ noSession = true,
+        running = {
+            { id = "t_r1", name = "Turnier 1", round = 1, rounds = 3, status = "running" },
+            { id = "t_r2", name = "Turnier 2", round = 2, rounds = 3, status = "running" },
+        },
+        saved = {
+            { id = "t_r1", name = "Turnier 1", status = "running",
+              round = 1, rounds = 3, createdAt = 1754000000 },
+            { id = "t_r2", name = "Turnier 2", status = "running",
+              round = 2, rounds = 3, createdAt = 1754100000 },
+        } })
+
+    selectKind(env.ui, "manage", env.ui:resumeItems())
+    env.ui:keypressed("return")
+    env.ui.sel = 1   -- "Turnier 1"
+    env.ui:keypressed("return")
+    env.ui:keypressed("j")
+    env.ui:keypressed("escape")
+
+    assertEq(env.ui.mode, "resume", "zurueck in der Wiederaufnahme")
+    local labels = {}
+    for _, item in ipairs(env.ui:resumeItems()) do labels[#labels + 1] = item.label end
+    local text = table.concat(labels, "|")
+    assertTrue(text:find("Turnier 2", 1, true) ~= nil, "das andere steht noch da")
+    assertTrue(text:find("Turnier 1", 1, true) == nil,
+        "das geloeschte wird nicht mehr angeboten")
+end)
+
+case("ein Teilnehmer sieht keine Verwaltung -- er hat keine Dateien", function()
+    local env = newEnv()   -- ohne savedList im Kontext
+    local found = false
+    for _, item in ipairs(env.ui:setupItems()) do
+        if item.kind == "manage" then found = true end
+    end
+    assertFalse(found, "kein Eintrag ohne Dateiliste")
+end)
+
 return T
