@@ -16,10 +16,12 @@
 > | **B** | AP-5 — Turnier-Lobby, Setzung mit sichtbarem Seed, Bracket-Anzeige | ✅ **abgeschlossen** (M4-07, M4-08, M4-11) |
 > | **C** | AP-6 — verteilte Match-Hosts, `TOURNAMENT_STATE` | ✅ **abgeschlossen** (M4-09, ADR-022, ADR-023) |
 > | **C.1** | Nacharbeit aus dem ersten LAN-Abend — sechs Befunde | ✅ **abgeschlossen** (C-T-11 … C-T-16) |
+> | **C.2** | Nacharbeit aus dem **zweiten** LAN-Abend — vier Punkte | ⬜ **offen, kommt VOR Stufe D** — eigenes Handoff: `CC-06_C2_NACHARBEIT.md` |
 > | **D** | AP-7 — Export (M4-10) | ⬜ offen |
 >
-> **Die nächste Session fängt bei Stufe D an** — Export als Markdown/CSV, drei Stunden. Was
-> dafür schon dasteht und was dabei zu beachten ist, steht in **§7**.
+> **Die nächste Session fängt bei Stufe C.2 an, nicht bei D** (Entscheidung r0btoshi,
+> 2026-08-14, nach dem zweiten LAN-Abend). Auftrag: **`docs/handoffs/CC-06_C2_NACHARBEIT.md`**.
+> Was für Stufe D bereitliegt, bleibt in §7 stehen und wartet.
 >
 > **Beide ADRs sind entschieden und stehen vor dem Code im Log:** **ADR-022** (wer hostet ein
 > Match) und **ADR-023** (Format von `TOURNAMENT_STATE`). Begründung und Freigabe in §5.3.
@@ -735,7 +737,25 @@ Sache gehört dazu, die neu ist — der ephemere Match-Port und die Firewall (§
 
 ---
 
-## 7. Nächster Schritt — Stufe D (AP-7, M4-10)
+## 7. Nächster Schritt — erst Stufe C.2, dann Stufe D
+
+### C.2 — Nacharbeit aus dem zweiten LAN-Abend (VORHER)
+
+Vier Punkte, ausformuliert in **`docs/handoffs/CC-06_C2_NACHARBEIT.md`**:
+
+1. **Turniere löschen** mit Sicherheitsabfrage. Es gibt heute keinen Weg; jedes angelegte
+   Turnier bleibt für immer als `.json` und `.bak` liegen, auch nie ausgeloste.
+2. **Die eigene IP im Turnier anzeigen**, wie es die Match-Lobby seit M2 tut — für den Fall,
+   dass die Discovery nicht durchkommt (`04_NETCODE` §11).
+3. **Der Weg zurück in ein unterbrochenes Match.** Die Ursache steht fest:
+   `TournamentHost:announceAssignments` verschickt Zuweisungen **nur für `READY`-Matches**.
+   Sobald eines `LIVE` ist, geht nie wieder eine hinaus — damit läuft die gesamte
+   Rückkehrmechanik aus C-T-13 ins Leere, obwohl der Wiedereinstieg auf Matchebene
+   (`04_NETCODE` §12) gebaut ist.
+4. **Ball im Blob beim Nicht-Host.** N-01, und nicht mehr theoretisch. Zuerst **messen**
+   (Puffer 1 gegen 2, Zahlen aus F3), dann ADR, dann bauen.
+
+### Stufe D — Export (M4-10, DANACH)
 
 **Export als Markdown/CSV per Tastendruck**, rund drei Stunden. `05_TOURNAMENT` §7 nennt ihn
 „die einzige echte Versicherung": Wenn die Software versagt, macht man mit dem Ausdruck weiter.
@@ -777,34 +797,43 @@ Sache gehört dazu, die neu ist — der ephemere Match-Port und die Firewall (§
 ## 8. Der Startprompt für die nächste Session
 
 ```
-Lies CLAUDE.md, dann docs/handoffs/CC-05_M4_TURNIER.md §2 "Stufe D" (AP-7) und §4.
-Dann docs/handoffs/CC-05_REPORT.md: den Kopf, §5.3 und §7 -- dort stehen die Nähte.
-Danach 05_TOURNAMENT §7 (Absatz "Zusätzliche Absicherung: Export"), §10 und §11
-sowie E-12 in §6.
+Lies CLAUDE.md, dann docs/handoffs/CC-06_C2_NACHARBEIT.md vollständig -- das ist
+der Auftrag. Danach docs/handoffs/CC-05_REPORT.md: den Kopf, die Befundtabellen
+C-T-11 bis C-T-19 und §7. Dazu ADR-022, ADR-023 und ADR-024 in 09_DECISION_LOG
+sowie 04_NETCODE §8 (Nachtrag 2026-08-14, Interpolationspuffer).
 
-Stufe A (Datenmodell, Bracket, Scheduler, Persistenz), Stufe B (Lobby, Seed,
-bracket_view, Bedienung) und Stufe C (verteilte Match-Hosts, ADR-022, ADR-023)
-sind fertig, geprüft und committet -- davon wird nichts neu gebaut.
+M4 Stufe A, B, C und C.1 sind fertig, geprüft, committet und gepusht -- davon
+wird nichts neu gebaut. Ein 4er-Turnier läuft über vier echte Prozesse ohne
+Tastendruck bis zum Sieger durch, die CI ist grün auf Windows und macOS.
 
-Nimm dir nur Stufe D vor: AP-7, also M4-10 (Export als Markdown/CSV per
-Tastendruck). Kein Spectator (M5), keine Beamer-Regie (ADR-008), kein Double
-Elimination (M6).
+Nimm dir NUR Stufe C.2 vor, die vier Punkte aus CC-06. Stufe D (Export, M4-10)
+wird ausdrücklich erst danach begonnen -- Entscheidung r0btoshi.
 
-Der Export ist für einen Menschen ohne funktionierenden Rechner gedacht -- Namen
-statt Kennungen, offene Matches mitsamt der nächsten Paarung, korrigierte
-Ergebnisse als solche markiert (E-12). Dateizugriff ausschließlich über
-persistence.lua. Ein Tastendruck, kein Menü; frei ist in der vollen Ansicht `X`.
+Die Ursache von AP-3 steht schon fest und ist am Code nachgeprüft:
+TournamentHost:announceAssignments verschickt Zuweisungen nur für Matches im
+Status READY. Sobald eines LIVE ist, geht nie wieder eine hinaus -- damit läuft
+die Rückkehrmechanik aus C-T-13 ins Leere, obwohl der Wiedereinstieg auf
+Matchebene (04_NETCODE §12, Host:onHello mit how == "reconnect") gebaut ist.
+
+Bei AP-4 (Ball im Blob beim Nicht-Host) wird ZUERST gemessen und nicht gebaut:
+Puffer 1 gegen 2 an zwei Rechnern, Zahlen aus dem F3-Overlay. Erst danach ein
+ADR, erst dann Code. Der Versuch, den Puffer auf 1 zu setzen, ist in der CI auf
+macos-latest schon einmal durchgefallen (146 statt 203 von 206 Snapshots
+angewandt) -- die Zahl steht im Bericht.
+
+Der Vierprozesslauf ist die einzige Prüfung, die diese Fehlerklasse findet:
+--tournament-auto=host --client-id=1 plus dreimal --tournament-auto=client
+--client-id=N. Er braucht einen Desktop. Jeder Fehler aus C.1 und ADR-024 ist
+dort aufgefallen und in keinem der 446 Testfälle.
 
 Ausgangszahlen: lovec.exe . --test = 446 bestanden, --test-no-love = 405,
 --net-selftest = 49 Prüfungen, --tournament-selftest = 59 Prüfungen,
 python tools/verify_replays.py = OK. Was nicht steigen darf, ist die Zahl der
-gescheiterten.
+gescheiterten. gh ist installiert: den CI-Stand selbst nachsehen, nicht
+nachfragen (CLAUDE.md §11). Ein Push ist erst fertig, wenn der Lauf grün ist.
 
-Die CI fährt seit M4-09 beide Selbsttests auf windows-latest und macos-latest,
-und die Paketjobs hängen daran. Ein Push ist erst fertig, wenn der Lauf grün
-ist -- nachsehen mit gh (CLAUDE.md §11), nicht nachfragen.
-
-CC-05_REPORT.md wird fortgeschrieben, nicht neu geschrieben.
+CC-05_REPORT.md wird fortgeschrieben, die Befunde laufen als C-T-20 ff. weiter.
+Keine Aufwandsschätzungen.
 
 Danach dein Plan in maximal 10 Zeilen plus Rückfragen.
 ```

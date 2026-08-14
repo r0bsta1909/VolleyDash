@@ -177,8 +177,15 @@ im Turnier. Ein Turnier steht als Bake in der Serverliste; bis zu vier Matches l
 gleichzeitig, gehostet von einem der beiden Spieler nach **ADR-022**; der Turnierstand geht als
 Log-Ereignisse hinaus (**ADR-023**). Der Match-Wirt bindet einen **ephemeren** Port — ein
 Prozess kann denselben ENet-Port nicht zweimal binden, und der Turnier-Wirt spielt mit
-(`05_TOURNAMENT` §8.2). **T-N-09 ist damit erledigt**, es steckt im Selbsttest. Offen bleibt
-**M4-10** (Stufe D).
+(`05_TOURNAMENT` §8.2). **T-N-09 ist damit erledigt**, es steckt im Selbsttest.
+
+**Stufe C.1 ist abgeschlossen** (2026-08-13): sechs Befunde aus dem ersten LAN-Abend, dazu
+ADR-024 (das Menü hält das Netzspiel nicht mehr an).
+
+**Stufe C.2 ist offen und kommt VOR M4-10** (Entscheidung r0btoshi, 2026-08-14, nach dem zweiten
+LAN-Abend). Vier Punkte: Turniere löschen, IP anzeigen, der Weg zurück in ein unterbrochenes
+Match, und N-01 (Ball im Blob beim Nicht-Host). Auftrag:
+`docs/handoffs/CC-06_C2_NACHARBEIT.md`.
 
 ### M5 — Spectator + Beamer (12–18 h)
 

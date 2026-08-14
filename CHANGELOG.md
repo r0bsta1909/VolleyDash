@@ -9,6 +9,10 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
+> **Offen vor dem Export (M4-10):** vier Punkte aus dem zweiten LAN-Abend — Turniere löschen,
+> die eigene IP im Turnier anzeigen, der Weg zurück in ein unterbrochenes Match, und der
+> Ball-Versatz beim Nicht-Host (N-01). Auftrag: `docs/handoffs/CC-06_C2_NACHARBEIT.md`.
+>
 > Die Arbeitsversion heißt **`0.4.0-dev`**. Ein daraus gebautes Paket ist ausdrücklich **kein**
 > Release — es trägt den Zusatz im Dateinamen, damit es nicht mit `0.3.0` verwechselt wird
 > (`12_OPENSOURCE` §7).
