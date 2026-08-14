@@ -31,8 +31,9 @@
 -- Daraus folgen die vier Schritte aus §7 statt der urspruenglichen drei.
 -- ============================================================================
 
-local Json  = require("src.tournament.json")
-local Model = require("src.tournament.model")
+local Json   = require("src.tournament.json")
+local Model  = require("src.tournament.model")
+local Export = require("src.tournament.export")
 
 local Persistence = {}
 Persistence.__index = Persistence
@@ -237,6 +238,40 @@ function Persistence:delete(id)
     self.fs.remove(bak)
     self.fs.remove(json)
     return true
+end
+
+-- ---------------------------------------------------------------------------
+-- Export (M4-10)
+--
+-- §7 "Zusaetzliche Absicherung": das Blatt, mit dem man weiterspielt, wenn die
+-- Software versagt. Der Text kommt aus `export.lua`; hier wird nur geschrieben.
+--
+-- DIREKT geschrieben, ohne das tmp->bak-Verfahren von `save`: Der Export wird
+-- von der Software nie zurueckgelesen, ein missglueckter wird durch den
+-- naechsten Tastendruck ersetzt, und die Recovery-Quelle bleibt die `.json`.
+-- Ein fester Name je Turnier -- der Export ist immer der letzte Stand, die
+-- Historie traegt das append-only Log.
+-- ---------------------------------------------------------------------------
+
+function Persistence:export(session, stamp)
+    local id = session.t.id
+    if not id or id == "" then return nil, "Turnier ohne Kennung" end
+
+    self.fs.mkdir(Persistence.DIR)
+
+    local base = Persistence.DIR .. "/" .. id
+    local files = {
+        { name = base .. "_bracket.md",    text = Export.markdown(session, stamp) },
+        { name = base .. "_statistik.csv", text = Export.csv(session) },
+    }
+    for _, f in ipairs(files) do
+        local ok = self.fs.write(f.name, f.text)
+        if not ok then
+            self.lastError = "konnte " .. f.name .. " nicht schreiben"
+            return nil, self.lastError
+        end
+    end
+    return { files[1].name, files[2].name }
 end
 
 -- Die niedrigste Runde, in der noch etwas offen ist -- die Zahl aus dem

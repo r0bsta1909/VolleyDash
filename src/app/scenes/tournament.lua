@@ -117,6 +117,7 @@ function TournamentScene.new(app, opts)
         -- gibt es nur beim Leiter -- ein Teilnehmer hat keine Dateien.
         savedList  = function() return self:savedTournaments() end,
         onDelete   = function(id) return self:deleteTournament(id) end,
+        onExport   = function() return self:exportTournament() end,
     })
 
     if #running == 0 then self:createSession() end
@@ -151,6 +152,24 @@ function TournamentScene:deleteTournament(id)
     local ok, err = self.persistence:delete(id)
     if ok then self.savedCache = nil end
     return ok, err
+end
+
+-- Export (M4-10, `05_TOURNAMENT` §7). Auch beim TEILNEHMER: Der hat sonst
+-- keine Dateien und deshalb keine Persistence -- fuer den Export bekommt er
+-- eine, denn die Versicherung ist mehr wert, wenn sie auf jedem Rechner
+-- liegt. Geschrieben wird in den Save-Ordner DIESES Rechners.
+function TournamentScene:exportTournament()
+    if not (self.session and self.session.t) then return "Kein Turnierstand da" end
+
+    self.persistence = self.persistence or Persistence.new()
+    if not self.persistence then return "Kein Dateizugriff" end
+
+    local files, err = self.persistence:export(self.session,
+        os.date("%Y-%m-%d %H:%M"))
+    if not files then return "Export fehlgeschlagen: " .. tostring(err) end
+    -- Kurz genug fuer eine Zeile: Der zweite Name unterscheidet sich nur im
+    -- Suffix, also steht nur das Suffix da.
+    return "Exportiert: " .. files[1] .. " + _statistik.csv (Save-Ordner)"
 end
 
 -- ---------------------------------------------------------------------------
@@ -287,6 +306,7 @@ function TournamentScene:startClient(opts)
         onCreate   = function() end,
         onResume   = function() return false end,
         onLeave    = function() app.leaveTournament() end,
+        onExport   = function() return self:exportTournament() end,
     })
 
     if not client then

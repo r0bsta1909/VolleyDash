@@ -702,14 +702,14 @@ local function drawFull(ui, now)
 
     if ui.ctx.readOnly then
         love.graphics.print(
-            "F2 Ansicht   ESC zurueck        Eintragen und korrigieren kann nur der Turnierleiter",
+            "X Export   F2 Ansicht   ESC zurueck        Eintragen und korrigieren kann nur der Turnierleiter",
             20, H - 26)
         return
     end
 
     local _, actionText = ui:primaryAction()
     love.graphics.print(string.format(
-        "TAB %s   ENTER %s   E Ergebnis   K Korrektur   P Timer   A Abbruch   W austragen   F2 Ansicht   ESC zurueck",
+        "TAB %s   ENTER %s   E Ergebnis   K Korrektur   P Timer   A Abbruch   W austragen   X Export   F2 Ansicht   ESC zurueck",
         ui.panel == "matches" and "Teilnehmer" or "Matches",
         actionText or "-"), 20, H - 26)
 end

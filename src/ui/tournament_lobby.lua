@@ -637,6 +637,15 @@ function TL:runKey(key)
     -- F2 und ESC.
     if self.view ~= "full" then return true end
 
+    -- Export (M4-10). VOR der readOnly-Schranke: X ist rein lesend und darf
+    -- jedem offenstehen -- auch dem Teilnehmer. Die Versicherung aus §7 ist
+    -- mehr wert, wenn sie auf jedem Rechner liegt, und eine angeschriebene
+    -- Taste, die nichts tut, laedt zum Probieren ein (C-T-14).
+    if key == "x" then
+        if self.ctx.onExport then self:say(tostring(self.ctx.onExport())) end
+        return true
+    end
+
     -- Ein TEILNEHMER sieht das Turnier, er fuehrt es nicht (M4-09). Er darf
     -- die volle Ansicht aufmachen -- wer neben dem Beamer sitzt, will den
     -- ganzen Baum sehen -- aber eintragen darf er nichts: Das Ergebnis kommt

@@ -49,6 +49,11 @@ local function newEnv(opts)
         onCreate   = function() env.created = env.created + 1 end,
         onResume   = function(id) env.resumed = id return true end,
         onLeave    = function() env.left = env.left + 1 end,
+        onExport   = function()
+            env.exported = (env.exported or 0) + 1
+            return "Exportiert: tournaments/t_test_bracket.md"
+        end,
+        readOnly   = opts.readOnly,
     })
     return env
 end
@@ -738,6 +743,55 @@ case("ein Teilnehmer sieht keine Verwaltung -- er hat keine Dateien", function()
         if item.kind == "manage" then found = true end
     end
     assertFalse(found, "kein Eintrag ohne Dateiliste")
+end)
+
+-- ---------------------------------------------------------------------------
+-- Export (M4-10)
+-- ---------------------------------------------------------------------------
+
+case("X in der vollen Ansicht exportiert und meldet den Pfad", function()
+    local env = newEnv()
+    fill(env, 4)
+    env.ui:keypressed("escape")   -- die Namenseingabe steht noch offen
+    selectKind(env.ui, "draw")
+    env.ui:keypressed("return")
+    assertEq(env.ui.view, "full", "der Leiter sieht die volle Ansicht")
+
+    env.ui:keypressed("x")
+    assertEq(env.exported, 1, "Export gerufen")
+    assertTrue(tostring(env.ui:currentMessage()):find("Exportiert", 1, true) ~= nil,
+        "und der Pfad steht als Meldung da")
+end)
+
+case("X exportiert auch beim Teilnehmer -- die Taste ist rein lesend", function()
+    local env = newEnv({ readOnly = true })
+    for i = 1, 4 do env.session:addParticipant(NAMES[i], 0) end
+    env.session:drawBracket(0)
+    env.ui:enterRun()
+    env.ui.view = "full"
+
+    env.ui:keypressed("x")
+    assertEq(env.exported, 1, "Export trotz readOnly")
+
+    -- Aber eintragen darf er weiterhin nichts: W wuerde austragen.
+    env.ui.panel = "participants"
+    env.ui:keypressed("w")
+    for _, pid in ipairs(env.session.t.participantOrder) do
+        assertTrue(env.session.t.participants[pid].status
+            ~= Model.PARTICIPANT_STATUS.WITHDRAWN, "niemand ausgetragen")
+    end
+end)
+
+case("in der kompakten Ansicht exportiert X nicht", function()
+    local env = newEnv({ selfName = "Michi" })
+    fill(env, 4)
+    env.ui:keypressed("escape")   -- die Namenseingabe steht noch offen
+    selectKind(env.ui, "draw")
+    env.ui:keypressed("return")
+    assertEq(env.ui.view, "compact", "ein Spieler landet in der kompakten")
+
+    env.ui:keypressed("x")
+    assertEq(env.exported, nil, "kein Export aus der kompakten Ansicht")
 end)
 
 return T
