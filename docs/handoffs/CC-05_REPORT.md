@@ -23,7 +23,10 @@
 > WLAN, RTT ~21 ms) fand die Puffer-Ratsche **C-T-23** und beerdigte die Frage „Puffer 1
 > oder 2". Entschieden und umgesetzt ist **ADR-025** (freigegeben r0btoshi): Der Gast
 > simuliert die ganze Welt lokal vor, der Interpolationspuffer ist entfallen — Details in
-> §3, Prüfliste für den nächsten LAN-Abend in `CC-06_AP4_MESSANLEITUNG.md` §5.
+> §3. **Und die Zweirechner-Sichtprüfung ist bestanden** (r0btoshi, 2026-08-14, Build aus
+> `7895f75`, Host im WLAN): Der Ball wird beim Gast außen getroffen, keine Auffälligkeiten
+> gemeldet. Die volle Prüfung mit mehr Rechnern (`CC-06_AP4_MESSANLEITUNG.md` §5) bleibt
+> Teil des nächsten LAN-Abends.
 >
 > **Beide ADRs sind entschieden und stehen vor dem Code im Log:** **ADR-022** (wer hostet ein
 > Match) und **ADR-023** (Format von `TOURNAMENT_STATE`). Begründung und Freigabe in §5.3.
@@ -577,6 +580,27 @@ Was sich dadurch geändert hat:
   bevor der erste frische Vergleich sie sah. Der Gast läuft jetzt entgegengesetzt zur
   wiederholten Maske; die Abweichung beim Aufschließen ist damit zwingend (1 Korrektur,
   deterministisch).
+
+**Lehren dieser Runde, über den Einzelfall hinaus:**
+
+1. **Eine gute Messung darf eine Frage auch beerdigen.** AP-4 fragte „Puffer 1 oder 2";
+   die Antwort war, dass die Frage falsch gestellt war. Wer nur zwischen den angebotenen
+   Optionen misst, hätte die dritte nie gefunden.
+2. **Ein Sollwert ohne Regelkreis ist ein Wunsch.** Der Puffer hatte ein Soll (2), eine
+   Obergrenze (8) und dazwischen nichts, was ihn zurückholte (C-T-23). Die Zähler standen
+   seit M3 im Overlay — gelesen hat die stehende Tiefe erst die netlog-Messreihe. Das
+   F4-Werkzeug hat sich in einer einzigen Session bezahlt gemacht.
+3. **Referenzen liest man im Quelltext, nicht in der Erinnerung.** „Blobby Volley macht
+   das korrekt" wurde erst belastbar, als `NetworkState.cpp` zeigte, WIE: ganze Welt
+   lokal, hart übernehmen, kein Puffer. Die halbe ADR-Begründung stand dort.
+4. **Testzusicherungen kodieren Architekturannahmen.** Zwei Selbsttest-Checks prüften
+   stillschweigend „der Gast hängt hinterher" — unter ADR-025 ist das Gegenteil richtig.
+   Wer eine Architektur wechselt, muss die Zusicherungen mitwechseln, sonst prüfen sie
+   die alte Welt und fallen in der neuen zufällig um (oder schlimmer: zufällig nicht —
+   die Wand-Heilung war grün, ohne etwas zu beweisen).
+5. **Die Anforderung des Produkts war Konsistenz, nicht Latenz.** „Muss auf beiden Seiten
+   gleich aussehen" hat die Lösung ausgewählt, nicht die Millisekunden-Tabelle. Die
+   Rangfolge der Anforderungen zu kennen ist die halbe Architekturentscheidung.
 
 ### Bestätigt, nicht neu
 

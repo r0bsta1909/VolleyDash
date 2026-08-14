@@ -77,6 +77,10 @@ nach Sessionverlauf verschieden hoch, C-T-23.)*
 
 ## 5. Was seit ADR-025 stattdessen zu prüfen ist
 
+> **Erste Prüfung bestanden** (r0btoshi, 2026-08-14, Build `7895f75`, Host im WLAN /
+> Gast am Kabel): Ball außen am Blob, „funktioniert perfekt", keine Schnapper gemeldet.
+> Die Punkte unten gelten weiter für den LAN-Abend mit mehr Rechnern und Rollentausch.
+
 Ein Rechner hostet, der andere tritt bei — Kabel **und** einmal absichtlich WLAN.
 Beim **Gast** F3 einschalten und zwei bis drei Minuten mit vielen Sprüngen spielen:
 
