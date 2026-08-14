@@ -268,7 +268,9 @@ Teilnehmern, ENTER tut, was in der Fußzeile steht, `E` trägt ein Ergebnis ein,
 eines, `P` hält den No-Show-Timer an, `A` bricht ein Match ab, `W` trägt jemanden aus. Der
 Turnierstand liegt als JSON unter `tournaments/` im Save-Ordner und wird nach jedem Ereignis
 geschrieben (ADR-007, ADR-020) — ein laufendes Turnier wird beim nächsten Betreten des
-Turniermodus zur Wiederaufnahme angeboten.
+Turniermodus zur Wiederaufnahme angeboten. Der Bildschirm **„Gespeicherte Turniere"**
+(aus Anmeldung und Wiederaufnahme erreichbar) listet alle Stände mit Status und Datum und
+löscht sie mit Sicherheitsabfrage (`J` bestätigt); das geöffnete Turnier ist ausgenommen.
 
 **Seit M4-09 läuft das Turnier über das Netz.** Der Turnierleiter öffnet den Modus wie bisher;
 sein Rechner sendet dann eine Bake und steht bei allen anderen in der **Serverliste**
@@ -287,6 +289,7 @@ Turnier-Abnahmen:
 |---|---|
 | Vier parallele Matches, drei Turniere im Netz (T-N-11, T-N-09) | `/d/love2d/LOVE/lovec.exe . --tournament-selftest` |
 | Vier echte Prozesse, ein 4er-Turnier ohne Tastendruck | `--tournament-auto=host --client-id=1`, dazu dreimal `--tournament-auto=client --client-id=N` |
+| Dazu der Aussteiger-Fall (AP-3, C-T-20): einer verlässt sein Match und muss zurückfinden, sonst Exit 1 | einer der drei Teilnehmer als `--tournament-auto=escaper --client-id=N` |
 
 Zwei Instanzen auf **einem** Rechner teilen sich die Prefs-Datei und damit die Spielerkennung;
 die Testflags nehmen deshalb `--client-id=N`. Paketverlust wird unter Windows mit `clumsy`

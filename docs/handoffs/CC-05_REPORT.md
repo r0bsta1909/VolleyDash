@@ -1,11 +1,11 @@
 # CC-05 — Rückmeldung (M4 Turniermodus)
 
-**Datum:** 2026-08-13 · **Auftrag:** `docs/handoffs/CC-05_M4_TURNIER.md`
-**Ausgangsstand:** 9f40dc7 (`v0.3.0`) · **Stufe B ab** 72a579a · **Stufe C ab** e7aeb2b
-**Tests:** 446 bestanden, 0 gescheitert (Stufe C: 445, B: 411, A: 349, vorher 214) · **ohne `love`:** 405
+**Datum:** 2026-08-14 (fortgeschrieben; Stufe C.2) · **Auftrag:** `docs/handoffs/CC-05_M4_TURNIER.md`, Stufe C.2 aus `CC-06_C2_NACHARBEIT.md`
+**Ausgangsstand:** 9f40dc7 (`v0.3.0`) · **Stufe B ab** 72a579a · **Stufe C ab** e7aeb2b · **Stufe C.2 ab** 403e1a4
+**Tests:** 456 bestanden, 0 gescheitert (Stufe C.2: 456, C: 445, B: 411, A: 349, vorher 214) · **ohne `love`:** 415
 **Netz-Selbsttest:** 49 Prüfungen, alle grün
-**Turnier-Selbsttest:** 59 Prüfungen, alle grün (T-N-11 und T-N-09)
-**Vierprozesslauf:** 4er-Turnier, zehn Matches, Sieger — auf allen vier Prozessen derselbe
+**Turnier-Selbsttest:** 81 Prüfungen, alle grün (T-N-11, T-N-09, seit C.2 auch C-T-20 und C-T-22)
+**Vierprozesslauf:** 4er-Turnier, Sieger auf allen vier Prozessen derselbe — seit C.2 mit **Aussteiger** (`--tournament-auto=escaper`): mitten im Match raus, nach unter zehn Sekunden zurück im selben Match
 **Referenzen:** `python tools/verify_replays.py` meldet OK
 
 > **Dieser Bericht wird fortgeschrieben.** Stand der Stufen aus §2 des Handoffs:
@@ -16,12 +16,14 @@
 > | **B** | AP-5 — Turnier-Lobby, Setzung mit sichtbarem Seed, Bracket-Anzeige | ✅ **abgeschlossen** (M4-07, M4-08, M4-11) |
 > | **C** | AP-6 — verteilte Match-Hosts, `TOURNAMENT_STATE` | ✅ **abgeschlossen** (M4-09, ADR-022, ADR-023) |
 > | **C.1** | Nacharbeit aus dem ersten LAN-Abend — sechs Befunde | ✅ **abgeschlossen** (C-T-11 … C-T-16) |
-> | **C.2** | Nacharbeit aus dem **zweiten** LAN-Abend — vier Punkte | ⬜ **offen, kommt VOR Stufe D** — eigenes Handoff: `CC-06_C2_NACHARBEIT.md` |
-> | **D** | AP-7 — Export (M4-10) | ⬜ offen |
+> | **C.2** | Nacharbeit aus dem **zweiten** LAN-Abend — vier Punkte | ✅ **AP-1 bis AP-3 abgeschlossen** (C-T-20 … C-T-22) · ⏳ **AP-4 wartet auf die Zweirechner-Messung**: `CC-06_AP4_MESSANLEITUNG.md` |
+> | **D** | AP-7 — Export (M4-10) | ⬜ offen — **jetzt dran** |
 >
-> **Die nächste Session fängt bei Stufe C.2 an, nicht bei D** (Entscheidung r0btoshi,
-> 2026-08-14, nach dem zweiten LAN-Abend). Auftrag: **`docs/handoffs/CC-06_C2_NACHARBEIT.md`**.
-> Was für Stufe D bereitliegt, bleibt in §7 stehen und wartet.
+> **AP-4 blockiert Stufe D nicht** (Zuschnitt freigegeben von r0btoshi, 2026-08-14: C.2 gilt
+> mit AP-1 bis AP-3 als erledigt, AP-4 als „wartet auf Messung"). Die Messung — Puffer 1
+> gegen 2, zwei echte Rechner, Zahlen aus F3/F4 — kann nur am Gerät passieren; bis die Zahlen
+> da sind, gibt es keinen ADR und keinen Code dazu (CC-06 §2). Was für Stufe D bereitliegt,
+> steht in §7.
 >
 > **Beide ADRs sind entschieden und stehen vor dem Code im Log:** **ADR-022** (wer hostet ein
 > Match) und **ADR-023** (Format von `TOURNAMENT_STATE`). Begründung und Freigabe in §5.3.
@@ -33,6 +35,26 @@
 ---
 
 ## 0. Was jetzt geht
+
+### Nach Stufe C.2 (2026-08-14, fünfte Sitzung)
+
+**Wer sein Match verliert — den Prozess, nicht den Satz —, kommt zurück.** ESC und Ausstieg
+mitten im Turniermatch, Absturz und Neustart, sogar die von Hand getippte IP ohne Serverliste:
+Alle drei Wege enden wieder im selben laufenden Match. Gemessen im Vierprozesslauf mit dem
+neuen Aussteiger (`--tournament-auto=escaper`): mitten im Match raus, nach unter zehn Sekunden
+zurück, das Turnier läuft bis zum Sieger durch — sonst Exit 1.
+
+**Aufräumen geht jetzt.** Der Bildschirm „Gespeicherte Turniere" (aus Anmeldung und
+Wiederaufnahme erreichbar) listet alle Stände mit Status und Datum und löscht sie samt `.bak`
+— mit Sicherheitsabfrage, `J` bestätigt, und das geöffnete Turnier ist ausgenommen. Ein
+gelöschtes Turnier wird bei der Wiederaufnahme nicht mehr angeboten.
+
+**Die IP steht am Turnierbildschirm**, groß genug zum Vorlesen, beim Wirt in Anmeldung und
+voller Ansicht. Und sie ist kein leeres Versprechen: Wer sie tippt und dabei ein Turnier
+trifft, landet im Turnier statt in einer stumm hängenden Match-Lobby (C-T-22).
+
+**Was aus C.2 offen bleibt: AP-4** — der Ball im Blob beim Nicht-Host (N-01). Erst die
+Zweirechner-Messung (`CC-06_AP4_MESSANLEITUNG.md`), dann ein ADR, dann Code.
 
 ### Nach Stufe C (2026-08-13, dritte Sitzung)
 
@@ -99,6 +121,20 @@ auch die richtige Reihenfolge: Was entscheidet, ist jetzt prüfbar, bevor irgend
 | — | M4-11 | Die **Datenseite** der manuellen Korrektur ist fertig: `manual_override` verlangt eine Begründung und markiert das Match sichtbar. Die Bedienung gehört zu M4-07 |
 | **AP-5** | **M4-07, M4-08, M4-11** | **Stufe B, siehe §1a** |
 | **AP-6** | **M4-09** | **Stufe C, siehe §1b** |
+
+### 1c. Stufe C.2 im Einzelnen (2026-08-14)
+
+| Datei | Was sich geändert hat |
+|---|---|
+| `src/net/tournament_host.lua` | **C-T-20/21:** `announceAssignments` lädt auch in `LIVE`-Matches wieder ein (nur den Gast, ohne Neuwahl des Wirts); `forgetPromises` vergisst `told`/`accepted` eines Teilnehmers bei Trennung **und** Wiedereintritt |
+| `src/app/scenes/tournament.lua` | beantwortet eine wiederholte Zuweisung fürs eigene Match mit erneuter Zusage; `savedList`/`onDelete` mit Zwischenspeicher; setzt die eigene Adresse für die Anzeige |
+| `src/tournament/persistence.lua` | `delete(id)` entfernt `.json`, `.bak` und `.tmp`; `list()` trägt `createdAt` |
+| `src/ui/tournament_lobby.lua` | vierter Bildschirm `manage` (Status, Datum, Marke „geöffnet"), Löschdialog mit `J` als Bestätigung, Einstiege aus Anmeldung und Wiederaufnahme, Wiederaufnahme-Liste zieht nach |
+| `src/render/bracket_view.lua` | zeichnet Verwaltung und Löschdialog; die IP in Anmeldung und voller Ansicht |
+| `src/net/client.lua`, `src/app/scenes/lobby.lua`, `src/app/app.lua` | **C-T-22:** `TOURNAMENT_WELCOME` wird erkannt, der Protokollwechsel läuft einen Frame später über `App.leaveLobby` (nur die Lobby geht zu) |
+| `tools/tournament_selftest.lua` | Block „Rückkehr in ein laufendes Match": Rücknahme bei `LIVE`, Wiederbeitritt, getippte Adresse — jetzt 81 Prüfungen |
+| `tools/tournament_auto.lua` | Rolle `escaper`: verlässt genau ein Match mitten im Satz und muss zurückfinden, sonst Exit 1 |
+| `docs/handoffs/CC-06_AP4_MESSANLEITUNG.md` | die Messanleitung für AP-4 — vier Läufe, zwei Rechner, F3/F4 |
 
 ### 1b. Stufe C im Einzelnen
 
@@ -486,6 +522,23 @@ gleichzeitig laufen, darf keine der anderen den Socket unter den Füßen wegzieh
 `Scene.isTop` ist genau dafür da. Was den Menschen angeht — Töne, Einblendungen, Tasten — und
 was einer anderen Szene geliehen ist, hängt daran; die Verbindung selbst nicht.
 
+### Aus dem zweiten LAN-Abend (2026-08-14) — Stufe C.2
+
+Der Auftrag steht in `CC-06_C2_NACHARBEIT.md`; die Ursache von AP-3 hatte das Handoff schon
+benannt. Beim Bauen kamen zwei weitere dazu — und beide sitzen wieder an einer Naht.
+
+| ID | Befund | Erledigt |
+|----|--------|---|
+| **C-T-20** | **Zuweisungen gingen nur für `READY`-Matches hinaus — nie für laufende.** `TournamentHost:announceAssignments` übersprang `LIVE`, und damit lief die gesamte Rückkehrmechanik aus C-T-13 ins Leere: Die Rücknahme (`MATCH_ACCEPT{ready=false}`) räumte die Bestätigung korrekt ab, aber die Einladung, die darauf folgen sollte, kam nie — obwohl der Match-Wirt seinen Port hielt und denselben `clientId` als Wiedereinsteiger annimmt (`04_NETCODE` §12). Ein `LIVE`-Match ist jetzt weiter zuweisbar; die Wahl wird dabei **nicht** neu gerechnet (der Wirt steht, seine Adresse ist gemerkt), und der Match-Wirt selbst wird nicht wieder eingeladen — steigt **er** aus, bleibt es bei E-06. Die alte Aufräumbedingung (`~= LIVE`) stand zudem falsch herum und hätte beim Nachziehen der ersten Bedingung still die einzige Quelle der Wirtsadresse gelöscht | behoben, Selbsttest + Vierprozesslauf |
+| **C-T-21** | **Die alten Zusagen überlebten den Wiedereintritt.** `told` und `accepted` blieben je Teilnehmer stehen — wer vollständig ausstieg und zurückkam, galt als „schon eingeladen und einverstanden", und es ging wieder keine Einladung hinaus. Zwei Wege, ein Loch: `dropPeer` (Trennung) **und** die Übernahme in `onHello` (schneller Neustart, der alte Peer hängt noch — dessen `dropPeer` läuft dann ohne `pid` und räumt nichts ab). Beides geht jetzt über `forgetPromises`: Wer geht oder neu ankommt, hat seine Zusagen nicht mehr — ausgenommen der Match-Wirt eines laufenden Matches, für den gilt die Frist aus §8. Die Szene beantwortet eine wiederholte Zuweisung fürs eigene laufende Match seither mit einer erneuten Zusage statt sie stumm zu ignorieren | behoben |
+| **C-T-22** | **Eine von Hand getippte Adresse, hinter der ein Turnier saß, führte in die Match-Lobby — und die hing stumm.** Der Weg existiert genau für den Fall, dass die Discovery nicht durchkommt (`04_NETCODE` §11), und beim Tippen weiß niemand, was auf 21212 antwortet: `HELLO` ist für beide Wirt-Typen dasselbe (F-T-08), die Bake, die es sagen würde, kommt ja gerade nicht durch. Der Turnier-Wirt trug den Tipper sogar als Teilnehmer ein, während dessen Lobby-Client auf ein `LOBBY_STATE` wartete, das nie kommt. Jetzt erkennt der Lobby-Client das `TOURNAMENT_WELCOME` und die Szene wechselt das Protokoll — einen Frame später, außerhalb der Ereignisschleife (die Falle aus C-T-05), und nur die Lobby geht zu, die Serverliste bleibt. Dieselbe `clientId` macht aus dem Wechsel drüben einen Wiedereintritt, keinen Doppelgänger. **Ohne diesen Befund wäre AP-2 Dekoration gewesen:** Die angeschriebene IP ist genau für den Fall da, in dem sie bis jetzt nicht funktioniert hätte | behoben, Selbsttest |
+
+**Wieder keine Turnierregel darunter** — C-T-20 und C-T-21 sitzen an der Naht zwischen
+Zuweisung und Verbindungszustand, C-T-22 an der zwischen zwei Wirt-Typen, die dieselbe
+Anmeldung sprechen. Und wieder hat sie erst das Werkzeug gefunden, das die Szene fährt:
+Der Aussteiger im Vierprozesslauf ist deshalb jetzt fester Bestandteil der Abnahme
+(`--tournament-auto=escaper`), nicht ein Handgriff, den man am Abend nachstellt.
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |
@@ -737,25 +790,17 @@ Sache gehört dazu, die neu ist — der ephemere Match-Port und die Firewall (§
 
 ---
 
-## 7. Nächster Schritt — erst Stufe C.2, dann Stufe D
+## 7. Nächster Schritt — Stufe D; daneben die AP-4-Messung
 
-### C.2 — Nacharbeit aus dem zweiten LAN-Abend (VORHER)
+### C.2 ist erledigt bis auf die Messung (2026-08-14)
 
-Vier Punkte, ausformuliert in **`docs/handoffs/CC-06_C2_NACHARBEIT.md`**:
+AP-1 bis AP-3 sind gebaut, geprüft und in §3 als C-T-20 bis C-T-22 dokumentiert. Offen ist
+allein **AP-4** (Ball im Blob beim Nicht-Host, N-01), und dort ist der nächste Schritt keine
+Codezeile, sondern eine **Messung an zwei echten Rechnern**: Puffer 1 gegen 2, Zahlen aus
+F3/F4, Anleitung in **`docs/handoffs/CC-06_AP4_MESSANLEITUNG.md`**. Erst mit diesen Zahlen
+fällt die Entscheidung (Vorgabe 1, Vorgabe 2 oder Ball-Extrapolation), und sie fällt als ADR.
 
-1. **Turniere löschen** mit Sicherheitsabfrage. Es gibt heute keinen Weg; jedes angelegte
-   Turnier bleibt für immer als `.json` und `.bak` liegen, auch nie ausgeloste.
-2. **Die eigene IP im Turnier anzeigen**, wie es die Match-Lobby seit M2 tut — für den Fall,
-   dass die Discovery nicht durchkommt (`04_NETCODE` §11).
-3. **Der Weg zurück in ein unterbrochenes Match.** Die Ursache steht fest:
-   `TournamentHost:announceAssignments` verschickt Zuweisungen **nur für `READY`-Matches**.
-   Sobald eines `LIVE` ist, geht nie wieder eine hinaus — damit läuft die gesamte
-   Rückkehrmechanik aus C-T-13 ins Leere, obwohl der Wiedereinstieg auf Matchebene
-   (`04_NETCODE` §12) gebaut ist.
-4. **Ball im Blob beim Nicht-Host.** N-01, und nicht mehr theoretisch. Zuerst **messen**
-   (Puffer 1 gegen 2, Zahlen aus F3), dann ADR, dann bauen.
-
-### Stufe D — Export (M4-10, DANACH)
+### Stufe D — Export (M4-10, JETZT)
 
 **Export als Markdown/CSV per Tastendruck**, rund drei Stunden. `05_TOURNAMENT` §7 nennt ihn
 „die einzige echte Versicherung": Wenn die Software versagt, macht man mit dem Ausdruck weiter.
@@ -797,42 +842,39 @@ Vier Punkte, ausformuliert in **`docs/handoffs/CC-06_C2_NACHARBEIT.md`**:
 ## 8. Der Startprompt für die nächste Session
 
 ```
-Lies CLAUDE.md, dann docs/handoffs/CC-06_C2_NACHARBEIT.md vollständig -- das ist
-der Auftrag. Danach docs/handoffs/CC-05_REPORT.md: den Kopf, die Befundtabellen
-C-T-11 bis C-T-19 und §7. Dazu ADR-022, ADR-023 und ADR-024 in 09_DECISION_LOG
-sowie 04_NETCODE §8 (Nachtrag 2026-08-14, Interpolationspuffer).
+Lies CLAUDE.md, dann docs/handoffs/CC-05_M4_TURNIER.md §2 (AP-7, Stufe D,
+M4-10) -- das ist der Auftrag. Danach docs/handoffs/CC-05_REPORT.md: den Kopf,
+§7 ("Was dafür schon dasteht") und die Befundtabelle C-T-20 bis C-T-22. Dazu
+05_TOURNAMENT §7 (der Export ist die Versicherung, wenn die Software versagt)
+und §11 (die fünf Statistiken).
 
-M4 Stufe A, B, C und C.1 sind fertig, geprüft, committet und gepusht -- davon
-wird nichts neu gebaut. Ein 4er-Turnier läuft über vier echte Prozesse ohne
-Tastendruck bis zum Sieger durch, die CI ist grün auf Windows und macOS.
+M4 Stufe A, B, C, C.1 und C.2 (AP-1 bis AP-3) sind fertig, geprüft, committet
+und gepusht -- davon wird nichts neu gebaut. AP-4 (Ball im Blob beim Nicht-Host,
+N-01) wartet auf die Zweirechner-Messung durch r0btoshi
+(docs/handoffs/CC-06_AP4_MESSANLEITUNG.md). Liegen bei Sessionstart Zahlen vor,
+kommt ZUERST der ADR dazu, dann der Rest; ohne Zahlen wird daran nichts gebaut.
 
-Nimm dir NUR Stufe C.2 vor, die vier Punkte aus CC-06. Stufe D (Export, M4-10)
-wird ausdrücklich erst danach begonnen -- Entscheidung r0btoshi.
+Nimm dir NUR M4-10 vor: Export als Markdown/CSV per Tastendruck. X in der
+vollen Ansicht ist frei (E, K, P, A, W, TAB sind vergeben, CLAUDE.md §12). Der
+Export gehört nach src/tournament/persistence.lua oder daneben -- die einzige
+Datei des Moduls, die love.filesystem anfassen darf. Er ist für einen Menschen
+OHNE Software: Namen statt Kennungen, offene Matches mit "wer gegen wen als
+Nächstes", korrigierte Ergebnisse markiert (m.overridden samt Begründung aus
+dem Log, E-12), die fünf Statistiken je Spieler. Alles, was er braucht, liegt
+in Session: standingsOf, elimColumns, p.stats -- die Tabelle steht in
+CC-05_REPORT §7.
 
-Die Ursache von AP-3 steht schon fest und ist am Code nachgeprüft:
-TournamentHost:announceAssignments verschickt Zuweisungen nur für Matches im
-Status READY. Sobald eines LIVE ist, geht nie wieder eine hinaus -- damit läuft
-die Rückkehrmechanik aus C-T-13 ins Leere, obwohl der Wiedereinstieg auf
-Matchebene (04_NETCODE §12, Host:onHello mit how == "reconnect") gebaut ist.
+Ausgangszahlen: lovec.exe . --test = 456 bestanden, --test-no-love = 415,
+--net-selftest = 49 Prüfungen, --tournament-selftest = 81 Prüfungen,
+python tools/verify_replays.py = OK. Der Vierprozesslauf hat seit C.2 einen
+Aussteiger: einer der drei Teilnehmer läuft als --tournament-auto=escaper
+--client-id=N und muss nach dem Ausstieg zurück ins selbe Match, sonst Exit 1
+-- beide Rollen (Gast 4,2 s, Match-Wirt 9,9 s) sind gemessen. Was nicht
+steigen darf, ist die Zahl der gescheiterten. gh ist installiert: den CI-Stand
+selbst nachsehen, nicht nachfragen (CLAUDE.md §11). Ein Push ist erst fertig,
+wenn der Lauf grün ist.
 
-Bei AP-4 (Ball im Blob beim Nicht-Host) wird ZUERST gemessen und nicht gebaut:
-Puffer 1 gegen 2 an zwei Rechnern, Zahlen aus dem F3-Overlay. Erst danach ein
-ADR, erst dann Code. Der Versuch, den Puffer auf 1 zu setzen, ist in der CI auf
-macos-latest schon einmal durchgefallen (146 statt 203 von 206 Snapshots
-angewandt) -- die Zahl steht im Bericht.
-
-Der Vierprozesslauf ist die einzige Prüfung, die diese Fehlerklasse findet:
---tournament-auto=host --client-id=1 plus dreimal --tournament-auto=client
---client-id=N. Er braucht einen Desktop. Jeder Fehler aus C.1 und ADR-024 ist
-dort aufgefallen und in keinem der 446 Testfälle.
-
-Ausgangszahlen: lovec.exe . --test = 446 bestanden, --test-no-love = 405,
---net-selftest = 49 Prüfungen, --tournament-selftest = 59 Prüfungen,
-python tools/verify_replays.py = OK. Was nicht steigen darf, ist die Zahl der
-gescheiterten. gh ist installiert: den CI-Stand selbst nachsehen, nicht
-nachfragen (CLAUDE.md §11). Ein Push ist erst fertig, wenn der Lauf grün ist.
-
-CC-05_REPORT.md wird fortgeschrieben, die Befunde laufen als C-T-20 ff. weiter.
+CC-05_REPORT.md wird fortgeschrieben, die Befunde laufen als C-T-23 ff. weiter.
 Keine Aufwandsschätzungen.
 
 Danach dein Plan in maximal 10 Zeilen plus Rückfragen.

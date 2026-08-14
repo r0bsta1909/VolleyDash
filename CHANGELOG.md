@@ -9,13 +9,35 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
-> **Offen vor dem Export (M4-10):** vier Punkte aus dem zweiten LAN-Abend — Turniere löschen,
-> die eigene IP im Turnier anzeigen, der Weg zurück in ein unterbrochenes Match, und der
-> Ball-Versatz beim Nicht-Host (N-01). Auftrag: `docs/handoffs/CC-06_C2_NACHARBEIT.md`.
+> **Offen vor dem Export (M4-10):** die Zweirechner-Messung zu AP-4 (Ball im Blob beim
+> Nicht-Host, N-01) — Anleitung: `docs/handoffs/CC-06_AP4_MESSANLEITUNG.md`. Die übrigen drei
+> Punkte aus dem zweiten LAN-Abend sind erledigt (Stufe C.2, siehe unten).
 >
 > Die Arbeitsversion heißt **`0.4.0-dev`**. Ein daraus gebautes Paket ist ausdrücklich **kein**
 > Release — es trägt den Zusatz im Dateinamen, damit es nicht mit `0.3.0` verwechselt wird
 > (`12_OPENSOURCE` §7).
+
+### Hinzugefügt (Stufe C.2 — Nacharbeit aus dem zweiten LAN-Abend)
+
+- **Gespeicherte Turniere lassen sich löschen** — mit Sicherheitsabfrage (`J` bestätigt,
+  bewusst nicht ENTER). Der neue Bildschirm „Gespeicherte Turniere" listet alles mit Status
+  und Datum, erreichbar aus Anmeldung und Wiederaufnahme; ein gelöschtes Turnier wird bei der
+  Wiederaufnahme nicht mehr angeboten. Das gerade geöffnete Turnier ist vom Löschen
+  ausgenommen — es schriebe sich nach dem nächsten Ereignis selbst zurück.
+- **Die eigene IP steht im Turnier**, wie in der Match-Lobby seit M2 — für den Fall, dass die
+  Discovery nicht durchkommt (`04_NETCODE` §11). Dazu gehört der fehlende zweite Schritt:
+  **Eine von Hand getippte Adresse, hinter der ein Turnier sitzt, führt jetzt ins Turnier**
+  statt in eine stumm hängende Match-Lobby (C-T-22).
+
+### Behoben (Stufe C.2)
+
+- **Der Weg zurück in ein unterbrochenes Match funktioniert jetzt wirklich** (C-T-20, C-T-21).
+  Die Rückkehrmechanik aus C-T-13 lief ins Leere: Zuweisungen gingen nur für aufgerufene
+  Matches hinaus, nie für laufende — und beim Wiederbeitritt standen die alten Bestätigungen
+  im Weg. Ein Gast, der aussteigt oder abstürzt, wird jetzt wieder eingeladen (derselbe
+  Wiedereinstieg wie `04_NETCODE` §12); steigt der Match-Wirt aus, bleibt es bei E-06.
+  Abnahme: `--tournament-auto=escaper` steigt mitten im Match aus und muss binnen Sekunden
+  im selben Match zurück sein, sonst Exit 1.
 
 Turniermodus (M4), **Stufe A bis C**: das Turnier, seine Bedienung und das Netz. Menü →
 NETWORK MATCH → „Turnier" richtet aus; wer beitreten will, findet das Turnier in der

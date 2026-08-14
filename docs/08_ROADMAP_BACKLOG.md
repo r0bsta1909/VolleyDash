@@ -182,10 +182,13 @@ Prozess kann denselben ENet-Port nicht zweimal binden, und der Turnier-Wirt spie
 **Stufe C.1 ist abgeschlossen** (2026-08-13): sechs Befunde aus dem ersten LAN-Abend, dazu
 ADR-024 (das Menü hält das Netzspiel nicht mehr an).
 
-**Stufe C.2 ist offen und kommt VOR M4-10** (Entscheidung r0btoshi, 2026-08-14, nach dem zweiten
-LAN-Abend). Vier Punkte: Turniere löschen, IP anzeigen, der Weg zurück in ein unterbrochenes
-Match, und N-01 (Ball im Blob beim Nicht-Host). Auftrag:
-`docs/handoffs/CC-06_C2_NACHARBEIT.md`.
+**Stufe C.2 ist zu drei Vierteln abgeschlossen** (CC-06, 2026-08-14): Turniere löschen mit
+Sicherheitsabfrage (AP-1), die eigene IP im Turnier samt Protokollwechsel bei getippter
+Adresse (AP-2, C-T-22), und der Weg zurück in ein unterbrochenes Match (AP-3, C-T-20/21 —
+Abnahme im Vierprozesslauf mit `--tournament-auto=escaper`). **AP-4 (Ball im Blob beim
+Nicht-Host, N-01) wartet auf die Zweirechner-Messung** — Anleitung:
+`docs/handoffs/CC-06_AP4_MESSANLEITUNG.md`. Erst Zahlen, dann ADR, dann Code.
+Auftrag: `docs/handoffs/CC-06_C2_NACHARBEIT.md`, Bericht: `CC-05_REPORT.md` (fortgeschrieben).
 
 ### M5 — Spectator + Beamer (12–18 h)
 
