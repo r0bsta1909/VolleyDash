@@ -463,6 +463,15 @@ function NetGame:update(dt)
         self.accumulator = self.accumulator - World.TICK_DT
         self:tick()
     end
+
+    -- Was die Ticks eben in die ENet-Warteschlange gelegt haben -- Snapshots
+    -- beim Host, Eingaben beim Gast -- geht JETZT auf die Leitung. Der
+    -- naechste `service()` laeuft erst am Anfang des naechsten Frames; ohne
+    -- den Stoss hier laege auf jeder Richtung eine volle Frame-Verspaetung,
+    -- und der Rebase-Warp des Gastes waechst mit Ballgeschwindigkeit mal
+    -- Veralterung des Snapshots (`04_NETCODE` §4, netlog 2026-08-14).
+    if self.role == "host" then self.host:flush() else self.client:flush() end
+
     GameView.setAlpha(self.accumulator / World.TICK_DT)
 end
 
@@ -493,8 +502,17 @@ function NetGame:draw()
 
         -- Wer was tun kann, steht da. Der Gast kann kein Match anpfeifen --
         -- das zu verschweigen waere die zweite Fassung desselben Fehlers.
+        -- Und im Turnier gibt es KEINE Revanche zu versprechen (das waere
+        -- die dritte): das Ergebnis ist gewertet, es geht zurueck ins
+        -- Bracket (C-T-16).
         local hint, note
-        if self.role == "host" then
+        if self.isTournament then
+            local left = self.leaveAt
+                and math.max(0, math.ceil(self.leaveAt - love.timer.getTime()))
+                or NetGame.TOURNAMENT_LINGER
+            hint = string.format(
+                "Zurueck zum Turnier in %d s      ESC kuerzt ab", left)
+        elseif self.role == "host" then
             hint = "R startet die Revanche      ESC zurueck zur Lobby"
             note = self.rematchAsked and "Der Gegner wartet auf die Revanche." or nil
         else
@@ -600,7 +618,13 @@ function NetGame:keypressed(key)
         self:toggleNetlog()
 
     elseif key == "r" then
-        self:rematch()
+        -- Nur im freien Spiel. Im Turnier ist das Ergebnis gewertet, sobald
+        -- es gemeldet ist -- eine Revanche auf Zuruf spielte ein zweites
+        -- Match, das nirgends zaehlt und das der Ruecksprung ins Bracket
+        -- nach TOURNAMENT_LINGER mitten im Ballwechsel abraeumte. Der
+        -- Satzwechsel im Best-of-3 laeuft nicht ueber diese Taste, sondern
+        -- ueber `reportFinish` -> `rematch`.
+        if not self.isTournament then self:rematch() end
 
     elseif key == "escape" then
         -- ESC oeffnet das MENUE und beendet nichts (ADR-024).
