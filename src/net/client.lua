@@ -1,15 +1,12 @@
 -- ============================================================================
 -- src/net/client.lua -- die zuschauende Seite (M2-03)
 --
--- Der Client simuliert NICHT. Er sendet seine Eingaben, empfaengt Snapshots
--- und zeigt sie um `BUFFER_TICKS` verzoegert an (`04_NETCODE_SPEC` §8). Die
--- Vorhersage des eigenen Blobs ist M3 und wird hier ausdruecklich nicht
--- vorweggenommen -- sie waere die halbe Wahrheit ohne die Korrekturschleife,
--- die dazugehoert.
---
--- Warum ueberhaupt ein Puffer: Snapshots kommen mit Jitter an. Ohne Vorrat
--- steht das Bild bei jeder Verzoegerung still und springt danach. Die
--- Verzoegerung ist der Preis dafuer -- die Abwaegung steht an `BUFFER_TICKS`.
+-- Der Client entscheidet NICHT (ADR-002). Er sendet seine Eingaben, empfaengt
+-- Snapshots und reicht den jeweils neuesten an die Vollzustands-Vorhersage
+-- weiter (`src/net/prediction.lua`, ADR-025) -- angezeigt wird deren lokal
+-- fortgeschriebene Welt, neu aufgesetzt mit jedem Snapshot. Jitter erzeugt
+-- damit keinen Anzeigeversatz mehr: Fehlt ein Snapshot einen Frame lang,
+-- traegt die lokale Simulation das Bild, und der naechste setzt neu auf.
 -- ============================================================================
 
 local Protocol = require("src.net.protocol")
@@ -20,28 +17,11 @@ local Checksum = require("src.net.checksum")
 local Client = {}
 Client.__index = Client
 
--- Interpolationspuffer (§8) in Ticks: So weit in der Vergangenheit zeigt der
--- Gast den Zustand, damit Jitter das Bild nicht ruckeln laesst.
---
--- ZWEI, und die Zahl ist gemessen und nicht gesetzt. Aus dem LAN-Abend kam die
--- Meldung, der Ball werde beim Gast mitten im Blob getroffen statt aussen --
--- der eigene Blob wird vorhergesagt und im Jetzt gezeichnet (ADR-017), der
--- Ball kommt aus diesem Puffer. Das sind 33 ms, und zwar unabhaengig von der
--- RTT; bei null sind es dieselben 33 ms. Eins waere die halbe Verzoegerung.
---
--- Der Versuch mit eins ist in der CI auf `macos-latest` durchgefallen: statt
--- 203 von 206 Snapshots kamen nur 146 zur Anzeige, 68 wurden gehalten. Ein
--- Tick Vorrat reicht dort nicht, um Ankunftsschwankungen zu ueberbruecken --
--- der Gast haette bei knapp einem Drittel der Ticks ein stehendes Bild. Das
--- ist genau der Preis, den §8 nennt, und er ist hoeher als gedacht.
---
--- Der Wert ist deshalb EINSTELLBAR (`prefs.netBuffer`) und steht auf zwei. Am
--- naechsten LAN-Abend laesst er sich umschalten und der Versatz im F3-Overlay
--- ablesen -- entschieden wird dann mit Zahlen von echter Hardware und nicht
--- mit denen eines CI-Laeufers. Rein lokal, gehoert zu `Prefs` und nicht zum
--- `Ruleset` (ADR-005).
-Client.BUFFER_TICKS = 2
-Client.MAX_BUFFER   = 8      -- darueber wird aufgeholt, statt nachzuhinken
+-- Einen Interpolationspuffer gibt es seit ADR-025 nicht mehr. Der Gast
+-- simuliert die ganze Welt lokal vor (`src/net/prediction.lua`) und setzt sie
+-- je Snapshot neu auf -- angezeigt wird stets der NEUESTE. Die Vorgeschichte
+-- (2 Ticks Vorrat, umschaltbar, die Ratsche aus C-T-23) steht in
+-- `04_NETCODE_SPEC` §8 und im ADR; hier waere sie nur ein Nachruf.
 Client.PEER_TIMEOUT_MS = 5000
 Client.PING_INTERVAL = 0.5
 Client.CONNECT_TIMEOUT = 5
@@ -82,8 +62,6 @@ function Client.new(opts)
         buildHash = opts.buildHash or "",
         clock     = opts.clock or function() return love.timer.getTime() end,
         onEvent   = opts.onEvent or function() end,
-
-        bufferTicks = opts.bufferTicks or Client.BUFFER_TICKS,
 
         state     = "connecting",   -- connecting | lobby | playing | ended | failed
         message   = "",
@@ -379,23 +357,24 @@ end
 -- es nichts -- das Bild haelt an, statt zu springen.
 -- ---------------------------------------------------------------------------
 
-function Client:nextSnapshot()
+-- Der neueste vorliegende Snapshot -- alles davor ist veraltet (ADR-025).
+--
+-- `gehalten` zaehlt die Ticks, in denen KEIN neuer Snapshot vorlag und die
+-- lokale Simulation das Bild allein getragen hat. `verworfen` zaehlt
+-- uebersprungene, weil veraltete Snapshots -- im gesunden 60-Hz-Fluss sind
+-- beide nahe null, und genau daran erkennt man den Fluss im F3-Overlay.
+function Client:latestSnapshot()
     local queue = self.snapshots
-
-    -- Zu weit hinten: aufholen, statt eine wachsende Verzoegerung mitzuziehen.
-    -- Das passiert, wenn der Client Frames verloren hat, nicht der Host.
-    while #queue > Client.MAX_BUFFER do
-        table.remove(queue, 1)
-        self.stats.dropped = self.stats.dropped + 1
-    end
-
-    if #queue <= self.bufferTicks then
+    local count = #queue
+    if count == 0 then
         self.stats.held = self.stats.held + 1
         return nil
     end
 
-    local snap = table.remove(queue, 1)
+    local snap = queue[count]
+    self.stats.dropped = self.stats.dropped + (count - 1)
     self.stats.applied = self.stats.applied + 1
+    for i = count, 1, -1 do queue[i] = nil end
     return snap
 end
 

@@ -77,9 +77,6 @@ function MatchRunner.newGuest(opts)
         buildHash = opts.buildHash,
         clock     = opts.clock,
         onEvent   = opts.onEvent,
-        -- Der Interpolationspuffer ist eine lokale Einstellung (ADR-005) und
-        -- gilt im Turnier genauso wie im freien Spiel.
-        bufferTicks = opts.bufferTicks,
     })
     if not client then return nil, err end
 

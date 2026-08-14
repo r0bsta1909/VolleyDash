@@ -10,9 +10,11 @@
 --              Der ENet-Wert steht daneben; weichen sie stark ab, liegt es
 --              nicht am Netz.
 --   Verlust    ENet-Schaetzung in Prozent
---   Puffer     wie viele Snapshots der Client vorraetig hat (Soll: 2-4)
---   gehalten   Ticks ohne neuen Snapshot -- das sieht man als Stocken
---   verworfen  Snapshots, die uebersprungen wurden, weil der Puffer zu voll war
+--   Replay     wie viele Ticks je Snapshot wieder vorgespielt werden
+--              (ADR-025; im gesunden Betrieb RTT/2 + 1)
+--   Rueckstau  was in der Queue wartete, bevor der neueste genommen wurde (Soll: 0)
+--   gehalten   Ticks ohne neuen Snapshot -- die traegt die lokale Simulation
+--   verworfen  uebersprungene, weil veraltete Snapshots
 --   Wdh.       Ticks, in denen der Host die letzte Maske wiederholt hat (§7)
 --   Korrektur  Vorhersagefehler des eigenen Blobs: Abweichung > 2 px zur
 --              Host-Position beim selben Eingabetick (§8, M3-01). Im LAN
@@ -58,14 +60,12 @@ function Netstat.draw(info)
     }
 
     if info.role == "client" then
-        -- Der Puffer in Snapshots UND in Millisekunden. Die zweite Zahl ist
-        -- die, die man spuert: Sie ist der Versatz zwischen dem eigenen
-        -- vorhergesagten Blob (im Jetzt) und dem Ball (aus der Vergangenheit)
-        -- und damit der Grund, warum der Ball beim Gast im Blob statt an ihm
-        -- getroffen aussieht (`04_NETCODE` §8, Nachtrag 2026-08-14). Sie haengt
-        -- NICHT an der RTT -- deshalb steht sie hier und nicht neben ihr.
-        rows[#rows + 1] = string.format("PUFFER    %d Snapshots  (Versatz %d ms)",
-            info.buffer or 0, math.floor((info.bufferTicks or 0) * 1000 / 60 + 0.5))
+        -- Seit ADR-025 gibt es keinen Anzeigeversatz mehr -- die Welt wird
+        -- lokal vorgerechnet und je Snapshot neu aufgesetzt. REPLAY sagt, wie
+        -- viele Ticks dabei wieder vorgespielt werden (RTT/2 + 1 im gesunden
+        -- Betrieb); RUECKSTAU, was in der Queue wartete (Soll: 0).
+        rows[#rows + 1] = string.format("REPLAY    %d Ticks  (Rueckstau %d)",
+            info.replay or 0, info.buffer or 0)
         rows[#rows + 1] = string.format("EMPFANGEN %d", info.received or 0)
         rows[#rows + 1] = string.format("GEHALTEN  %d", info.held or 0)
         rows[#rows + 1] = string.format("VERWORFEN %d", info.dropped or 0)

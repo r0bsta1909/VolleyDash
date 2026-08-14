@@ -98,16 +98,27 @@ end
 -- dasselbe, nur mit Bild.
 -- ---------------------------------------------------------------------------
 
--- `pred` ist optional und faehrt die Vorhersage des Gastes mit (M3-01). Sie
--- laeuft hier genau so wie in `net_game.lua`: Snapshot anwenden, Kosmetik
--- ableiten, abgleichen, einen Tick weiterrechnen. Das ist der Punkt, an dem
--- sich zeigt, ob die Zuordnung ueber `ackInputTick` im echten
--- Nachrichtenfluss stimmt -- headless laesst sich das nicht pruefen, weil es
--- dort keinen Nachrichtenfluss gibt.
+-- `pred` ist optional und faehrt die Vorhersage des Gastes mit -- seit
+-- ADR-025 die ganze Welt: neuesten Snapshot holen, neu aufsetzen und die
+-- eigenen Masken wieder vorspielen, einen Tick weiterrechnen, anzeigen. Das
+-- laeuft hier genau so wie in `net_game.lua`, und genau hier zeigt sich, ob
+-- die Zuordnung ueber `ackInputTick` im echten Nachrichtenfluss stimmt --
+-- headless laesst sich das nicht pruefen, weil es dort keinen gibt.
 local function runMatch(host, client, hostState, clientState, ruleset, inputs, ticks, pred)
     local events = {}
     local applied = 0
     local prevSnap = nil
+
+    local function absorb(snap, inputTick)
+        applied = applied + 1
+        if pred then
+            local derived = SnapEvents.diff(prevSnap, snap, ruleset)
+            pred:rebase(snap, SnapEvents.isTakeover(derived), inputTick)
+            prevSnap = snap
+        else
+            Snapshot.apply(snap, clientState, ruleset)
+        end
+    end
 
     for tick = 0, ticks - 1 do
         local pair = inputs and inputs[(tick % #inputs) + 1] or { 0, 0 }
@@ -124,35 +135,25 @@ local function runMatch(host, client, hostState, clientState, ruleset, inputs, t
             host:publishSnapshot(hostState, tick)
         end
 
-        -- Client: anzeigen, was angekommen ist
+        -- Client: neu aufsetzen, weiterrechnen, anzeigen
         client:update(0)
-        local snap = client:nextSnapshot()
-        if snap then
-            Snapshot.apply(snap, clientState, ruleset)
-            applied = applied + 1
-
-            if pred then
-                local derived = SnapEvents.diff(prevSnap, snap, ruleset)
-                pred:reconcile(snap, SnapEvents.isTakeover(derived))
-                prevSnap = snap
-            end
-        end
+        local snap = client:latestSnapshot()
+        if snap then absorb(snap, inputTick) end
 
         if pred then
-            pred:advance(pair[2], clientState.match.phase, inputTick)
-            pred:writeInto(clientState.blobs[2])
+            pred:advance(pair[2], inputTick)
+            pred:writeInto(clientState)
         end
 
         love.timer.sleep(0.0005)
     end
 
-    -- Nachlauf: der Puffer des Clients haelt zwei Ticks zurueck.
+    -- Nachlauf: was noch unterwegs ist, setzt ein letztes Mal neu auf.
     pump(0.3, host, client)
-    while true do
-        local snap = client:nextSnapshot()
-        if not snap then break end
-        Snapshot.apply(snap, clientState, ruleset)
-        applied = applied + 1
+    local last = client:latestSnapshot()
+    if last then
+        absorb(last, client.tick)
+        if pred then pred:writeInto(clientState) end
     end
 
     return applied
@@ -269,7 +270,7 @@ function M.selftest(App)
     hostState.blobs[1].y = hostState.ball.y + ruleset.blobRadius
 
     local pred = Prediction.new(2, ruleset)
-    pred:reset(clientState.blobs[2])
+    pred:reset(clientState)
 
     local ticks = math.min(600, replay and replay.count or 300)
     local applied = runMatch(host, client, hostState, clientState, ruleset,
@@ -311,9 +312,17 @@ function M.selftest(App)
     check(pred.corrections <= pred.compared * 0.02,
         string.format("und korrigiert fast nie: %d von %d Vergleichen",
             pred.corrections, pred.compared))
-    check(math.abs(clientState.blobs[2].x - hostState.blobs[2].x) < 3.0,
-        string.format("der vorhergesagte Blob steht beim Host (Host %.2f, Gast %.2f)",
-            hostState.blobs[2].x, clientState.blobs[2].x))
+
+    -- Seit ADR-025 laeuft der Gast der Wahrheit des Hosts um die
+    -- UNBESTAETIGTEN Ticks voraus -- im Spiel holt der Host sie im naechsten
+    -- Tick auf, dieser Harness stoppt ihn aber. Erlaubt ist deshalb genau
+    -- dieser Vorsprung und kein Pixel mehr.
+    local lead = math.max(0, (client.tick - 1) - pred.lastAck)
+    local margin = lead * (ruleset.moveSpeed or 300) / 60 + 3
+    check(math.abs(clientState.blobs[2].x - hostState.blobs[2].x) <= margin,
+        string.format("der Blob ist hoechstens %d unbestaetigte Ticks voraus "
+            .. "(Host %.2f, Gast %.2f, erlaubt %.1f px)",
+            lead, hostState.blobs[2].x, clientState.blobs[2].x, margin))
 
     -- --- Vorhersage unter Eingabeverlust ----------------------------------
     --
@@ -367,28 +376,31 @@ function M.selftest(App)
     -- ueberhaupt laeuft -- gemessen eine einzige Korrektur, und das ist zu
     -- nahe an der Null fuer eine Zusicherung. Gefragt ist hier nicht, was in
     -- R-05 passiert, sondern ob der Zaehler auf einen echten Eingabeverlust
-    -- reagiert. Also links, rechts, links: Der Host wiederholt im Ausfall die
-    -- letzte Maske und laeuft damit zwangslaeufig in die falsche Richtung,
-    -- waehrend der Gast die Wende schon vorhersagt.
+    -- reagiert. Der Gast laeuft im Ausfallfenster ENTGEGENGESETZT zur Maske,
+    -- die der Host wiederholt: erst 20 Ticks nach rechts (das ist die Maske,
+    -- die haengen bleibt), dann nach links. Der Host parkt damit an der
+    -- rechten Wand, der Gast an der Netzkante -- und beim Aufschliessen ist
+    -- die Abweichung nicht wahrscheinlich, sondern zwingend.
     --
-    -- Gewendet wird alle 20 Ticks, damit der Blob nicht an der Wand parkt --
-    -- dort stuende auch die wiederholte Maske still und es gaebe nichts zu
-    -- korrigieren.
+    -- BERICHTIGT mit ADR-025: Vorher wendete das Muster alle 20 Ticks. Seit
+    -- die Korrektur beim NEUAUFSETZEN gemessen wird (nicht mehr je Ack
+    -- waehrend des Fensters), heilte die Wand den Fall still: In der letzten
+    -- Rechtsphase parkten Host UND Gast an derselben Wand, und beim ersten
+    -- frischen Vergleich gab es nichts mehr zu korrigieren.
     --
-    -- Die letzten 60 Ticks steht er still, und das ist kein Beiwerk: Der
-    -- Abgleich unten vergleicht die Position des vorhergesagten Blobs mit der
-    -- des Hosts auf 3 px genau. An einem LAUFENDEN Blob ist diese Aussage
-    -- nicht zu halten -- allein der Anzeigepuffer von zwei Ticks (§8) sind bei
-    -- Laufgeschwindigkeit rund 13 px, und man wuerde den Puffer messen statt
-    -- die Vorhersage. Steht er, ist die Aussage wieder die, die sie sein soll:
-    -- Der Gast hat aufgeschlossen.
+    -- Die letzten 90 Ticks steht der Gast still, und das ist kein Beiwerk:
+    -- Der Abgleich unten vergleicht die Position des vorhergesagten Blobs mit
+    -- der des Hosts auf wenige Pixel genau. An einem LAUFENDEN Blob hinge die
+    -- Aussage am Messzeitpunkt innerhalb der RTT; steht er, ist sie wieder
+    -- die, die sie sein soll: Der Gast hat aufgeschlossen.
     local moving = {}
     for i = 1, 240 do
-        if i > 180 then
+        if i > 150 then
             moving[i] = { 0, 0 }
+        elseif i <= 20 then
+            moving[i] = { 0, Frame.encode({ right = true }) }
         else
-            local right = (math.floor((i - 1) / 20) % 2) == 0
-            moving[i] = { 0, Frame.encode({ right = right, left = not right }) }
+            moving[i] = { 0, Frame.encode({ left = true }) }
         end
     end
 
@@ -772,7 +784,7 @@ function M.runClient(address)
         -- Der Gast schlaegt auf, wenn er an der Reihe ist -- er sieht die
         -- Phase im Snapshot, den der Host ihm schickt.
         client:pushInput(serveAssist(state, 2, tick, 0))
-        local snap = client:nextSnapshot()
+        local snap = client:latestSnapshot()
         if snap then
             Snapshot.apply(snap, state, ruleset)
             applied = applied + 1

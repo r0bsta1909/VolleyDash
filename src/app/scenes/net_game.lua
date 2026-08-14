@@ -7,19 +7,20 @@
 --   HOST    simuliert. Er holt sich die eigene Eingabe von der Tastatur, die
 --           des Gastes aus dem Eingabepuffer, ruft `Step.tick` und schickt
 --           danach den Snapshot.
---   CLIENT  simuliert NICHT. Er schickt seine Eingabe und schreibt an, was
---           der Host ihm sendet -- zwei Ticks verzoegert, damit Jitter das
---           Bild nicht ruckeln laesst (`04_NETCODE_SPEC` §8).
+--   CLIENT  entscheidet NICHT. Er schickt seine Eingabe und zeigt eine lokal
+--           vorgerechnete Welt, die jeder Snapshot des Hosts neu aufsetzt
+--           (`04_NETCODE_SPEC` §8, ADR-025).
 --
 -- Warum nicht `local_game.lua` erweitert: dort oeffnet ESC das Menue und
 -- pausiert die Simulation. Beim Host waere das eine Pause, die der Gast nicht
 -- mitbekommt -- das Bild steht, das Netz laeuft weiter. Eine eigene Szene ist
 -- billiger als diese Sonderfaelle.
 --
--- Seit M3 ist der Unterschied kleiner: Der Gast bewegt seinen EIGENEN Blob
--- sofort (`src/net/prediction.lua`, §8) und leitet Staub und Klang aus dem
--- Unterschied zweier Snapshots ab (`src/render/snapshot_events.lua`, §6).
--- Ball, Gegner und Punktestand kommen unveraendert allein vom Host.
+-- Seit M3 bewegt der Gast seinen eigenen Blob sofort; seit ADR-025 simuliert
+-- er die GANZE Welt lokal vor (`src/net/prediction.lua`, §8) -- Ball, Gegner
+-- und eigener Blob aus einer Zeitbasis. Autoritativ bleibt allein der Host;
+-- Staub und Klang kommen unveraendert aus dem Unterschied zweier Snapshots
+-- (`src/render/snapshot_events.lua`, §6).
 -- ============================================================================
 
 local World       = require("src.sim.world")
@@ -27,7 +28,6 @@ local State       = require("src.sim.state")
 local Step        = require("src.sim.step")
 local Rules       = require("src.sim.rules")
 local LocalSource = require("src.input.local_source")
-local Snapshot    = require("src.net.snapshot")
 local Protocol    = require("src.net.protocol")
 local Prediction  = require("src.net.prediction")
 local Fx          = require("src.render.fx")
@@ -124,9 +124,9 @@ function NetGame.new(app, opts)
         self.state.match.inProgress = true
 
         -- Nur der Gast sagt vorher. Der Host simuliert autoritativ; fuer ihn
-        -- ist das Modul tot (ADR-017).
+        -- ist das Modul tot (ADR-017, seit ADR-025 fuer die ganze Welt).
         self.prediction = Prediction.new(self.slot, self.ruleset)
-        self.prediction:reset(self.state.blobs[self.slot])
+        self.prediction:reset(self.state)
         self.snapEvents = {}
         self.prevSnap = nil
     end
@@ -308,11 +308,11 @@ function NetGame:resetMatch()
     self.accumulator = 0
 
     -- Der Gast faengt mit der Vorhersage von vorn an: der Host zaehlt seine
-    -- Ticks neu, und ein Ringpuffer aus dem alten Match passte auf die
+    -- Ticks neu, und eine Maskenhistorie aus dem alten Match passte auf die
     -- falschen Eingabeticks. Die Zaehler bleiben stehen -- sie gelten fuer
     -- die Sitzung, nicht fuer das Match.
     if self.prediction then
-        self.prediction:reset(self.state.blobs[self.slot])
+        self.prediction:reset(self.state)
         self.prevSnap = nil
     end
 
@@ -380,25 +380,26 @@ function NetGame:tick()
     end
 
     -- ----------------------------------------------------------------------
-    -- Client
+    -- Client (ADR-025: die ganze Welt kommt aus der Vorhersage)
     --
     -- Die Reihenfolge ist nicht beliebig:
     --   1. abgreifen, solange das Bild noch das alte ist (M0-05)
-    --   2. anwenden, was der Host sagt -- er hat recht
-    --   3. daraus Kosmetik ableiten (§6) und die Vorhersage abgleichen (§8)
-    --   4. den eigenen Blob einen Tick weiterrechnen
+    --   2. den NEUESTEN Snapshot holen -- der Host hat recht
+    --   3. daraus Kosmetik ableiten (§6) und die Welt neu aufsetzen (§8):
+    --      Snapshot anwenden, eigene Masken seit dem Ack wieder vorspielen
+    --   4. einen Tick weiterrechnen -- eigene Eingabe live, Gegner neutral
     --   5. das Ergebnis in den angezeigten Zustand schreiben
-    -- Wer 5 vor 2 setzt, sieht seinen eigenen Blob zwei Ticks in der
-    -- Vergangenheit -- also genau das, was M3 abschaffen soll.
+    -- Ball, Gegner und eigener Blob stammen damit aus EINEM
+    -- Simulationsschritt -- der Ball wird aussen am Blob getroffen, nicht
+    -- mittendrin. Das war der Befund beider LAN-Abende.
     -- ----------------------------------------------------------------------
     GameView.capture(self.state)
 
     local inputTick = self.client.tick
     self.client:pushInput(mask)
 
-    local snap = self.client:nextSnapshot()
+    local snap = self.client:latestSnapshot()
     if snap then
-        Snapshot.apply(snap, self.state, self.ruleset)
         self.simTick = snap.tick
 
         local events = SnapEvents.diff(self.prevSnap, snap, self.ruleset, self.snapEvents)
@@ -408,17 +409,20 @@ function NetGame:tick()
         -- Das ist keine falsche Vorhersage, sondern eine Ansage -- hart
         -- uebernehmen, nicht weich nachfahren (ADR-017).
         local takeover = SnapEvents.isTakeover(events)
-        if self.prediction:reconcile(snap, takeover) and not takeover then
+        if self.prediction:rebase(snap, takeover, inputTick) and not takeover then
             self:logCorrection()
         end
         self.prevSnap = snap
     end
 
     -- Waehrend einer Pause simuliert der Host nicht. Wer hier weiterrechnet,
-    -- laeuft ins Leere und wird beim Fortsetzen zurueckgeholt.
-    if not self.paused then
-        self.prediction:advance(mask, self.state.match.phase, inputTick)
-        self.prediction:writeInto(self.state.blobs[self.slot])
+    -- laeuft ins Leere und wird beim Fortsetzen zurueckgeholt. Und nach dem
+    -- Abpfiff oder einem Verbindungsverlust (`state ~= "playing"`) gehoert
+    -- das Bild dem Endstand -- eine lokale Welt, die ohne Host weiterspielt,
+    -- wuerde ihn Frame fuer Frame ueberschreiben.
+    if not self.paused and self.client.state == "playing" then
+        self.prediction:advance(mask, inputTick)
+        self.prediction:writeInto(self.state)
     end
 
     Fx.update(World.TICK_DT)
@@ -530,7 +534,7 @@ function NetGame:stats()
         rtt = self.client.rtt, peerRtt = self.client:peerRtt(),
         loss = self.client:peerLoss() or 0,
         buffer = self.client:bufferDepth(),
-        bufferTicks = self.client and self.client.bufferTicks or nil,
+        replay = self.prediction and self.prediction.lastReplay or 0,
         received = self.client.stats.received,
         held = self.client.stats.held,
         dropped = self.client.stats.dropped,

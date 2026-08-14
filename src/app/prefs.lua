@@ -25,10 +25,10 @@ Prefs.FIELDS = {
     botActive = { type = "boolean" },
     botLevel  = { type = "number",  min = 1, max = 3 },
     preset    = { type = "string" },   -- zuletzt gewaehltes Ruleset-Preset
-    -- Interpolationspuffer des Gastes in Ticks (`04_NETCODE` §8). Rein lokal
-    -- und deshalb hier und nicht im Ruleset (ADR-005): Er veraendert keine
-    -- Simulation, und die beiden Seiten muessen sich darueber nicht einig sein.
-    netBuffer = { type = "number",  min = 1, max = 4 },
+    -- `netBuffer` stand hier von 2026-08-14 frueh bis 2026-08-14 spaet: Der
+    -- Interpolationspuffer ist mit ADR-025 entfallen. Ein alter Eintrag in
+    -- der Prefs-Datei wird von der Whitelist verworfen -- genau wofuer sie
+    -- da ist (F-02).
     bindings  = { type = "string" },   -- "a,d,w,s|h,k,u,j", siehe src/input/bindings.lua
 
     -- Netzwerk (M2). Beides rein lokal und damit hier richtig aufgehoben --
@@ -59,7 +59,6 @@ Prefs.DEFAULTS = {
     botActive = true,
     botLevel  = 3,
     preset    = "classic",
-    netBuffer = 2,
     bindings  = "a,d,w,s|h,k,u,j",
     clientId    = 0,     -- 0 heisst "noch keine"; App.clientId zieht dann eine
     lastAddress = "",
