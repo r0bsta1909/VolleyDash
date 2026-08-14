@@ -230,6 +230,11 @@ end
 
 function App.enterNetMatch(opts)
     Scene.push(require("src.app.scenes.net_game").new(App, opts))
+    -- Wie im lokalen Spiel (`App.startMatch`): im Match laeuft die
+    -- Match-Liste. Ohne diesen Aufruf lief im Netzspiel -- frei wie im
+    -- Turnier -- die Menuemusik einfach weiter; `music/match/` war ueber
+    -- das Netz nie zu hoeren (gemeldet nach dem LAN-Test 2026-08-14).
+    Music.play("match")
 end
 
 -- Nur das Match verlassen. Die Lobby darunter bleibt bestehen -- damit kostet
