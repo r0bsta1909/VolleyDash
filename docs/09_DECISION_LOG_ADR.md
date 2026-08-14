@@ -641,6 +641,46 @@ Zwei Festlegungen gehören dazu:
 
 ---
 
+## ADR-025 — Der Gast simuliert die ganze Welt vor und setzt sie je Snapshot neu auf
+
+**Status:** angenommen · 2026-08-14 · Freigabe r0btoshi · **Bezug:** ADR-002, ADR-017, ADR-019, `04_NETCODE` §8, N-01, CC-06 AP-4
+
+**Kontext:** Beim Nicht-Host wird der Ball im Sprung sichtbar **im** Blob getroffen statt außen — gemeldet an beiden LAN-Abenden, unabhängig von Rechner und Betriebssystem. Die Ursache ist keine einzelne Zahl, sondern die Architektur der Anzeige: Der Gast zeichnet seinen **eigenen Blob im Jetzt** (Vorhersage, ADR-017), **Ball und Gegner aber aus der Vergangenheit** (Interpolationspuffer, §8). Zwei Zeitbasen in einem Bild — der Versatz ist der Puffer plus die halbe RTT, und er ist die *beabsichtigte* Folge zweier für sich richtiger Entscheidungen.
+
+Die Messung vom 2026-08-14 (netlog, Gast am Kabel, Host im WLAN, RTT ~21 ms) hat zwei Dinge gezeigt: Erstens hielt der Puffer sein Soll nicht — die stehende Tiefe **ratschte** auf 4–5 Snapshots hoch (C-T-23: `nextSnapshot` entnimmt genau einen je Tick und holt erst über 8 auf; jede Ankunftslücke mit Schub hebt die Tiefe dauerhaft), der tatsächliche Versatz lag damit bei **80–90 ms** statt 33. Zweitens: 0 % Verlust, 4 gehaltene Ticks in 272 s — das Netz war nie das Problem, die Anzeige ist es.
+
+**Blobby Volley 2 — die 25 Jahre alte Referenz, im Quelltext nachgelesen** (`src/state/NetworkState.cpp`): Der BV2-Client hält **keinen** Interpolationspuffer und keine getrennten Zeitbasen. Er simuliert die **ganze Welt lokal weiter** — beide Blobs und den Ball, mit der echten Physik, jeden Frame — und übernimmt jeden Serverzustand **hart** (`mMatch->setState`). Ein Bild, eine Zeitbasis: Der Ball wird immer außen getroffen, weil Blob und Ball aus demselben Simulationsschritt stammen. Das funktioniert, weil der Ballflug zwischen zwei Berührungen **reine Ballistik** ist — die lokale Fortschreibung ist dort exakt, Fehler entstehen nur im Moment einer Gegnerberührung und sind nach einer halben RTT korrigiert.
+
+**Entscheidung:** Der Gast führt einen vollständigen, lokal simulierten Spielzustand. Je Tick schreitet er ihn mit der echten Physik fort (eigene Eingabe live, Gegnereingabe unbekannt = neutral). Jeder ankommende Snapshot **setzt ihn neu auf**: Snapshot anwenden, dann die eigenen Eingaben seit dessen `ackInputTick` **wieder vorspielen** (Rebase und Replay). Angezeigt wird ausschließlich dieser Zustand — Ball, Gegner und eigener Blob aus einer Zeitbasis, im Jetzt. Der Interpolationspuffer entfällt; der Gast verwendet stets den **neuesten** vorliegenden Snapshot. `prefs.netBuffer` und der Menüeintrag „Netz-Puffer (Gast)" entfallen ersatzlos.
+
+**Abgrenzung zu ADR-002 — ausdrücklich:** Der Host bleibt die **einzige** Autorität. Es wandert keine Entscheidung zum Gast, es gibt kein Rollback der autoritativen Simulation und keinen zweiten Schiedsrichter — geändert ist allein, **was der Gast zeichnet**, während er auf die Wahrheit des Hosts wartet. ADR-017 wird von „eigener Blob" auf „ganzer Zustand" verallgemeinert, mitsamt seiner Werkzeuge: Abgleich gegen `ackInputTick`, 2-px-Schwelle, Sichtversatz über vier Ticks.
+
+**Begründung:**
+- **Konsistenz ist die Anforderung, nicht geringe Latenz.** Vorgabe r0btoshi: „muss auf beiden Seiten gleich aussehen und funktionieren." Ein in sich stimmiges Bild mit seltenen, kleinen Schnappern schlägt ein glattes Bild mit systematischem Versatz.
+- **Ballistik macht die Vorhersage billig und richtig.** Zwischen Berührungen ist der Ball deterministisch; die Fortschreibung über RTT/2 + 1 Tick ist praktisch fehlerfrei. Der Fehlerfall (Gegnerberührung) korrigiert sich mit dem nächsten Snapshot — 60 je Sekunde.
+- **Kein Protokolländerung nötig.** Snapshot, `ackInputTick`, Eingaberedundanz (§7) und Prüfsummen (§9) bleiben unverändert; es ändert sich nur die Verwendung beim Empfänger.
+- **Die Puffer-Abstimmung entfällt als Problemklasse.** Die offene Frage „1 oder 2" (AP-4) beantwortet sich nicht — sie **verschwindet**: Jitter erzeugt keinen stehenden Versatz mehr, sondern lässt die lokale Simulation einen Frame länger tragen. C-T-23 wird damit gegenstandslos statt repariert.
+- **Die Zutaten liegen alle da.** `src/sim/` ist deterministisch und `love`-frei, `Step.tick` fährt die ganze Welt, `prediction.lua` kennt Abgleich und Sichtversatz. Es wird verallgemeinert, nicht neu erfunden.
+
+**Konsequenzen:**
+- `src/net/prediction.lua` hält statt eines Blobs einen vollen `State` und eine **Maskenhistorie** (64 Ticks). Rebase bei frischem `ackInputTick`: Snapshot anwenden, eigene Masken seit dem Ack wieder vorspielen (gedeckelt, `MAX_REPLAY`), eigene Blob-Abweichung wie bisher zählen und über den Sichtversatz glätten. Bei **stehendem** Ack (Eingabeverlust, §7): Ball und Gegner werden weiter neu aufgesetzt, der eigene Blob bleibt lokal — die alte Getrenntheit kehrt genau für die Dauer des Verlusts zurück und heilt sich beim Aufschließen, wie von ADR-017 zugesichert.
+- Der Gast läuft der Wahrheit des Hosts um RTT/2 + 1 Tick **voraus** statt 2+ Ticks hinterher. Der Preis: Bei einer Gegnerberührung, die anders ausgeht als lokal fortgeschrieben, **schnappt** der Ball um den aufgelaufenen Fehler (Größenordnung: Gegnerbewegung × RTT — bei 21 ms etwa 6 px). Am Kabel unsichtbar, im WLAN sichtbar klein; das ist derselbe Handel, den BV2 seit 25 Jahren gewinnt.
+- Ein lokal vorweggenommener Punkt (Ball bodennah, Gegnerrettung noch nicht bekannt) kann für 1–2 Ticks eine falsche Anzeige erzeugen, die der nächste Snapshot zurücknimmt. Klänge und Staub hängen unverändert am **autoritativen** Snapshot-Vergleich (M3-02) — es pfeift nie falsch, es zuckt höchstens.
+- Verlustfenster ohne Snapshots trägt die lokale Simulation (BV2-Verhalten); `GEHALTEN` im F3-Overlay zählt weiter genau diese Frames.
+- Snapshot-Felder sind für den **Wiederaufbau** teils verlustbehaftet (`dashTimer` als Flag, quantisierter Cooldown, fehlendes `touchCooldown`/`dashGrace`). Im `classic`-Preset (Dash/Smash aus, ADR-006) ohne Wirkung; mit Dash driftet die Replay-Basis um wenige Pixel und läuft über die 2-px-Korrektur. Wird das je sichtbar, ist die Antwort ein Snapshot-Feld, nicht eine zweite Physik.
+- `tests/prediction_test.lua`, der Vorhersageblock des Netz-Selbsttests (C-T-09/C-T-10) und der Zweiprozess-Harness ziehen auf die neue Schnittstelle um; die Aussagen bleiben dieselben (Abgleich läuft, Korrekturen zählen bei echtem Verlust, der Blob schließt auf).
+
+**Verworfen:**
+- *Ball um zwei Ticks linear extrapolieren:* zappelt an jeder Wand- und Netzberührung — der Einwand aus dem Bericht galt der linearen Fortschreibung, nicht der Physik; mit `Step.tick` erledigt sich genau dieser Einwand.
+- *Eigenen Blob zum Zeichnen verzögern (zurück auf M2-Anzeige):* konsistent, aber ~50 ms Eingabeverzögerung — die Minimallösung, und genau das, was M3 abschaffen sollte.
+- *Puffer auf 1:* halbiert den Versatz nur und beantwortet die Konsistenzfrage nicht.
+- *Nur C-T-23 beheben:* stellt die versprochenen 33 ms + RTT/2 wieder her — sichtbar bleibt der Versatz trotzdem.
+- *Rollback/GGPO:* bleibt verworfen (ADR-002). Hier rollt nichts zurück — der Gast zeigt an, er entscheidet nicht.
+
+**Revisionsauslöser:** Wenn am Abend sichtbares Ball-Schnappen gemeldet wird (dann zuerst RTT ansehen — WLAN?), oder wenn die Replay-Kosten auf der Zielhardware messbar werden (`MAX_REPLAY` greift dauerhaft). Sichtbares Zucken der **Anzeige bei Punktgewinn** wäre der Hinweis, Punktestand und Phase an den autoritativen Stand zu nageln statt sie mitzusimulieren.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown

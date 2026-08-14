@@ -109,6 +109,7 @@ und dann sagst du das ausdrücklich, bevor du etwas baust.
 | 012 | Kein Apple Developer Program, aber **verpflichtende Ad-hoc-Signatur** im macOS-Build. |
 | 013 | Turnier-Auslegungspunkt 20 Teilnehmer, parallele Matches auf dem kritischen Pfad. |
 | 024 | Das Menü liegt über dem Netzspiel, **ohne es anzuhalten**. Szenen mit Sockets oder autoritativer Simulation melden sich mit `alwaysUpdate` an. |
+| 025 | Der Gast simuliert die **ganze Welt** lokal vor und setzt sie je Snapshot neu auf (Rebase + Replay). Kein Interpolationspuffer mehr; der Host bleibt die einzige Autorität. |
 
 Neue Architekturentscheidungen werden als ADR in `09_DECISION_LOG_ADR.md` protokolliert,
 **bevor** sie implementiert werden. Vorlage steht am Ende der Datei.
@@ -253,9 +254,9 @@ zu haben (gemessen 2026-08-13). Aus dem Paket heraus gibt es folgerichtig **kein
 `export PATH="$PATH:/c/Program Files (x86)/GnuWin32/bin"` (oder `ZIP_BIN` setzen).
 Der macOS-Zweig läuft nur auf einem macOS-Runner — `codesign` gibt es lokal nicht.
 
-Im Netzspiel zeigt **F3** RTT, Verlust, Tick, Puffer und seit M3 die beiden Fehlerzähler
-KORREKTUR (Vorhersage, §8) und DESYNC (Protokoll, §9) — genau die Werte, nach denen die
-Fehlervorlage fragt. **F4** schreibt dieselben Werte einmal je Sekunde nach `netlog.csv` in den
+Im Netzspiel zeigt **F3** RTT, Verlust, Tick, seit ADR-025 REPLAY/Rückstau (statt
+Puffer/Versatz) und seit M3 die beiden Fehlerzähler KORREKTUR (Vorhersage, §8) und DESYNC
+(Protokoll, §9) — genau die Werte, nach denen die Fehlervorlage fragt. **F4** schreibt dieselben Werte einmal je Sekunde nach `netlog.csv` in den
 Save-Ordner; das ist das Messinstrument für die WLAN-Abnahme
 (`docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`). Aus dem Quellordner gestartet landet jede
 Abweichung zusätzlich in `desync.log` — in einem gebauten Paket nicht, dort zählt nur das

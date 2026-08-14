@@ -16,14 +16,14 @@
 > | **B** | AP-5 — Turnier-Lobby, Setzung mit sichtbarem Seed, Bracket-Anzeige | ✅ **abgeschlossen** (M4-07, M4-08, M4-11) |
 > | **C** | AP-6 — verteilte Match-Hosts, `TOURNAMENT_STATE` | ✅ **abgeschlossen** (M4-09, ADR-022, ADR-023) |
 > | **C.1** | Nacharbeit aus dem ersten LAN-Abend — sechs Befunde | ✅ **abgeschlossen** (C-T-11 … C-T-16) |
-> | **C.2** | Nacharbeit aus dem **zweiten** LAN-Abend — vier Punkte | ✅ **AP-1 bis AP-3 abgeschlossen** (C-T-20 … C-T-22) · ⏳ **AP-4 wartet auf die Zweirechner-Messung**: `CC-06_AP4_MESSANLEITUNG.md` |
+> | **C.2** | Nacharbeit aus dem **zweiten** LAN-Abend — vier Punkte | ✅ **abgeschlossen** (C-T-20 … C-T-23, ADR-025) |
 > | **D** | AP-7 — Export (M4-10) | ⬜ offen — **jetzt dran** |
 >
-> **AP-4 blockiert Stufe D nicht** (Zuschnitt freigegeben von r0btoshi, 2026-08-14: C.2 gilt
-> mit AP-1 bis AP-3 als erledigt, AP-4 als „wartet auf Messung"). Die Messung — Puffer 1
-> gegen 2, zwei echte Rechner, Zahlen aus F3/F4 — kann nur am Gerät passieren; bis die Zahlen
-> da sind, gibt es keinen ADR und keinen Code dazu (CC-06 §2). Was für Stufe D bereitliegt,
-> steht in §7.
+> **AP-4 ist am selben Tag zu Ende gegangen:** Die Zweirechner-Messung (r0btoshi, Host im
+> WLAN, RTT ~21 ms) fand die Puffer-Ratsche **C-T-23** und beerdigte die Frage „Puffer 1
+> oder 2". Entschieden und umgesetzt ist **ADR-025** (freigegeben r0btoshi): Der Gast
+> simuliert die ganze Welt lokal vor, der Interpolationspuffer ist entfallen — Details in
+> §3, Prüfliste für den nächsten LAN-Abend in `CC-06_AP4_MESSANLEITUNG.md` §5.
 >
 > **Beide ADRs sind entschieden und stehen vor dem Code im Log:** **ADR-022** (wer hostet ein
 > Match) und **ADR-023** (Format von `TOURNAMENT_STATE`). Begründung und Freigabe in §5.3.
@@ -53,8 +53,10 @@ gelöschtes Turnier wird bei der Wiederaufnahme nicht mehr angeboten.
 voller Ansicht. Und sie ist kein leeres Versprechen: Wer sie tippt und dabei ein Turnier
 trifft, landet im Turnier statt in einer stumm hängenden Match-Lobby (C-T-22).
 
-**Was aus C.2 offen bleibt: AP-4** — der Ball im Blob beim Nicht-Host (N-01). Erst die
-Zweirechner-Messung (`CC-06_AP4_MESSANLEITUNG.md`), dann ein ADR, dann Code.
+**Und der Ball wird beim Gast außen am Blob getroffen** (AP-4, N-01 — erledigt am selben
+Tag). Die Zweirechner-Messung fand erst die Puffer-Ratsche (C-T-23), dann fiel mit
+**ADR-025** die Architekturentscheidung: Der Gast simuliert die ganze Welt lokal vor, wie
+Blobby Volley 2 es seit 25 Jahren tut — ein Bild, eine Zeitbasis, kein Puffer mehr.
 
 ### Nach Stufe C (2026-08-13, dritte Sitzung)
 
@@ -539,6 +541,43 @@ Anmeldung sprechen. Und wieder hat sie erst das Werkzeug gefunden, das die Szene
 Der Aussteiger im Vierprozesslauf ist deshalb jetzt fester Bestandteil der Abnahme
 (`--tournament-auto=escaper`), nicht ein Handgriff, den man am Abend nachstellt.
 
+### Aus der AP-4-Messung (2026-08-14, zweiter Teil der Session) — C-T-23 und ADR-025
+
+Die erste Messung nach der AP-4-Anleitung (Gast am Kabel, **Host im WLAN**, RTT ~21 ms,
+272 s netlog) hat die Puffer-Frage nicht beantwortet, sondern **beerdigt** — und einen
+handfesten Fehler gefunden:
+
+| ID | Befund |
+|----|--------|
+| **C-T-23** | **Der Interpolationspuffer hielt sein Soll nicht — er ratschte hoch.** `Client:nextSnapshot` entnahm genau einen Snapshot je Tick und holte erst oberhalb von 8 auf; zwischen Soll (2) und Obergrenze gab es **kein** Aufholen. Jede Ankunftslücke mit anschließendem Schub hob die stehende Tiefe dauerhaft an — gemessen 4–5 statt 2, also 67–83 ms Anzeigeverzug statt 33, je nach Zufallsgeschichte der Session verschieden. Das erklärt auch das „schlimmer geworden, vielleicht" vom zweiten LAN-Abend. Nicht repariert, sondern durch ADR-025 **gegenstandslos**: Es gibt keinen Puffer mehr |
+
+Die eigentliche Antwort ist **ADR-025** (freigegeben r0btoshi, 2026-08-14): Der Gast
+simuliert die **ganze Welt** lokal vor — Vorbild Blobby Volley 2, dessen Netzwerkmodus im
+Quelltext nachgelesen wurde (`NetworkState.cpp`: ganze Welt lokal, Serverzustand hart
+übernehmen) — und setzt sie mit jedem Snapshot neu auf: anwenden, eigene Masken seit dem
+`ackInputTick` wieder vorspielen (Rebase + Replay). Ball, Gegner und eigener Blob stammen
+damit aus **einem** Simulationsschritt: Der Ball wird beim Gast außen am Blob getroffen,
+nicht mittendrin — das war die Vorgabe „muss auf beiden Seiten gleich aussehen".
+
+Was sich dadurch geändert hat:
+
+- `src/net/prediction.lua` hält einen vollen `State` und eine Maskenhistorie statt eines
+  Blobs und einer Positionshistorie; Schwelle (2 px), Sichtversatz (4 Ticks) und die
+  Sonderbehandlung des stehenden Acks (§7) sind unverändert übernommen.
+- `Client:nextSnapshot` samt Puffer ist durch `latestSnapshot` ersetzt; `prefs.netBuffer`
+  und der Menüeintrag „Netz-Puffer (Gast)" sind **entfallen**. Das F3-Overlay zeigt statt
+  „Puffer/Versatz" jetzt **REPLAY** (Soll: RTT/2 + 1) und **Rückstau** (Soll: 0).
+- Kein Protokolleingriff: Snapshot, Eingaberedundanz und Prüfsummen unverändert.
+- **Zwei Zusicherungen des Netz-Selbsttests mussten präzisiert werden**, und beide
+  Präzisierungen sind die Architektur, nicht ein Trick: Der Gast läuft der Wahrheit des
+  Hosts um die **unbestätigten Ticks voraus** (der Harness stoppt den Host, im Spiel holt
+  er im nächsten Tick auf — die Schranke ist jetzt genau dieser Vorsprung); und im
+  Verlustfenster misst die Korrektur beim **Aufschließen**, nicht mehr je Ack — das alte
+  Wechselmuster parkte Host und Gast an derselben Wand und die Wand heilte die Abweichung,
+  bevor der erste frische Vergleich sie sah. Der Gast läuft jetzt entgegengesetzt zur
+  wiederholten Maske; die Abweichung beim Aufschließen ist damit zwingend (1 Korrektur,
+  deterministisch).
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |
@@ -790,15 +829,16 @@ Sache gehört dazu, die neu ist — der ephemere Match-Port und die Firewall (§
 
 ---
 
-## 7. Nächster Schritt — Stufe D; daneben die AP-4-Messung
+## 7. Nächster Schritt — Stufe D
 
-### C.2 ist erledigt bis auf die Messung (2026-08-14)
+### C.2 ist vollständig erledigt (2026-08-14)
 
-AP-1 bis AP-3 sind gebaut, geprüft und in §3 als C-T-20 bis C-T-22 dokumentiert. Offen ist
-allein **AP-4** (Ball im Blob beim Nicht-Host, N-01), und dort ist der nächste Schritt keine
-Codezeile, sondern eine **Messung an zwei echten Rechnern**: Puffer 1 gegen 2, Zahlen aus
-F3/F4, Anleitung in **`docs/handoffs/CC-06_AP4_MESSANLEITUNG.md`**. Erst mit diesen Zahlen
-fällt die Entscheidung (Vorgabe 1, Vorgabe 2 oder Ball-Extrapolation), und sie fällt als ADR.
+AP-1 bis AP-3 sind gebaut, geprüft und in §3 als C-T-20 bis C-T-22 dokumentiert. **AP-4 ist
+am selben Tag zu Ende gegangen:** Die Zweirechner-Messung fand C-T-23, die Entscheidung
+fiel als **ADR-025** und ist umgesetzt — Details in §3. **N-01 ist damit erledigt**, nicht
+mehr zurückgestellt: Die Frage „reicht die Vorhersage im WLAN?" stellt sich neu als „sieht
+man Ball-Schnapper bei Gegnerberührung?", und sie steht als Prüfliste in
+`CC-06_AP4_MESSANLEITUNG.md` §5 für den nächsten LAN-Abend.
 
 ### Stufe D — Export (M4-10, JETZT)
 
@@ -835,7 +875,9 @@ fällt die Entscheidung (Vorgabe 1, Vorgabe 2 oder Ball-Extrapolation), und sie 
   Erreichbarkeit des **ephemeren Match-Ports** von einem fremden Rechner. Beides gehört in
   denselben Zweirechnertest, siehe §5.3.
 - **T-N-02 und T-N-03** (Paketverlust): offen, seit ADR-019 nicht mehr blockierend.
-- **N-01** (WLAN-Vorhersage): zurückgestellt. Anleitung und Werkzeug liegen bereit.
+- ~~**N-01** (WLAN-Vorhersage): zurückgestellt.~~ **Erledigt durch ADR-025** (2026-08-14):
+  Der Gast simuliert die ganze Welt vor; offen ist nur noch die Sichtprüfung auf
+  Ball-Schnapper am nächsten LAN-Abend (`CC-06_AP4_MESSANLEITUNG.md` §5).
 
 ---
 
@@ -844,15 +886,16 @@ fällt die Entscheidung (Vorgabe 1, Vorgabe 2 oder Ball-Extrapolation), und sie 
 ```
 Lies CLAUDE.md, dann docs/handoffs/CC-05_M4_TURNIER.md §2 (AP-7, Stufe D,
 M4-10) -- das ist der Auftrag. Danach docs/handoffs/CC-05_REPORT.md: den Kopf,
-§7 ("Was dafür schon dasteht") und die Befundtabelle C-T-20 bis C-T-22. Dazu
-05_TOURNAMENT §7 (der Export ist die Versicherung, wenn die Software versagt)
-und §11 (die fünf Statistiken).
+§7 ("Was dafür schon dasteht") und die Befunde C-T-20 bis C-T-23 samt dem
+ADR-025-Abschnitt in §3. Dazu 05_TOURNAMENT §7 (der Export ist die
+Versicherung, wenn die Software versagt) und §11 (die fünf Statistiken).
 
-M4 Stufe A, B, C, C.1 und C.2 (AP-1 bis AP-3) sind fertig, geprüft, committet
-und gepusht -- davon wird nichts neu gebaut. AP-4 (Ball im Blob beim Nicht-Host,
-N-01) wartet auf die Zweirechner-Messung durch r0btoshi
-(docs/handoffs/CC-06_AP4_MESSANLEITUNG.md). Liegen bei Sessionstart Zahlen vor,
-kommt ZUERST der ADR dazu, dann der Rest; ohne Zahlen wird daran nichts gebaut.
+M4 Stufe A, B, C, C.1 und C.2 sind KOMPLETT fertig, geprüft, committet und
+gepusht -- davon wird nichts neu gebaut. Auch AP-4 ist entschieden und
+umgesetzt: ADR-025, der Gast simuliert die ganze Welt vor, es gibt keinen
+Interpolationspuffer und kein prefs.netBuffer mehr. Was der nächste LAN-Abend
+dazu prüfen soll, steht in CC-06_AP4_MESSANLEITUNG.md §5 -- das macht
+r0btoshi, nicht du.
 
 Nimm dir NUR M4-10 vor: Export als Markdown/CSV per Tastendruck. X in der
 vollen Ansicht ist frei (E, K, P, A, W, TAB sind vergeben, CLAUDE.md §12). Der
@@ -874,7 +917,7 @@ steigen darf, ist die Zahl der gescheiterten. gh ist installiert: den CI-Stand
 selbst nachsehen, nicht nachfragen (CLAUDE.md §11). Ein Push ist erst fertig,
 wenn der Lauf grün ist.
 
-CC-05_REPORT.md wird fortgeschrieben, die Befunde laufen als C-T-23 ff. weiter.
+CC-05_REPORT.md wird fortgeschrieben, die Befunde laufen als C-T-24 ff. weiter.
 Keine Aufwandsschätzungen.
 
 Danach dein Plan in maximal 10 Zeilen plus Rückfragen.

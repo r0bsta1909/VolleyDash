@@ -263,7 +263,7 @@ ackInputTick            i4        4     zuletzt verarbeiteter Input-Tick des Emp
 
 ### Ohne Vorhersage (M2, Baseline)
 
-Der Client rendert den Zustand aus einem **Interpolationspuffer** in der Vergangenheit (Vorgabe 2 Ticks ≈ 33 ms, seit 2026-08-14 umschaltbar — siehe den Nachtrag unten). Dadurch sind Bewegungen auch bei Paketjitter flüssig. Gesamtlatenz Tastendruck → Bild: RTT/2 + Tickzeit + 33 ms ≈ **50 ms** bei LAN.
+Der Client rendert den Zustand aus einem **Interpolationspuffer** in der Vergangenheit (2 Ticks ≈ 33 ms; **historisch** — seit ADR-025 gibt es diesen Puffer nicht mehr, siehe unten). Dadurch sind Bewegungen auch bei Paketjitter flüssig. Gesamtlatenz Tastendruck → Bild: RTT/2 + Tickzeit + 33 ms ≈ **50 ms** bei LAN.
 
 Das ist innerhalb des Erfolgskriteriums aus dem Charter und für ein Spiel dieser Geschwindigkeit spielbar — aber der Client merkt einen Unterschied zum Host.
 
@@ -275,7 +275,7 @@ Bei jedem Snapshot: Position des eigenen Blobs mit der Host-Position vergleichen
 
 **Gerechnet wird mit derselben Physik, nicht mit einer zweiten.** `src/net/prediction.lua` ruft `Step.applyImpulses`, `Step.updateBlobTimers` und `Physics.updateBlob` auf. Eine eigene Blob-Bewegung im Netzcode wäre eine zweite Wahrheit über die Zahlen aus `02_CODE_AUDIT` §4 und driftete beim ersten Eingriff systematisch gegen den Host (ADR-017).
 
-**Nachtrag 2026-08-14, aus dem ersten LAN-Abend: der Puffer ist einstellbar und steht auf 2.**
+**Nachtrag 2026-08-14, aus dem ersten LAN-Abend — inzwischen ÜBERHOLT durch ADR-025 (unten), als Herleitung aber stehen gelassen: der Puffer war einstellbar und stand auf 2.**
 
 Gemeldet wurde, dass der Ball beim Gast **mitten im Blob** getroffen wird statt außen — und nur im Sprung, nicht im Stehen. Das ist kein Fehler, sondern das Zusammentreffen zweier Entscheidungen, die für sich richtig sind: Der eigene Blob wird **vorhergesagt** und im Jetzt gezeichnet (ADR-017), der Ball kommt **aus dem Puffer** und damit aus der Vergangenheit. Blob bei T, Ball bei T − 33 ms. Im Stehen bewegt sich der Blob kaum und es fällt nicht auf; im Sprung sieht man die Differenz als Eindringtiefe.
 
@@ -285,7 +285,7 @@ Der Puffer ist **rein lokal** und gehört damit zu `Prefs` und nicht zum `Rulese
 
 **Der Versuch mit 1 als Vorgabe ist gemessen durchgefallen.** In der CI auf `macos-latest` kamen statt 203 von 206 Snapshots nur **146** zur Anzeige, 68 wurden gehalten — der Gast hätte bei knapp einem Drittel der Ticks ein stehendes Bild. Ein Tick Vorrat reicht dort nicht, um Ankunftsschwankungen zu überbrücken. Das ist genau der Preis, den dieser Abschnitt nennt, und er ist höher als beim Hinschreiben angenommen.
 
-**Deshalb: Vorgabe bleibt 2, der Wert ist umschaltbar** (`prefs.netBuffer`, Menü → Settings → „Netz-Puffer (Gast)"), und **der gemessene Versatz steht im F3-Overlay**. Am nächsten LAN-Abend lässt sich beides gegeneinander halten — entschieden wird dann mit Zahlen von echter Hardware und nicht mit denen eines CI-Läufers oder einer Schätzung. Reicht 1 auch dort nicht, ist die Ball-Extrapolation dran; das ist N-01 und braucht einen eigenen ADR.
+Die Frage „1 oder 2" hat sich mit der Messung vom zweiten LAN-Abend erledigt — nicht durch eine Antwort, sondern durch den Wegfall der Frage: Die Zweirechner-Messung (Gast am Kabel, Host im WLAN, RTT ~21 ms) zeigte erstens, dass der Puffer sein Soll gar nicht hielt (stehende Tiefe 4–5 statt 2, C-T-23 — die Entnahme holte zwischen Soll und Obergrenze nie auf), und zweitens, dass auch ein sauberer 2er-Puffer die Konsistenzfrage nicht beantwortet. Das ist **ADR-025** geworden, siehe den folgenden Abschnitt.
 
 **Verglichen wird zeitrichtig.** Ein Snapshot beschreibt die Vergangenheit — RTT/2 plus den Puffer. Er trägt deshalb `ackInputTick`: den Eingabetick des Gastes, den der Host darin verarbeitet hat. Die Vorhersage hält ihre letzten 64 Positionen und vergleicht die zu **diesem** Tick. Ein Vergleich mit der aktuellen Position fände bei jedem Lauf rund 30 px Abweichung, ohne dass etwas falsch wäre.
 
@@ -296,6 +296,35 @@ Der Puffer ist **rein lokal** und gehört damit zu `Prefs` und nicht zum `Rulese
 **Übernahmen sind hart und zählen nicht.** `Rules.resetBall` setzt beide Blobs auf die Aufschlagposition. Das ist kein Vorhersagefehler, sondern eine Ansage des Hosts — sie wird sofort übernommen und erhöht den Korrekturzähler nicht. Sonst stünden nach zehn Punkten zehn „Fehler" im Overlay, die keine sind.
 
 Die Vorhersage läuft **nur beim Gast**. Der Host simuliert autoritativ.
+
+### Vollzustands-Vorhersage (ADR-025, seit 2026-08-14) — der gültige Stand
+
+Der Gast führt einen vollständigen, lokal simulierten Spielzustand und zeigt **ausschließlich
+ihn** an — Ball, Gegner und eigener Blob aus **einer** Zeitbasis, im Jetzt. Vorbild ist der
+Netzwerkmodus von Blobby Volley 2 (im Quelltext verifiziert): ganze Welt lokal fortschreiben,
+Serverzustand hart übernehmen. Hier kommt die zeitrichtige Abgleichmechanik aus M3 dazu:
+
+- **Je Tick:** `Step.tick` auf dem lokalen Zustand — eigene Eingabe live, Gegnereingabe
+  neutral. Die Kosmetik (Staub, Klang) kommt unverändert aus dem **autoritativen**
+  Snapshot-Vergleich (§6a/M3-02), nicht aus der lokalen Simulation.
+- **Je Snapshot (Rebase + Replay):** Snapshot anwenden, dann die eigenen Masken seit dessen
+  `ackInputTick` aus der Maskenhistorie (64 Ticks, gedeckelt über `MAX_REPLAY`) wieder
+  vorspielen. Die Abweichung des eigenen Blobs wird wie bisher gezählt (2-px-Schwelle) und als
+  Sichtversatz über vier Ticks geglättet; Übernahmen (`Rules.resetBall`) bleiben hart und
+  zählen nicht.
+- **Steht `ackInputTick` still** (Eingabeverlust, §7), werden Ball, Gegner und Spielstand
+  weiter neu aufgesetzt, der eigene Blob bleibt rein lokal — die alte Getrenntheit der
+  Zeitbasen kehrt genau für die Dauer des Verlusts zurück und heilt sich beim Aufschließen.
+- **Bleiben Snapshots aus**, trägt die lokale Simulation das Bild allein weiter;
+  `GEHALTEN` im F3-Overlay zählt genau diese Frames.
+
+Der Interpolationspuffer und `prefs.netBuffer` sind entfallen; der Gast verwendet stets den
+**neuesten** vorliegenden Snapshot. Der Gast läuft der Wahrheit des Hosts damit um
+RTT/2 + 1 Tick **voraus** statt hinterher; der Preis ist ein möglicher kleiner Schnapper des
+Balls bei einer Gegnerberührung, die anders ausgeht als lokal fortgeschrieben
+(Größenordnung Gegnerbewegung × RTT). Autorität, Protokoll, Eingaberedundanz (§7) und
+Prüfsummen (§9) sind unverändert — geändert ist allein, was der Gast zeichnet (ADR-002
+bleibt in Kraft).
 
 **Warum nur der eigene Blob:** Weil die Blob-Bewegung keine Ballkollision enthält, ist sie fehlerfrei vorhersagbar — außer im Moment eines Ballkontakts, und der verändert die Blob-Position nicht. Den Ball vorherzusagen würde Rollback erfordern; das ist der Punkt, an dem die Komplexität explodiert und der Nutzen bei LAN-Latenz gegen null geht.
 
@@ -390,7 +419,7 @@ Beides mit `settimeout(0)`, gepollt in `love.update`. Kein Thread nötig — die
 
 | ID | Punkt | Zu klären in |
 |----|-------|--------------|
-| N-01 | Verhalten bei WLAN mit RTT > 30 ms: Reicht Vorhersage des eigenen Blobs, oder braucht der Client eine Ball-Extrapolation? | **ZURÜCKGESTELLT, ADR-019 (2026-08-13).** Gespielt wird über Kabel; dort liegt die RTT bei 1–2 ms und die Frage wird nicht gestellt. Zurückgestellt heißt **nicht beantwortet** — Messanleitung und Werkzeug bleiben im Repo, und wenn am Abend jemand doch im WLAN sitzt, ist die Frage sofort wieder da. Was bis dahin belegt ist, steht unten. **TEILWEISE gemessen, M3-01.** Was ohne WLAN belegt ist: Die Vorhersage läuft Tick für Tick auf der Bahn von `Step.tick` (Ebene B, beide Slots), im Loopback 198 Abgleiche und **0 Korrekturen**, und bei künstlich unterschlagenen Eingabepaketen schlägt der Zähler an und holt den Blob binnen vier Ticks ein. **Offen bleibt die Wahrnehmung des Balls** — er wird nicht vorhergesagt (ADR-002), und ob 20–40 ms daran auffallen, entscheidet kein Zähler. Messvorgehen, Zahlen und **vorab festgelegte Entscheidungsregel**: `docs/handoffs/CC-04_WLAN_MESSANLEITUNG.md`. Ergebnis gehört hierher, nicht nur in den Report |
+| N-01 | Verhalten bei WLAN mit RTT > 30 ms: Reicht Vorhersage des eigenen Blobs, oder braucht der Client eine Ball-Extrapolation? | **BEANTWORTET, ADR-025 (2026-08-14) — mit einer dritten Antwort.** Weder „eigener Blob reicht" noch „Ball-Extrapolation": Der Gast simuliert die **ganze Welt** lokal mit der echten Physik vor und setzt sie je Snapshot neu auf (§8, letzter Abschnitt). Der Anlass war nicht WLAN, sondern die Messung vom zweiten LAN-Abend (RTT ~21 ms, Host im WLAN): Der Versatz zwischen eigenem Blob und Ball hing nie an der RTT, sondern am Interpolationspuffer — und der ratschte obendrein hoch (C-T-23). Was fürs WLAN offen bleibt, ist eine **Sichtprüfung**, kein Zähler: Schnappt der Ball sichtbar bei Gegnerberührung? Prüfliste `docs/handoffs/CC-06_AP4_MESSANLEITUNG.md` §5; sichtbares Schnappen ist der Revisionsauslöser von ADR-025 |
 | N-02 | Spectator-Snapshot-Rate: 30 Hz mit Interpolation testen, ob am Beamer sichtbar schlechter | M5 |
 | N-03 | Ob `love.data.pack` mit `f` (float32) auf beiden Plattformen bitidentisch schreibt/liest | **BEANTWORTET, M2-01.** Ja. T-N-07 vergleicht einen vollständigen 72-Byte-Snapshot gegen eine im Test stehende Referenz; der Fall läuft auf `windows-latest` und `macos-latest` durch. **Eine Ausnahme, gefunden statt vermutet:** das Vorzeichen der Null entsteht in der Lua-Arithmetik unterschiedlich (§6), nicht beim Packen. Es wird vor dem Senden begradigt |
 | N-04 | Ob ENet auf macOS ohne zusätzliche Firewall-Freigabe funktioniert (ausgehende Verbindungen ja, eingehende als Host?) | M2, Test auf frischem Mac — **bleibt offen**, ein CI-Image beantwortet das nicht |

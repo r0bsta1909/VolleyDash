@@ -9,13 +9,29 @@ deshalb die gesamte bisherige Arbeit, nicht nur die Änderungen eines Zyklus.
 
 ## [Unreleased]
 
-> **Offen vor dem Export (M4-10):** die Zweirechner-Messung zu AP-4 (Ball im Blob beim
-> Nicht-Host, N-01) — Anleitung: `docs/handoffs/CC-06_AP4_MESSANLEITUNG.md`. Die übrigen drei
-> Punkte aus dem zweiten LAN-Abend sind erledigt (Stufe C.2, siehe unten).
+> **Stufe C.2 ist vollständig erledigt** — auch AP-4: Die Zweirechner-Messung vom
+> 2026-08-14 hat C-T-23 gefunden und in **ADR-025** gemündet (siehe unten). Als Nächstes
+> kommt der Export (M4-10, Stufe D). Am nächsten LAN-Abend zu prüfen:
+> `CC-06_AP4_MESSANLEITUNG.md` §5.
 >
 > Die Arbeitsversion heißt **`0.4.0-dev`**. Ein daraus gebautes Paket ist ausdrücklich **kein**
 > Release — es trägt den Zusatz im Dateinamen, damit es nicht mit `0.3.0` verwechselt wird
 > (`12_OPENSOURCE` §7).
+
+### Geändert (ADR-025 — der Gast simuliert die ganze Welt vor)
+
+- **Der Ball wird beim Gast wieder außen am Blob getroffen.** Bisher zeichnete der Gast
+  seinen eigenen Blob im Jetzt, Ball und Gegner aber aus einem Interpolationspuffer — zwei
+  Zeitbasen in einem Bild, und im Sprung sah man die Differenz als Eindringtiefe (gemeldet an
+  beiden LAN-Abenden). Jetzt simuliert der Gast die ganze Welt lokal mit der echten Physik
+  und setzt sie mit jedem Snapshot des Hosts neu auf (Vorbild: der Netzwerkmodus von Blobby
+  Volley 2, im Quelltext nachgelesen). Der Host bleibt die einzige Autorität; am Protokoll
+  ändert sich nichts.
+- **Der Interpolationspuffer ist weg, samt Einstellung.** „Netz-Puffer (Gast)" ist aus den
+  Settings entfernt; die Frage „1 oder 2 Ticks" ist mit der Architektur entfallen, nicht
+  beantwortet. Die Messung davor fand außerdem C-T-23: Der Puffer hielt sein Soll nie —
+  die stehende Tiefe ratschte je nach Sessionverlauf auf 4–5 Snapshots hoch (67–83 ms
+  Verzug statt 33). Das F3-Overlay zeigt jetzt REPLAY und Rückstau statt Puffer und Versatz.
 
 ### Hinzugefügt (Stufe C.2 — Nacharbeit aus dem zweiten LAN-Abend)
 

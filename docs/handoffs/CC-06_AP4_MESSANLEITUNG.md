@@ -1,11 +1,14 @@
-# AP-4 — Messanleitung: Netz-Puffer 1 gegen 2 (Ball im Blob beim Nicht-Host)
+# AP-4 — Messanleitung (ÜBERHOLT: die Puffer-Frage ist mit ADR-025 entfallen)
+
+> **Stand 2026-08-14, später am Tag:** Die erste Messung nach dieser Anleitung (RTT ~21 ms,
+> Host im WLAN) hat die Frage „Puffer 1 oder 2" **beerdigt statt beantwortet**: Der Puffer
+> hielt sein Soll nicht (C-T-23), und auch ein sauberer Puffer hätte die Konsistenzfrage
+> nicht gelöst. Entschieden ist **ADR-025** — der Gast simuliert die ganze Welt vor, einen
+> Puffer gibt es nicht mehr. **Was am nächsten LAN-Abend stattdessen zu prüfen ist, steht
+> unten in §5;** die Läufe aus §3 sind gegenstandslos.
 
 **Anlass:** CC-06 §2 AP-4 · **Grundlage:** `04_NETCODE` §8 (Nachtrag 2026-08-14),
 `CC-05_REPORT` „Der Ball-Verzug beim Gast" · **Erstellt:** 2026-08-14
-
-**Erst messen, dann ADR, dann Code.** Diese Reihenfolge steht in CC-06 und gilt.
-Die Messung braucht **zwei echte Rechner am Kabel** — der CI-Läufer hat ein anderes
-Ankunftsmuster als ein Switch, seine Zahlen entscheiden hier nichts.
 
 ---
 
@@ -67,4 +70,21 @@ schreibt der nächste Lauf hinein.
 **Zur Meldung „schlimmer geworden":** Das getestete Paket (`1a46e340032b7e1c`) hatte
 unverändert Puffer 2. Wenn Lauf 1/3 sich schlimmer anfühlt als der erste LAN-Abend,
 ist das ein eigener Befund und gehört mit aufgeschrieben — auch dann, wenn die
-Zahlen gleich aussehen.
+Zahlen gleich aussehen. *(Nachtrag: erklärt — die stehende Puffertiefe ratschte je
+nach Sessionverlauf verschieden hoch, C-T-23.)*
+
+---
+
+## 5. Was seit ADR-025 stattdessen zu prüfen ist
+
+Ein Rechner hostet, der andere tritt bei — Kabel **und** einmal absichtlich WLAN.
+Beim **Gast** F3 einschalten und zwei bis drei Minuten mit vielen Sprüngen spielen:
+
+1. **Die eigentliche Frage:** Wird der Ball jetzt **außen** am Blob getroffen — auch im
+   Sprung, auch beim Gast? Das war der Befund beider LAN-Abende; er muss weg sein.
+2. **Der Preis:** „Schnappt" der Ball sichtbar, wenn der **Gegner** ihn berührt
+   (Richtungswechsel, Rettung)? Am Kabel sollte davon nichts zu sehen sein; im WLAN
+   klein. Sichtbares Schnappen ist der Revisionsauslöser aus ADR-025.
+3. **F3-Werte notieren:** `REPLAY` (Soll: RTT/2 + 1, am Kabel 1–2), `Rueckstau` (Soll 0),
+   `GEHALTEN` (vereinzelt in Ordnung, Serien nicht), `KORREKTUR` (klein, nicht dauernd
+   steigend). F4 schreibt sie wie gehabt nach `netlog.csv`.
