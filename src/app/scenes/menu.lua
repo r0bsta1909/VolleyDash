@@ -31,8 +31,14 @@ function MenuScene.new(app)
         setPlayerName = function(name) app.setPlayerName(name) end,
         onTweaker = function() app.openTweaker() end,
         onClose  = function() app.closeMenu() end,
+        -- Seit ADR-024 beendet ESC ein Netzmatch nicht mehr. Der benannte Weg
+        -- hinaus steht im Menue und raeumt die ganze Netzsitzung ab.
+        onLeaveNet = function() app.leaveNet() end,
         onBindings = function() app.refreshBindings() end,
     })
+    -- Liegt unter diesem Menue ein LAUFENDES Netzmatch? Dann steht kein Spiel
+    -- still, und das Menue sagt das auch (ADR-024).
+    self.menu.netMatch = app.netMatchBelowMenu()
     return self
 end
 

@@ -455,6 +455,21 @@ Drei Wege, keiner umsonst:
 wenn er nicht reicht. Das ist eine ADR-Entscheidung und gehört nicht in eine Fehlerbehebung —
 deshalb hier als Befund und nicht als Änderung.
 
+### Aus ADR-024 — das Menü über dem Netzspiel
+
+Zwei Befunde, beide beim Bauen und beide dieselbe Familie wie C-T-05: **Sobald zwei Szenen
+gleichzeitig laufen, darf keine der anderen den Socket unter den Füßen wegziehen.**
+
+| ID | Befund | Erledigt |
+|----|--------|---|
+| **C-T-17** | **Die Turnierszene schloss den Match-Wirt, während die Matchszene ihn noch bediente.** `attempt to index field 'server' (a nil value)`, gemessen im Vierprozesslauf. Vorher konnte das nicht passieren: Die Turnierszene bekam während eines Matches kein `update`, ihr Aufräumen lief also zwangsläufig erst nach dem Pop. Mit `alwaysUpdate` laufen beide gleichzeitig. Das Aufräumen hängt jetzt daran, dass die Matchszene wirklich weg ist | behoben |
+| **C-T-18** | **Derselbe Läufer wurde zweimal je Bild bedient.** Die Turnierszene trieb `runner:update`, die Matchszene ebenfalls — zwei Durchläufe der Ereignisschleife und doppelt verschickte Snapshots. Aufgefallen ist es nicht durch einen Absturz, sondern beim Nachlesen desselben Musters, das C-T-17 erzeugt hat. Der Läufer gehört der Matchszene, solange sie oben liegt | behoben |
+
+**Die Lehre steht in ADR-024 und ist allgemeiner als die zwei Fälle:** Eine Szene mit
+`alwaysUpdate` besitzt weiterhin ihre Sockets, aber sie muss wissen, ob etwas über ihr liegt.
+`Scene.isTop` ist genau dafür da. Was den Menschen angeht — Töne, Einblendungen, Tasten — und
+was einer anderen Szene geliehen ist, hängt daran; die Verbindung selbst nicht.
+
 ### Bestätigt, nicht neu
 
 | ID | Befund |

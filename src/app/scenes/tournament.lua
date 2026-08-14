@@ -44,6 +44,7 @@ local TournamentHost   = require("src.net.tournament_host")
 local TournamentClient = require("src.net.tournament_client")
 local TL               = require("src.ui.tournament_lobby")
 local BracketView      = require("src.render.bracket_view")
+local Scene            = require("src.app.scene")
 local BuildInfo        = require("src.app.build_info")
 local Assets           = require("src.app.assets")
 local Music            = require("src.app.music")
@@ -81,6 +82,11 @@ function TournamentScene.new(app, opts)
         name = "tournament",
         app  = app,
         role = opts.role or "leader",
+        -- ADR-024: laeuft weiter, auch wenn ein Match darueber liegt. Diese
+        -- Szene haelt den Turnier-Wirt bzw. die Verbindung dorthin, und ein
+        -- ENet-Wirt, den minutenlang niemand bedient, hat danach keine
+        -- Teilnehmer mehr (C-T-01).
+        alwaysUpdate = true,
     }, TournamentScene)
 
     if self.role == "client" then
@@ -401,7 +407,6 @@ function TournamentScene:enterMatch(slot)
         -- Die Turnierverbindung wandert mit: Waehrend des Matches bekommt
         -- diese Szene kein `update` mehr, und ein ENet-Wirt, den vier Minuten
         -- lang niemand bedient, hat danach keine Teilnehmer mehr.
-        tournament = self.thost or self.tclient,
         -- Der Rueckgabewert zaehlt: `true` heisst "noch ein Satz" (Best-of-3).
         -- Ihn zu verschlucken haette dieselbe Wirkung wie ihn nie zu
         -- schicken -- beide Seiten blieben auf dem Endstand stehen.
@@ -501,9 +506,18 @@ function TournamentScene:enter()
 end
 
 function TournamentScene:update()
-    -- Erst aufraeumen, dann bedienen: Der Laeufer des eben beendeten Matches
-    -- wird hier geschlossen und nicht im Rueckruf (siehe `reportResult`).
-    if self.closing then
+    -- Diese Szene laeuft seit ADR-024 auch dann, wenn ein Match darueber
+    -- liegt -- die Verbindung muss bedient werden. Alles, was den MENSCHEN
+    -- oder den MATCH-SOCKET angeht, haengt deshalb daran, ob sie auch obenauf
+    -- ist.
+    local top = Scene.isTop(self)
+
+    -- Aufraeumen erst, wenn die Matchszene wirklich weg ist. Sie bedient
+    -- denselben Wirt; ihn ihr unter den Fuessen wegzuziehen ist genau der
+    -- Fehler aus C-T-05, nur eine Ebene hoeher -- und seit `alwaysUpdate`
+    -- laufen beide Szenen gleichzeitig. Gemessen 2026-08-14:
+    -- `attempt to index field 'server' (a nil value)`.
+    if self.closing and top then
         if now() < (self.closingUntil or 0) then
             self.closing:update(0)
         else
@@ -512,25 +526,25 @@ function TournamentScene:update()
         end
     end
 
-    -- Bekommt diese Szene wieder `update`, liegt keine Matchszene mehr
-    -- darueber -- `src/app/scene.lua` treibt nur die oberste. Das ist der
-    -- einzige verlaessliche Zeitpunkt fuer beides:
-    --
-    --   * Steht `inMatch` noch, wurde das Match VERLASSEN und nicht beendet
-    --     (ESC mitten im Satz, C-T-13).
-    --   * Die Verschnaufpause laeuft ab HIER und nicht ab dem Abpfiff -- waehrend
-    --     der Endstand steht, bekommt diese Szene kein `update`, und eine dort
-    --     gestartete Frist waere beim Auftauchen laengst abgelaufen (C-T-16).
-    if self.wasInMatch then
+    if top and self.wasInMatch then
         self.wasInMatch = false
+        -- Wieder obenauf, `inMatch` steht noch: Das Match wurde VERLASSEN und
+        -- nicht beendet (C-T-13).
         if self.inMatch then self:abandonMatch() end
+        -- Die Verschnaufpause laeuft ab hier und nicht ab dem Abpfiff: Solange
+        -- der Endstand steht, sieht der Mensch das Bracket noch gar nicht
+        -- (C-T-16).
         self.readyAt = now() + TournamentScene.BREATHER
     end
 
     if self.thost then self.thost:update(now()) end
     if self.tclient then self.tclient:update(now()) end
     local clock = self:clock()
-    if self.runner then
+    -- Der Laeufer wird nur bedient, solange KEIN Match darueber liegt. Sobald
+    -- eines laeuft, gehoert derselbe Wirt der Matchszene -- ihn hier ein
+    -- zweites Mal je Bild zu bedienen, hiesse die Ereignisschleife zweimal zu
+    -- leeren und Snapshots doppelt zu verschicken (ADR-024).
+    if self.runner and top then
         self.runner:update(0)
         self:pushMatchIfReady()
     end
@@ -542,11 +556,17 @@ function TournamentScene:update()
     -- der No-Show-Timer ist genau der Fall, in dem niemand etwas tut. Beim
     -- Leiter hat `TournamentHost:update` den Automaten schon laufen lassen;
     -- was hier passiert, ist ausschliesslich das EINSAMMELN des Stroms.
+    -- Der Strom wird IMMER geleert, auch waehrend eines Matches -- sonst
+    -- braeche beim Zurueckkommen alles auf einmal herein. Gehoert wird er nur
+    -- obenauf: Wer gerade spielt, braucht den Aufrufton eines fremden Matches
+    -- nicht im Ohr.
     local events = session:tick(clock)
-    for _, name in ipairs(self.ui:soundsFor(events)) do
-        -- Der Aufruf muss ueber die Menuemusik durchkommen (Klangliste §2);
-        -- die Vorgabe des Pools ist 0.25.
-        Assets.play(name, name == "tournament_call" and 0.5 or 0.35)
+    if top then
+        for _, name in ipairs(self.ui:soundsFor(events)) do
+            -- Der Aufruf muss ueber die Menuemusik durchkommen (Klangliste §2);
+            -- die Vorgabe des Pools ist 0.25.
+            Assets.play(name, name == "tournament_call" and 0.5 or 0.35)
+        end
     end
 
     -- Der Aufruf ist auch eine Einblendung, nicht nur ein Ton (§5).

@@ -108,6 +108,7 @@ und dann sagst du das ausdrücklich, bevor du etwas baust.
 | 011 | Open Source auf GitHub unter zlib. Repo ist offen, **nicht betreut**. |
 | 012 | Kein Apple Developer Program, aber **verpflichtende Ad-hoc-Signatur** im macOS-Build. |
 | 013 | Turnier-Auslegungspunkt 20 Teilnehmer, parallele Matches auf dem kritischen Pfad. |
+| 024 | Das Menü liegt über dem Netzspiel, **ohne es anzuhalten**. Szenen mit Sockets oder autoritativer Simulation melden sich mit `alwaysUpdate` an. |
 
 Neue Architekturentscheidungen werden als ADR in `09_DECISION_LOG_ADR.md` protokolliert,
 **bevor** sie implementiert werden. Vorlage steht am Ende der Datei.

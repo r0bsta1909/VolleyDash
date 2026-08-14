@@ -39,6 +39,8 @@ local Netstat     = require("src.render.netstat")
 local Assets      = require("src.app.assets")
 local BuildInfo   = require("src.app.build_info")
 
+local Scene = require("src.app.scene")
+
 local NetGame = {}
 NetGame.__index = NetGame
 
@@ -54,6 +56,10 @@ function NetGame.new(app, opts)
     local self = setmetatable({
         name        = "net_game",
         app         = app,
+        -- ADR-024: Diese Szene laeuft weiter, auch wenn das Menue darueber
+        -- liegt. Sie haelt Sockets und simuliert beim Host autoritativ; eine
+        -- Pause, die nur eine Seite kennt, waere ein Desync mit Ansage.
+        alwaysUpdate = true,
         role        = opts.role,
         host        = opts.host,
         client      = opts.client,
@@ -83,9 +89,12 @@ function NetGame.new(app, opts)
         -- `toReport` nicht kennt" -- gemessen 2026-08-13.
         matchStats  = (opts.role == "host") and opts.stats or nil,
         onFinished  = opts.onFinished,
-        -- Der Turnier-Wirt bzw. die Verbindung zu ihm. Sie wandert MIT ins
-        -- Match, genau wie die Bake -- siehe `update`.
-        tournament  = opts.tournament,
+        -- `tournament` steht hier bewusst NICHT mehr (ADR-024). Die
+        -- Turnierszene laeuft seit `alwaysUpdate` selbst weiter und bedient
+        -- ihre Verbindung; sie hier noch einmal zu treiben hiesse, sie zweimal
+        -- je Bild zu bedienen -- doppelte PINGs und ein doppelt laufender
+        -- Automat.
+        isTournament = opts.tournament ~= nil,
     }, NetGame)
 
     -- Beide Rollen steuern ihren eigenen Blob mit derselben Belegung. Wer
@@ -331,7 +340,16 @@ end
 function NetGame:tick()
     local window = math.max(1,
         math.floor(self.ruleset.dashWindow * World.TICK_RATE + 0.5))
-    local mask = self.source:poll(window)
+
+    -- Liegt etwas ueber dieser Szene -- das Menue --, ist die eigene Eingabe
+    -- NEUTRAL (ADR-024). Nicht "letzte Maske wiederholen" wie bei fehlendem
+    -- Netz-Input (§7): Das hier ist keine Luecke, sondern eine Absicht.
+    --
+    -- Ohne das wuerde die Tastatur doppelt wirken: `self.source` liest sie je
+    -- Tick direkt und nicht ueber die Szene, man wuerde also im Menue
+    -- navigieren UND den eigenen Blob bewegen.
+    local mask = 0
+    if Scene.isTop(self) then mask = self.source:poll(window) end
 
     if self.role == "host" then
         if self.paused then return end
@@ -409,20 +427,11 @@ function NetGame:update(dt)
     -- abtippen muessen (D2, 2026-08-12).
     if self.beacon then self.beacon:update() end
 
-    -- Und die TURNIERVERBINDUNG genauso, aus demselben Grund und mit
-    -- schlimmeren Folgen (M4-09, gemessen 2026-08-13). Nur die oberste Szene
-    -- bekommt `update` (`src/app/scene.lua`), waehrend des Matches liegt der
-    -- Turniermodus darunter. Ohne diese Zeile wird sein ENet-Wirt vier Minuten
-    -- lang nicht bedient -- nach 5 s Peer-Timeout gilt jeder Teilnehmer als
-    -- offline, der No-Show-Timer laeuft gegen Leute, die gerade spielen, und
-    -- das Ergebnis findet am Ende niemanden mehr. Gemessen: Das Turnier blieb
-    -- nach dem ersten Match stehen.
-    if self.tournament then self.tournament:update(love.timer.getTime()) end
     if self.role == "client" then self.pauseLeft = math.max(0, self.pauseLeft - dt) end
 
     -- Turniermatch: Der Endstand bleibt einen Moment stehen, dann geht es von
     -- allein zurueck ins Bracket. ESC kuerzt das ab.
-    if self.tournament and self.result then
+    if self.isTournament and self.result then
         local t = love.timer.getTime()
         if not self.leaveAt then self.leaveAt = t + NetGame.TOURNAMENT_LINGER end
         if t >= self.leaveAt then
@@ -516,6 +525,7 @@ function NetGame:stats()
         rtt = self.client.rtt, peerRtt = self.client:peerRtt(),
         loss = self.client:peerLoss() or 0,
         buffer = self.client:bufferDepth(),
+        bufferTicks = require("src.net.client").BUFFER_TICKS,
         received = self.client.stats.received,
         held = self.client.stats.held,
         dropped = self.client.stats.dropped,
@@ -584,20 +594,22 @@ function NetGame:keypressed(key)
         self:rematch()
 
     elseif key == "escape" then
-        -- Nach dem Abpfiff geht es zurueck in die Lobby: das naechste Match
-        -- kostet dann keinen neuen Handschlag. Mitten im Satz ist ESC dagegen
-        -- ein Abbruch der ganzen Sitzung, und der Gegner merkt es sofort.
+        -- ESC oeffnet das MENUE und beendet nichts (ADR-024).
         --
-        -- IM TURNIER NICHT (C-T-13, gemessen am Abend des 2026-08-13):
-        -- `leaveNet` raeumt seit M4-09 auch den Turniermodus ab, weil der
-        -- Sockets haelt. Wer im Match ESC drueckt, flog damit aus dem ganzen
-        -- Turnier -- und kam nicht zurueck, weil der Turnier-Wirt die
-        -- Zuweisung als angenommen fuehrte. Hier wird nur das Match verlassen;
-        -- was daraus folgt, entscheidet der Turnier-Wirt (E-05, E-06).
-        if self.state.match.phase == "gameover" or self.tournament then
+        -- Bis M4-09 beendete es die ganze Sitzung, und die Begruendung im Kopf
+        -- dieser Datei war, ein Menue wuerde die Simulation anhalten -- eine
+        -- Pause, die der Gegner nicht mitbekommt. Das Problem war richtig
+        -- erkannt, die Konsequenz falsch: Abgeschafft wurde das Menue statt der
+        -- Pause. Seit `alwaysUpdate` laeuft die Szene weiter, waehrend das
+        -- Menue darueber liegt -- Simulation, Snapshots und Verbindung
+        -- unveraendert. Der Gegner merkt nichts.
+        --
+        -- Nach dem Abpfiff bleibt ESC der kurze Weg zurueck: Da ist nichts mehr
+        -- anzuhalten.
+        if self.state.match.phase == "gameover" then
             self.app.leaveMatch()
         else
-            self.app.leaveNet()
+            self.app.openMenu()
         end
     end
 end

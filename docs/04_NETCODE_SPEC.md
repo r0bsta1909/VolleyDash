@@ -263,7 +263,7 @@ ackInputTick            i4        4     zuletzt verarbeiteter Input-Tick des Emp
 
 ### Ohne Vorhersage (M2, Baseline)
 
-Der Client rendert den Zustand aus einem **Interpolationspuffer von 2 Ticks (≈33 ms)** in der Vergangenheit. Dadurch sind Bewegungen auch bei Paketjitter flüssig. Gesamtlatenz Tastendruck → Bild: RTT/2 + Tickzeit + 33 ms ≈ **50 ms** bei LAN.
+Der Client rendert den Zustand aus einem **Interpolationspuffer** in der Vergangenheit (bis 2026-08-14: 2 Ticks ≈ 33 ms, seither 1 Tick ≈ 17 ms — siehe den Nachtrag unten). Dadurch sind Bewegungen auch bei Paketjitter flüssig. Gesamtlatenz Tastendruck → Bild: RTT/2 + Tickzeit + 33 ms ≈ **50 ms** bei LAN.
 
 Das ist innerhalb des Erfolgskriteriums aus dem Charter und für ein Spiel dieser Geschwindigkeit spielbar — aber der Client merkt einen Unterschied zum Host.
 
@@ -275,7 +275,15 @@ Bei jedem Snapshot: Position des eigenen Blobs mit der Host-Position vergleichen
 
 **Gerechnet wird mit derselben Physik, nicht mit einer zweiten.** `src/net/prediction.lua` ruft `Step.applyImpulses`, `Step.updateBlobTimers` und `Physics.updateBlob` auf. Eine eigene Blob-Bewegung im Netzcode wäre eine zweite Wahrheit über die Zahlen aus `02_CODE_AUDIT` §4 und driftete beim ersten Eingriff systematisch gegen den Host (ADR-017).
 
-**Verglichen wird zeitrichtig.** Ein Snapshot beschreibt die Vergangenheit — RTT/2 plus zwei Ticks Puffer. Er trägt deshalb `ackInputTick`: den Eingabetick des Gastes, den der Host darin verarbeitet hat. Die Vorhersage hält ihre letzten 64 Positionen und vergleicht die zu **diesem** Tick. Ein Vergleich mit der aktuellen Position fände bei jedem Lauf rund 30 px Abweichung, ohne dass etwas falsch wäre.
+**Nachtrag 2026-08-14, aus dem ersten LAN-Abend: der Puffer steht auf 1 Tick.**
+
+Gemeldet wurde, dass der Ball beim Gast **mitten im Blob** getroffen wird statt außen — und nur im Sprung, nicht im Stehen. Das ist kein Fehler, sondern das Zusammentreffen zweier Entscheidungen, die für sich richtig sind: Der eigene Blob wird **vorhergesagt** und im Jetzt gezeichnet (ADR-017), der Ball kommt **aus dem Puffer** und damit aus der Vergangenheit. Blob bei T, Ball bei T − 33 ms. Im Stehen bewegt sich der Blob kaum und es fällt nicht auf; im Sprung sieht man die Differenz als Eindringtiefe.
+
+**Das korrigiert die Begründung von ADR-019.** N-01 wurde zurückgestellt, weil über Kabel die RTT bei 1–2 ms liegt. Das stimmt — nur hängt dieser Effekt **nicht an der RTT**. Der Puffer sind 33 ms auch bei RTT null. Es ist keine Netz-, sondern eine Anzeigefrage.
+
+Der Puffer ist **rein lokal** und gehört damit zu `Prefs` und nicht zum `Ruleset` (ADR-005): Er verändert keine Simulation, und Host und Gast müssen sich darüber nicht einig sein. Auf 1 Tick halbiert sich der Versatz auf ~17 ms. Der Preis ist weniger Vorrat gegen Jitter — über Kabel (ADR-019) vertretbar, im WLAN gegebenenfalls nicht. **Deshalb steht der gemessene Versatz jetzt im F3-Overlay**, und die Entscheidung ist am nächsten Abend nachzumessen statt zu schätzen. Reicht 1 nicht, ist die Ball-Extrapolation dran — das ist N-01 und braucht einen eigenen ADR.
+
+**Verglichen wird zeitrichtig.** Ein Snapshot beschreibt die Vergangenheit — RTT/2 plus den Puffer. Er trägt deshalb `ackInputTick`: den Eingabetick des Gastes, den der Host darin verarbeitet hat. Die Vorhersage hält ihre letzten 64 Positionen und vergleicht die zu **diesem** Tick. Ein Vergleich mit der aktuellen Position fände bei jedem Lauf rund 30 px Abweichung, ohne dass etwas falsch wäre.
 
 **Steht `ackInputTick` still**, hat der Host die letzte Maske wiederholt, weil ein Eingabepaket fehlte (§7). Dann wird nicht verglichen: Der Host hat mit einer Eingabe gerechnet, die der Gast nie geschickt hat, und die Abweichung wäre keinem Fehler zuzuordnen.
 

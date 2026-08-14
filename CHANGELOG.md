@@ -48,6 +48,28 @@ der Export (M4-10, Stufe D).
   Match-Hosts ist das die kleinere Hälfte. N-04 und N-05 beantwortet das ausdrücklich nicht:
   Ein Läufer hat keine Firewall und keine zweite Maschine.
 
+### Geändert (ADR-024 — das Menü hält das Netzspiel nicht mehr an)
+
+- **ESC im Netzspiel öffnet das Menü, statt die Sitzung zu beenden.** Das Match läuft dabei
+  weiter: Simulation, Snapshots und Verbindung unverändert, der Gegner merkt nichts. Die eigene
+  Eingabe ist neutral, solange das Menü offen ist — sonst würde man darin navigieren **und**
+  gleichzeitig seinen Blob bewegen. Wer im Ballwechsel ins Menü geht, verliert den Punkt; das
+  ist seine Entscheidung.
+- **Der Grund, warum es das bisher nicht gab, war richtig erkannt und falsch beantwortet.** Ein
+  Menü hielt die Simulation an, und eine Pause, die nur eine Seite kennt, ist ein Desync mit
+  Ansage. Abgeschafft wurde daraufhin das Menü statt der Pause. Jetzt melden Szenen, die
+  Sockets halten oder autoritativ simulieren, sich mit `alwaysUpdate` an und laufen weiter.
+  Das lokale Spiel tut das nicht — dort bleibt die Pause.
+- **Damit fällt ein Sonderfall weg:** Die Turnierverbindung musste bisher in die Matchszene
+  durchgereicht werden, weil der Turniermodus darunter kein `update` bekam. Eine Regel statt
+  zweier Umwege.
+- **Der Interpolationspuffer steht auf 1 Tick statt 2.** Gemeldet aus dem LAN-Abend: Der Ball
+  wird beim Gast mitten im Blob getroffen statt außen, und nur im Sprung. Der eigene Blob wird
+  vorhergesagt und im Jetzt gezeichnet, der Ball kommt aus dem Puffer — Blob bei T, Ball bei
+  T−33 ms. **Das hängt nicht an der RTT**; bei RTT null sind es dieselben 33 ms, was die
+  Begründung von ADR-019 an dieser Stelle korrigiert. Der Versatz steht jetzt im F3-Overlay,
+  damit die Frage am nächsten Abend gemessen und nicht geschätzt wird.
+
 ### Behoben (Stufe C.1 — nach dem ersten echten LAN-Abend)
 
 Der kritische Pfad hat gehalten: Beitreten, Zuweisung, Match zwischen zwei Nicht-Hosts,

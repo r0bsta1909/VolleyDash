@@ -2,14 +2,15 @@
 -- src/net/client.lua -- die zuschauende Seite (M2-03)
 --
 -- Der Client simuliert NICHT. Er sendet seine Eingaben, empfaengt Snapshots
--- und zeigt sie mit zwei Ticks Verzoegerung an (`04_NETCODE_SPEC` §8). Die
+-- und zeigt sie um `BUFFER_TICKS` verzoegert an (`04_NETCODE_SPEC` §8). Die
 -- Vorhersage des eigenen Blobs ist M3 und wird hier ausdruecklich nicht
 -- vorweggenommen -- sie waere die halbe Wahrheit ohne die Korrekturschleife,
 -- die dazugehoert.
 --
 -- Warum ueberhaupt ein Puffer: Snapshots kommen mit Jitter an. Ohne Vorrat
--- steht das Bild bei jeder Verzoegerung still und springt danach. Zwei Ticks
--- (33 ms) sind der Preis dafuer, dass es das nicht tut.
+-- steht das Bild bei jeder Verzoegerung still und springt danach. Die
+-- Verzoegerung ist der Preis dafuer -- siehe die Begruendung an
+-- `BUFFER_TICKS`, warum sie seit dem 2026-08-14 halbiert ist.
 -- ============================================================================
 
 local Protocol = require("src.net.protocol")
@@ -20,7 +21,20 @@ local Checksum = require("src.net.checksum")
 local Client = {}
 Client.__index = Client
 
-Client.BUFFER_TICKS = 2      -- Interpolationspuffer (§8)
+-- Interpolationspuffer (§8). Der Gast zeigt den Zustand um so viele Ticks
+-- verzoegert, damit Jitter das Bild nicht ruckeln laesst.
+--
+-- Seit dem 2026-08-14 EINS statt zwei. Gemeldet aus dem ersten LAN-Abend: Der
+-- Ball wird beim Gast mitten im Blob getroffen statt aussen, und nur im
+-- Sprung. Der eigene Blob wird vorhergesagt und im Jetzt gezeichnet (ADR-017),
+-- der Ball kommt aus diesem Puffer -- Blob bei T, Ball bei T-33 ms. Das haengt
+-- NICHT an der RTT; bei RTT null sind es dieselben 33 ms.
+--
+-- Der Wert ist rein lokal und gehoert zu `Prefs`, nicht zum `Ruleset`
+-- (ADR-005): Er veraendert keine Simulation, und die beiden Seiten muessen
+-- sich darueber nicht einig sein. Der gemessene Versatz steht im F3-Overlay --
+-- ob eins reicht, wird nachgemessen und nicht geschaetzt.
+Client.BUFFER_TICKS = 1
 Client.MAX_BUFFER   = 8      -- darueber wird aufgeholt, statt nachzuhinken
 Client.PEER_TIMEOUT_MS = 5000
 Client.PING_INTERVAL = 0.5

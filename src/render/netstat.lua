@@ -58,7 +58,14 @@ function Netstat.draw(info)
     }
 
     if info.role == "client" then
-        rows[#rows + 1] = string.format("PUFFER    %d Snapshots", info.buffer or 0)
+        -- Der Puffer in Snapshots UND in Millisekunden. Die zweite Zahl ist
+        -- die, die man spuert: Sie ist der Versatz zwischen dem eigenen
+        -- vorhergesagten Blob (im Jetzt) und dem Ball (aus der Vergangenheit)
+        -- und damit der Grund, warum der Ball beim Gast im Blob statt an ihm
+        -- getroffen aussieht (`04_NETCODE` §8, Nachtrag 2026-08-14). Sie haengt
+        -- NICHT an der RTT -- deshalb steht sie hier und nicht neben ihr.
+        rows[#rows + 1] = string.format("PUFFER    %d Snapshots  (Versatz %d ms)",
+            info.buffer or 0, math.floor((info.bufferTicks or 0) * 1000 / 60 + 0.5))
         rows[#rows + 1] = string.format("EMPFANGEN %d", info.received or 0)
         rows[#rows + 1] = string.format("GEHALTEN  %d", info.held or 0)
         rows[#rows + 1] = string.format("VERWORFEN %d", info.dropped or 0)

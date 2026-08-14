@@ -98,16 +98,41 @@ function App.startMatch(vsBot)
     App.closeMenu()
 end
 
+-- Das Menue legt sich ueber die Szene, die gerade laeuft: das lokale Spiel
+-- ODER ein Netzmatch (ADR-024). Beim lokalen Spiel ist das die Pause -- es
+-- bekommt kein `update` mehr. Das Netzmatch laeuft weiter; es haelt Sockets
+-- und simuliert beim Host autoritativ.
+local function menuBase()
+    local top = Scene.top()
+    if top == App.game then return top end
+    if top and top.name == "net_game" then return top end
+    return nil
+end
+
 function App.openMenu()
-    if Scene.top() ~= App.game then return end
+    if not menuBase() then return end
     Scene.push(MenuScene.new(App))
 end
 
 function App.closeMenu()
     -- Ohne laufendes Match bleibt das Menue stehen; sonst saehe man ein
-    -- leeres Feld ohne Ausweg.
+    -- leeres Feld ohne Ausweg. Ein Netzmatch laeuft immer.
+    local top = Scene.top()
+    if top and top.name == "menu" then
+        local below = Scene.below(top)
+        if below and below.name == "net_game" then Scene.pop() return end
+    end
     if not App.game.state.match.inProgress then return end
     if Scene.top() ~= App.game then Scene.pop() end
+end
+
+-- Laeuft gerade ein Netzmatch unter dem Menue? Dann heisst der Ausstieg
+-- "Verbindung trennen" und nicht "Quit" -- und ESC ist keine Pause.
+function App.netMatchBelowMenu()
+    local top = Scene.top()
+    if not (top and top.name == "menu") then return false end
+    local below = Scene.below(top)
+    return below ~= nil and below.name == "net_game"
 end
 
 function App.openTweaker()

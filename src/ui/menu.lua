@@ -126,6 +126,12 @@ function Menu:buildPages()
                 { name = "Network Match", target = "network" },
                 { name = "Player Profiles", target = "profiles" },
                 { name = "Settings", target = "settings" },
+                -- Nur waehrend eines Netzmatches: Seit ADR-024 beendet ESC das
+                -- Spiel nicht mehr, sondern oeffnet dieses Menue. Ohne einen
+                -- benannten Weg hinaus gaebe es keinen.
+                { name = "Netzspiel verlassen",
+                  onlyNetMatch = true,
+                  action = function() ctx.onLeaveNet() end },
                 { name = "Quit", action = function() self:save(); love.event.quit() end },
             },
         },
@@ -274,6 +280,19 @@ function Menu:page()
     return self.pages[self.current]
 end
 
+-- Die Eintraege, die gerade gelten.
+--
+-- `onlyNetMatch` blendet den Ausstieg aus dem Netzspiel aus, solange keines
+-- laeuft. Ein Menuepunkt, der nichts tut, ist schlechter als keiner -- dieselbe
+-- Ueberlegung wie bei der Fusszeile im Turnier (C-T-14).
+function Menu:items()
+    local out = {}
+    for _, item in ipairs(self:page().items) do
+        if not item.onlyNetMatch or self.netMatch then out[#out + 1] = item end
+    end
+    return out
+end
+
 function Menu:goTo(name)
     self.current = name
     if name == "controls" then
@@ -355,15 +374,16 @@ function Menu:keypressed(key)
     elseif key == "up" then
         page.selection = math.max(1, page.selection - 1)
     elseif key == "down" then
-        page.selection = math.min(#page.items, page.selection + 1)
+        page.selection = math.min(#self:items(), page.selection + 1)
     elseif key == "left" then
-        local item = page.items[page.selection]
-        if item.onLeft then item.onLeft() end
+        local item = self:items()[page.selection]
+        if item and item.onLeft then item.onLeft() end
     elseif key == "right" then
-        local item = page.items[page.selection]
-        if item.onRight then item.onRight() end
+        local item = self:items()[page.selection]
+        if item and item.onRight then item.onRight() end
     elseif key == "return" then
-        local item = page.items[page.selection]
+        local item = self:items()[page.selection]
+        if not item then return true end
         if item.edit then
             self:beginEdit(item)
         elseif item.action then
@@ -385,20 +405,32 @@ function Menu:draw(matchRunning)
     love.graphics.setColor(1, 0.85, 0.2)
     love.graphics.printf(page.title, 0, 80, World.WIDTH, "center")
 
-    if matchRunning and self.current == "main" then
+    if self.current == "main" then
+        -- Zwei verschiedene Aussagen, und die Unterscheidung ist wichtig: Im
+        -- lokalen Spiel steht die Simulation, solange das Menue offen ist. Im
+        -- Netzspiel laeuft sie weiter (ADR-024) -- wer das fuer eine Pause
+        -- haelt, kommt zurueck und hat verloren.
         Assets.setFont(16)
-        love.graphics.setColor(0.2, 0.8, 0.2)
-        love.graphics.printf("Game Paused - Press ESC to resume", 0, 140, World.WIDTH, "center")
+        if self.netMatch then
+            love.graphics.setColor(0.95, 0.6, 0.2)
+            love.graphics.printf("Das Match laeuft weiter - ESC zurueck ins Spiel",
+                0, 140, World.WIDTH, "center")
+        elseif matchRunning then
+            love.graphics.setColor(0.2, 0.8, 0.2)
+            love.graphics.printf("Game Paused - Press ESC to resume",
+                0, 140, World.WIDTH, "center")
+        end
     end
 
     -- Abstand und Startpunkt haengen an der Zahl der Eintraege: das
     -- Steuerungsmenue hat zehn und passte sonst nicht mehr aufs Feld (M0-11).
     Assets.setFont(24)
-    local count = #page.items
+    local visible = self:items()
+    local count = #visible
     local spacing = math.min(40, math.floor(330 / count))
     local top = 390 - (count * spacing) / 2
 
-    for i, item in ipairs(page.items) do
+    for i, item in ipairs(visible) do
         local y = top + (i - 1) * spacing
         local text = item.name
 

@@ -595,6 +595,52 @@ Die Größenordnungen: der abgeleitete Zustand eines 20er-Turniers ist rund 30 K
 
 ---
 
+## ADR-024 — Das Menü liegt über dem Netzspiel, ohne es anzuhalten
+
+**Status:** angenommen · 2026-08-14 · **Bezug:** ADR-002, M0-12, M4-09, `04_NETCODE` §12
+
+**Kontext:** `src/app/scene.lua` treibt seit M0-12 **nur die oberste Szene**. Gezeichnet wird von der untersten sichtbaren aufwärts, aktualisiert wird allein oben. Für das lokale Spiel ist das genau richtig: Das Menü liegt darüber, bekommt kein `update` weitergereicht, und damit **ist** das Nichtaktualisieren die Pause. Eine Phase „menu" im Spielzustand entfällt.
+
+Im Netzspiel trägt das nicht. `src/app/scenes/net_game.lua` hält deshalb seit M2 gar kein Menü: ESC beendet dort die ganze Sitzung. Die Begründung im Kopf der Datei lautete, eine Pause beim Host sei „eine Pause, die der Gast nicht mitbekommt — das Bild steht, das Netz läuft weiter".
+
+**Das Problem war richtig erkannt, die Konsequenz war die falsche: abgeschafft wurde das Menü, nicht die Pause.** Zwei Folgen, beide gemessen:
+
+1. Wer im Spiel die Einstellungen sehen will, verliert das Spiel. Im Turnier war es schlimmer — ESC warf bis M4-09 aus dem gesamten Turnier, ohne Weg zurück (C-T-13).
+2. Dieselbe Regel hat den Turniermodus getroffen, sobald er Sockets hielt: Während eines Matches lag er unter der Matchszene, bekam kein `update`, und sein ENet-Wirt wurde minutenlang nicht bedient. Nach 5 s Peer-Timeout galt jeder Teilnehmer als offline (C-T-01). Geflickt wurde das, indem die Turnierverbindung **in die Matchszene durchgereicht** wird — ein Sonderfall, der bei der nächsten Szene mit Socket wieder gebaut werden müsste.
+
+**Entscheidung:** `Scene.update` treibt die oberste Szene **und** jede darunter, die sich mit `alwaysUpdate = true` dafür meldet. Das Menü ist damit auch aus dem Netzspiel erreichbar und hält es nicht an.
+
+Es melden sich an: `net_game` (hält Sockets und simuliert beim Host autoritativ) und `tournament` (hält Sockets). `local_game` **nicht** — dort bleibt das Nichtaktualisieren die Pause.
+
+Zwei Festlegungen gehören dazu:
+
+- **Die eigene Eingabe ist neutral, solange etwas über der Matchszene liegt.** Nicht „letzte Maske wiederholen" wie bei fehlendem Netz-Input (§7): Das ist hier keine Lücke, sondern eine Absicht.
+- **Das Verlassen wandert ins Menü.** Wenn ESC nicht mehr beendet, braucht es einen benannten Weg hinaus.
+
+**Begründung:**
+- **`Scene.draw` macht es längst so.** Es läuft von der untersten sichtbaren Szene aufwärts. Dass `update` das nicht kann, war eine Vereinfachung und keine Entscheidung — sie stammt aus einer Zeit, in der keine Szene etwas besaß, das weiterlaufen muss.
+- **Eine Regel statt zweier Sonderfälle.** Der Durchreich-Umweg aus C-T-01 fällt weg. Was eine Szene besitzt, bedient sie selbst — sonst muss jede künftige Szene mit Socket ihre Verbindung durch alles hindurchreichen, was sich über sie legt.
+- **Die Pause bleibt dort, wo sie hingehört.** Das lokale Spiel ändert sich nicht: keine Marke, kein `update`, Pause wie bisher. Die Marke ist eine Zusage der Szene über sich selbst und keine globale Umschaltung.
+- **Neutrale Eingabe statt Tastendurchgriff.** `net_game` liest die Tastatur je Tick direkt und nicht über die Szene. Ohne diese Festlegung würde man im Menü navigieren **und** gleichzeitig seinen Blob bewegen. Ein stehender Blob ist vorhersagbar; wer im Ballwechsel ins Menü geht, verliert den Punkt, und das ist in Ordnung — es ist seine Entscheidung.
+- **Der Gegner merkt nichts.** Das ist der eigentliche Gewinn gegenüber einer Pause: Es gibt keinen Zustand, den die eine Seite kennt und die andere nicht. Simulation und Snapshots laufen unverändert weiter, `MATCH_PAUSE` (0x24) bleibt dem Verbindungsverlust vorbehalten, für den es gedacht ist (§12).
+
+**Konsequenzen:**
+- `Scene.update` bekommt eine Schleife statt einer Zeile; die Reihenfolge ist von unten nach oben, damit die oberste Szene den zuletzt gültigen Zustand sieht.
+- `net_game.lua` verliert `opts.tournament` samt dem Aufruf in `update`. Bliebe beides, würde die Turnierverbindung **zweimal je Bild** bedient — doppelte PINGs und ein doppelt laufender Automat.
+- Das Hauptmenü bekommt einen Eintrag zum Verlassen des Netzspiels. `App.openMenu` gilt nicht mehr nur für die lokale Spielszene.
+- Wer ESC im Turniermatch drückt, bleibt im Match. Der Aussteigeweg aus C-T-13 bleibt trotzdem gebaut — er greift weiterhin bei einem Absturz oder wenn jemand das Match über das Menü verlässt.
+- **Eine Szene mit `alwaysUpdate` muss damit rechnen, dass sie ohne Tastatur läuft.** `keypressed` bekommt weiterhin nur die oberste.
+
+**Verworfen:**
+- *Alles immer aktualisieren:* nimmt dem lokalen Spiel die Pause, und die ist seit M0-12 der Grund, warum es keine Phase „menu" im Spielzustand gibt.
+- *Das Match beim Öffnen des Menüs pausieren:* genau der Fehler, den der Kopf von `net_game.lua` beschreibt. Eine Pause, die nur eine Seite kennt, ist ein Desync mit Ansage.
+- *Die Verbindung weiter durchreichen:* funktioniert für zwei Szenen und bricht bei der dritten. Es ist außerdem die falsche Richtung — die Matchszene weiß dann Dinge über das Turnier, die sie nichts angehen.
+- *Die Tastatur ins Menü durchreichen und den Blob mitlaufen lassen:* „seines Glückes Schmied" gilt für die Entscheidung, das Menü zu öffnen — nicht dafür, dass die Navigation im Menü den Blob springen lässt.
+
+**Revisionsauslöser:** Wenn eine Szene mit `alwaysUpdate` einmal erkennbar Rechenzeit kostet, während etwas darüber liegt — dann ist nicht die Regel falsch, sondern diese Szene tut im Hintergrund mehr, als sie muss.
+
+---
+
 ## Vorlage für neue ADRs
 
 ```markdown
