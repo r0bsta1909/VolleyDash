@@ -2,9 +2,10 @@
 
 **Datum:** 2026-08-13 · **Auftrag:** `docs/handoffs/CC-05_M4_TURNIER.md`
 **Ausgangsstand:** 9f40dc7 (`v0.3.0`) · **Stufe B ab** 72a579a · **Stufe C ab** e7aeb2b
-**Tests:** 445 bestanden, 0 gescheitert (Stufe B: 411, Stufe A: 349, vorher 214) · **ohne `love`:** 404 (vorher 380)
-**Netz-Selbsttest:** 47 Prüfungen, alle grün (unverändert)
-**Turnier-Selbsttest:** 58 Prüfungen, alle grün (**neu**, T-N-11 und T-N-09)
+**Tests:** 446 bestanden, 0 gescheitert (Stufe C: 445, B: 411, A: 349, vorher 214) · **ohne `love`:** 405
+**Netz-Selbsttest:** 49 Prüfungen, alle grün
+**Turnier-Selbsttest:** 59 Prüfungen, alle grün (T-N-11 und T-N-09)
+**Vierprozesslauf:** 4er-Turnier, zehn Matches, Sieger — auf allen vier Prozessen derselbe
 **Referenzen:** `python tools/verify_replays.py` meldet OK
 
 > **Dieser Bericht wird fortgeschrieben.** Stand der Stufen aus §2 des Handoffs:
@@ -14,6 +15,7 @@
 > | **A** | AP-1 bis AP-4 — Datenmodell, Bracket, Scheduler, Persistenz | ✅ **abgeschlossen** |
 > | **B** | AP-5 — Turnier-Lobby, Setzung mit sichtbarem Seed, Bracket-Anzeige | ✅ **abgeschlossen** (M4-07, M4-08, M4-11) |
 > | **C** | AP-6 — verteilte Match-Hosts, `TOURNAMENT_STATE` | ✅ **abgeschlossen** (M4-09, ADR-022, ADR-023) |
+> | **C.1** | Nacharbeit aus dem ersten LAN-Abend — sechs Befunde | ✅ **abgeschlossen** (C-T-11 … C-T-16) |
 > | **D** | AP-7 — Export (M4-10) | ⬜ offen |
 >
 > **Die nächste Session fängt bei Stufe D an** — Export als Markdown/CSV, drei Stunden. Was
@@ -764,7 +766,7 @@ statt Kennungen, offene Matches mitsamt der nächsten Paarung, korrigierte
 Ergebnisse als solche markiert (E-12). Dateizugriff ausschließlich über
 persistence.lua. Ein Tastendruck, kein Menü; frei ist in der vollen Ansicht `X`.
 
-Ausgangszahlen: lovec.exe . --test = 445 bestanden, --test-no-love = 404,
+Ausgangszahlen: lovec.exe . --test = 446 bestanden, --test-no-love = 405,
 --net-selftest = 49 Prüfungen, --tournament-selftest = 59 Prüfungen,
 python tools/verify_replays.py = OK. Was nicht steigen darf, ist die Zahl der
 gescheiterten.
