@@ -9,6 +9,9 @@
 --   T-N-11  Vier parallele Matches, GLEICHZEITIGER Ergebnisversand, alle vier
 --           korrekt im Bracket.
 --   T-N-09  Drei gleichzeitige Turniere im selben Netz, alle unterscheidbar.
+--   C-T-20  Der Weg zurueck in ein LAUFENDES Match (AP-3, zweiter LAN-Abend):
+--           `ready=false` und Wiederbeitritt fuehren beide zu einer erneuten
+--           Zuweisung mit derselben Adresse.
 --
 -- ---------------------------------------------------------------------------
 -- Warum ein Prozess reicht -- und wofuer er nicht reicht
@@ -545,6 +548,251 @@ function M.parallelMatches()
 end
 
 -- ---------------------------------------------------------------------------
+-- AP-3 (C-T-20) -- der Weg zurueck in ein LAUFENDES Match
+--
+-- Der Fall vom zweiten LAN-Abend: Wer sein Match verlaesst, kam nie zurueck,
+-- weil `announceAssignments` Zuweisungen nur fuer READY-Matches verschickte.
+-- Geprueft wird auf Protokollebene, was CC-06 §2 als Abnahme nennt:
+--
+--   * `ready = false` bei einem LIVE-Match  =>  eine ERNEUTE
+--     `TOURNAMENT_ASSIGN` mit DERSELBEN Adresse.
+--   * Vollstaendiges Verlassen und Wiederbeitreten (neuer Socket, dieselbe
+--     `clientId`)  =>  dieselbe Einladung noch einmal.
+--   * Der MATCH-WIRT eines laufenden Matches bekommt KEINE neue Zuweisung --
+--     steigt er aus, gilt E-06, nicht die Wiedereinladung.
+-- ---------------------------------------------------------------------------
+
+function M.returnToLiveMatch()
+    print("[turnier] AP-3 -- Rueckkehr in ein laufendes Match (C-T-20)")
+
+    local ruleset = Ruleset.new("classic")
+    local choice  = HostChoice.new()
+
+    local session = Session.new({
+        id = "t_selftest_ap3", name = "Selbsttest AP-3", createdAt = 0,
+        presence = "net",
+        chooseHost = choice:chooser(),
+        seedMode = "manual",
+        ruleset = ruleset, rulesetHash = Ruleset.hash(ruleset),
+        config = { format = "single_elim", parallelMatches = 2,
+                   noShowTimeout = 600, bestOfDefault = 1, bestOfFinals = 1 },
+    })
+    local selfPid = session:addParticipant("Leiter", 0, 1)
+
+    local leaderAssigns = {}
+    local thost, err = TournamentHost.new({
+        port = M.PORT_ENET, session = session, hostChoice = choice,
+        buildHash = "selftest", hostName = "Leiter", selfPid = selfPid,
+        onEvent = function(kind, payload)
+            if kind == "assign" then leaderAssigns[#leaderAssigns + 1] = payload end
+        end,
+    })
+    if not check(thost ~= nil, "Turnier-Wirt bindet Port " .. M.PORT_ENET) then
+        print("       " .. tostring(err))
+        return
+    end
+    choice:sampleSelf(selfPid, now())
+
+    -- Eigene Uhr fuer den Wirt: `pumpAll` ruft `update(0)`, und mit `now = 0`
+    -- schweigen Wiederholung und PING. Der Wirt bekommt deshalb die echte Zeit.
+    local thostParty = { update = function() thost:update(now()) end }
+
+    local clients, parties = {}, { thostParty }
+    local function newClient(i, name)
+        local c, cerr = TournamentClient.new({
+            address = "127.0.0.1", port = M.PORT_ENET,
+            clientId = 2000 + i, name = name, buildHash = "selftest",
+        })
+        if not c then print("       " .. tostring(cerr)) return nil end
+        c.assigns = {}
+        c.onEvent = function(kind, payload)
+            if kind == "assign" then c.assigns[#c.assigns + 1] = payload end
+        end
+        parties[#parties + 1] = c
+        return c
+    end
+
+    for i = 2, 4 do
+        local c = newClient(i, "Gast " .. i)
+        if not check(c ~= nil, "Teilnehmer " .. i .. " oeffnet einen Socket") then
+            thost:close()
+            return
+        end
+        clients[#clients + 1] = c
+    end
+
+    local allJoined = waitFor(6, function()
+        for _, c in ipairs(clients) do
+            if c.state ~= "joined" then return false end
+        end
+        return true
+    end, parties)
+    check(allJoined, "alle drei melden sich an")
+
+    check(session:drawBracket(now()) ~= false, "ausgelost")
+    session:tick(now())
+    pumpAll(0.5, parties)
+
+    -- Das Match des Leiters: Er hostet (RTT null zu sich selbst, ADR-022).
+    local leaderMatch
+    for _, id in ipairs(session.t.matchOrder) do
+        local m = session.t.matches[id]
+        if (m.status == Model.STATUS.READY or m.status == Model.STATUS.LIVE)
+           and (m.slotA == selfPid or m.slotB == selfPid) then
+            leaderMatch = id
+        end
+    end
+    if not check(leaderMatch ~= nil, "der Leiter ist selbst in einem Match") then
+        thost:close()
+        return
+    end
+
+    local runner = MatchRunner.newHost({
+        matchId = leaderMatch, ruleset = ruleset,
+        selfName = "Leiter", buildHash = "selftest", clientId = 1,
+    })
+    if not check(runner ~= nil, "der Leiter oeffnet einen Match-Wirt") then
+        thost:close()
+        return
+    end
+    check(thost:hostSelfMatch(leaderMatch, runner.port),
+        "der Leiter veroeffentlicht seinen Match-Port")
+    session:confirmReady(leaderMatch, selfPid, now())
+
+    -- Der Gast dieses Matches.
+    local m = session.t.matches[leaderMatch]
+    local guestPid = (m.slotA == selfPid) and m.slotB or m.slotA
+    local guest
+    for _, c in ipairs(clients) do
+        if c.pid == guestPid then guest = c end
+    end
+    if not check(guest ~= nil, "der Gegner des Leiters haengt am Netz") then
+        runner:close()
+        thost:close()
+        return
+    end
+
+    local function lastAssignFor(c, matchId)
+        for i = #c.assigns, 1, -1 do
+            if c.assigns[i].matchId == matchId then return c.assigns[i] end
+        end
+        return nil
+    end
+
+    local gotAddress = waitFor(5, function()
+        local a = lastAssignFor(guest, leaderMatch)
+        return a ~= nil and a.address ~= ""
+    end, parties)
+    check(gotAddress, "der Gast bekommt die Zuweisung mit Adresse")
+    local first = lastAssignFor(guest, leaderMatch)
+    local address = first and first.address or "?"
+
+    guest:accept(leaderMatch, 0, true)
+    local isLive = waitFor(5, function()
+        return session.t.matches[leaderMatch].status == Model.STATUS.LIVE
+    end, parties)
+    if not check(isLive, "das Match laeuft (LIVE)") then
+        runner:close()
+        thost:close()
+        return
+    end
+
+    -- --- Die Ruecknahme (C-T-13): ready=false bei einem LIVE-Match ---------
+    guest.assigns = {}
+    local hostAssignsBefore = #leaderAssigns
+    guest:accept(leaderMatch, 0, false)
+
+    local reinvited = waitFor(5, function()
+        return lastAssignFor(guest, leaderMatch) ~= nil
+    end, parties)
+    check(reinvited, "ready=false bei LIVE => die Zuweisung kommt erneut")
+
+    local again = lastAssignFor(guest, leaderMatch)
+    check(again and again.role == Protocol.ROLE.GUEST,
+        "  als Gast, nicht als Wirt")
+    check(again and again.address == address,
+        "  mit DERSELBEN Adresse: " .. tostring(again and again.address))
+    check(session.t.matches[leaderMatch].status == Model.STATUS.LIVE,
+        "das Match laeuft dabei weiter (kein E-06 fuer einen Gast)")
+
+    -- Der Match-Wirt (der Leiter) bekommt KEINE neue Zuweisung: Fuer ihn
+    -- waere sie die Aufforderung, einen zweiten Wirt zu oeffnen.
+    local newHostAssign = false
+    for i = hostAssignsBefore + 1, #leaderAssigns do
+        if leaderAssigns[i].matchId == leaderMatch then newHostAssign = true end
+    end
+    check(not newHostAssign, "der Match-Wirt bekommt keine neue Zuweisung")
+
+    guest:accept(leaderMatch, 0, true)
+    pumpAll(0.3, parties)
+
+    -- --- Vollstaendiges Verlassen und Wiederbeitreten ----------------------
+    -- Wie am Abend beobachtet: raus aus dem Turnier, wieder herein. Der neue
+    -- Socket kommt, waehrend der alte noch haengt -- der Wirt uebernimmt den
+    -- Teilnehmer (`onHello`), und `dropPeer` des alten Peers laeuft ohne
+    -- `pid`. Genau deshalb vergisst `onHello` die alten Zusagen selbst.
+    local returned = TournamentClient.new({
+        address = "127.0.0.1", port = M.PORT_ENET,
+        clientId = guest.clientId, name = guest.name, buildHash = "selftest",
+    })
+    if not check(returned ~= nil, "der Rueckkehrer oeffnet einen neuen Socket") then
+        runner:close()
+        thost:close()
+        return
+    end
+    returned.assigns = {}
+    returned.onEvent = function(kind, payload)
+        if kind == "assign" then
+            returned.assigns[#returned.assigns + 1] = payload
+        end
+    end
+    parties[#parties + 1] = returned
+
+    local backIn = waitFor(6, function()
+        return returned.state == "joined" and returned.pid == guestPid
+    end, parties)
+    check(backIn, "der Rueckkehrer ist wieder derselbe Teilnehmer")
+
+    local invitedBack = waitFor(5, function()
+        local a = lastAssignFor(returned, leaderMatch)
+        return a ~= nil and a.address == address
+    end, parties)
+    check(invitedBack,
+        "nach Wiederbeitritt kommt die Einladung ins laufende Match erneut")
+
+    -- --- Handeingabe trifft einen Turnier-Wirt (AP-2, C-T-22) --------------
+    -- `04_NETCODE` §11: Kommt die Bake nicht durch, tippt jemand die
+    -- angeschriebene IP -- und weiss dabei nicht, dass dahinter ein Turnier
+    -- sitzt. Der LOBBY-Client muss das an TOURNAMENT_WELCOME erkennen und
+    -- melden, sonst haengt er stumm und die IP am Beamer ist ein leeres
+    -- Versprechen. Getippt wird hier mit der Kennung des Gasts: Das Turnier
+    -- laeuft schon, ein Fremder bekaeme (richtigerweise) ein REJECT -- der
+    -- Abendfall ist der Teilnehmer, der nach einem Absturz ohne Serverliste
+    -- zurueckfindet.
+    local LobbyClient = require("src.net.client")
+    local sawTournament = false
+    local typed = LobbyClient.new({
+        address = "127.0.0.1", port = M.PORT_ENET,
+        clientId = guest.clientId, name = guest.name, buildHash = "selftest",
+        onEvent = function(kind) sawTournament = sawTournament or (kind == "tournament") end,
+    })
+    if check(typed ~= nil, "ein Lobby-Client waehlt die getippte Adresse") then
+        parties[#parties + 1] = typed
+        local flagged = waitFor(5, function() return sawTournament end, parties)
+        check(flagged, "und erkennt am TOURNAMENT_WELCOME, dass dort ein Turnier sitzt")
+        typed:close()
+    end
+
+    returned:close()
+    guest:close()
+    for _, c in ipairs(clients) do
+        if c ~= guest then c:close() end
+    end
+    runner:close()
+    thost:close()
+end
+
+-- ---------------------------------------------------------------------------
 
 function M.selftest()
     -- Umgeleitet puffert LOEVE die Ausgabe. In der CI heisst das: Ein Lauf,
@@ -567,6 +815,7 @@ function M.selftest()
 
     M.threeLobbies()
     M.parallelMatches()
+    M.returnToLiveMatch()
     return failures
 end
 

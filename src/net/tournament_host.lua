@@ -339,7 +339,9 @@ function TournamentHost:onHello(peer, record, payload)
     self:pushLog(peer)
 
     -- Wer mitten in ein aufgerufenes Match hineinkommt, muss sofort erfahren,
-    -- dass er dran ist -- der No-Show-Timer laeuft schon.
+    -- dass er dran ist -- der No-Show-Timer laeuft schon. Alte Zusagen zaehlen
+    -- dabei nicht mehr: Dieser Mensch sitzt vor einem frischen Bildschirm.
+    self:forgetPromises(pid)
     self:announceAssignments(now)
 
     self.onEvent("join", pid, record.name, how or "new")
@@ -375,7 +377,32 @@ function TournamentHost:dropPeer(peer)
         end
     end
 
+    -- Fuer alle anderen Rollen gilt das Gegenteil (AP-3, C-T-21): Wer geht,
+    -- hat seine Zuweisung nicht mehr -- weder als Wissen noch als Zusage.
+    self:forgetPromises(pid)
+
     self.onEvent("leave", pid, record.name)
+end
+
+-- AP-3 (C-T-21): Die gemerkten Zusagen EINES Teilnehmers vergessen -- `told`
+-- und `accepted`, nicht die Zuweisung selbst. Blieben sie stehen, ginge nach
+-- einem Wiedereintritt (`onHello` -> `announceAssignments`) nie wieder eine
+-- Einladung hinaus, und genau das war der zweite Weg, auf dem C-T-13 ins
+-- Leere lief. Gerufen aus `dropPeer` UND aus `onHello`: Wer nach einem
+-- Absturz schnell zurueckkommt, uebernimmt den Teilnehmer vom noch
+-- haengenden alten Peer -- dessen `dropPeer` laeuft dann ohne `pid` und
+-- raeumt nichts mehr ab.
+--
+-- Ausgenommen ist der MATCH-WIRT eines laufenden Matches: Fuer ihn gilt die
+-- Frist aus §8 (E-06), nicht die Wiedereinladung.
+function TournamentHost:forgetPromises(pid)
+    for matchId, a in pairs(self.assigned) do
+        local m = self.session and self.session.t.matches[matchId]
+        if m and (m.slotA == pid or m.slotB == pid)
+           and not (m.status == Model.STATUS.LIVE and a.host == pid) then
+            a.told[pid], a.toldAt[pid], a.accepted[pid] = nil, nil, nil
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -400,46 +427,74 @@ function TournamentHost:announceAssignments(now)
 
     for _, id in ipairs(t.matchOrder) do
         local m = t.matches[id]
-        if m.status == Model.STATUS.READY and m.slotA and m.slotB then
-            local hostPid = self.choice:decideFor(m, t, now)
+        local live = (m.status == Model.STATUS.LIVE)
+        if (m.status == Model.STATUS.READY or live) and m.slotA and m.slotB then
             local a = self.assigned[id]
-            if not a or a.host ~= hostPid then
-                a = { host = hostPid, told = {}, toldAt = {}, accepted = {} }
-                self.assigned[id] = a
+            local hostPid
+            if live then
+                -- AP-3 (C-T-20): Ein LAUFENDES Match bleibt zuweisbar -- sonst
+                -- gibt es fuer einen Aussteiger keinen Weg zurueck, obwohl der
+                -- Match-Wirt seinen Port haelt und denselben `clientId` als
+                -- Wiedereinsteiger annimmt (`04_NETCODE` §12). Die Wahl wird
+                -- dabei NICHT neu gerechnet: Der Wirt steht, seine Adresse ist
+                -- gemerkt. Fehlt die Zuweisung, laedt niemand ein -- dann ist
+                -- der Wirt weg, und es gilt die Frist aus §8 (E-06).
+                hostPid = a and a.host
+            else
+                hostPid = self.choice:decideFor(m, t, now)
+                if not a or a.host ~= hostPid then
+                    a = { host = hostPid, told = {}, toldAt = {}, accepted = {} }
+                    self.assigned[id] = a
+                end
             end
 
-            for _, pid in ipairs({ m.slotA, m.slotB }) do
-                local isHost = (pid == hostPid)
-                -- Der Gast bekommt die Zuweisung zweimal: einmal ohne
-                -- Adresse (damit er weiss, dass er dran ist) und einmal mit,
-                -- sobald der Wirt seinen Port gemeldet hat.
-                local stamp = isHost and "host" or tostring(a.address or "")
-                local stale = a.told[pid] == stamp and not a.accepted[pid]
-                              and (now - (a.toldAt[pid] or 0)) >= TournamentHost.ASSIGN_RETRY_SECONDS
-                if a.told[pid] ~= stamp or stale then
-                    local payload = {
-                        matchId  = id,
-                        role     = isHost and Protocol.ROLE.HOST or Protocol.ROLE.GUEST,
-                        opponent = session:nameOf(pid == m.slotA and m.slotB or m.slotA),
-                        address  = (not isHost) and (a.address or "") or "",
-                        bestOf   = m.bestOf or 1,
-                    }
-                    if pid == self.selfPid then
-                        -- Der Turnierleiter spielt mit. Er bekommt dieselbe
-                        -- Zuweisung wie alle anderen, nur ohne den Umweg ueber
-                        -- das Netz -- er redet nicht mit sich selbst. Damit
-                        -- hat die Szene EINEN Weg fuer beide Rollen statt
-                        -- zweier, die auseinanderlaufen koennen.
-                        a.told[pid], a.toldAt[pid] = stamp, now
-                        self.onEvent("assign", payload)
-                    elseif self:sendTo(pid, Protocol.MSG.TOURNAMENT_ASSIGN, payload) then
-                        a.told[pid], a.toldAt[pid] = stamp, now
+            if hostPid then
+                for _, pid in ipairs({ m.slotA, m.slotB }) do
+                    local isHost = (pid == hostPid)
+                    -- Bei LIVE wird nur der GAST wieder eingeladen. Der
+                    -- Match-Wirt braucht keine Zuweisung mehr: Steigt ER aus,
+                    -- ist das Match weg (E-06), nicht wartend.
+                    if live and isHost then
+                        -- nichts zu tun
+                    else
+                        -- Der Gast bekommt die Zuweisung zweimal: einmal ohne
+                        -- Adresse (damit er weiss, dass er dran ist) und einmal
+                        -- mit, sobald der Wirt seinen Port gemeldet hat.
+                        local stamp = isHost and "host" or tostring(a.address or "")
+                        local stale = a.told[pid] == stamp and not a.accepted[pid]
+                                      and (now - (a.toldAt[pid] or 0)) >= TournamentHost.ASSIGN_RETRY_SECONDS
+                        if a.told[pid] ~= stamp or stale then
+                            local payload = {
+                                matchId  = id,
+                                role     = isHost and Protocol.ROLE.HOST or Protocol.ROLE.GUEST,
+                                opponent = session:nameOf(pid == m.slotA and m.slotB or m.slotA),
+                                address  = (not isHost) and (a.address or "") or "",
+                                bestOf   = m.bestOf or 1,
+                            }
+                            if pid == self.selfPid then
+                                -- Der Turnierleiter spielt mit. Er bekommt dieselbe
+                                -- Zuweisung wie alle anderen, nur ohne den Umweg ueber
+                                -- das Netz -- er redet nicht mit sich selbst. Damit
+                                -- hat die Szene EINEN Weg fuer beide Rollen statt
+                                -- zweier, die auseinanderlaufen koennen.
+                                a.told[pid], a.toldAt[pid] = stamp, now
+                                self.onEvent("assign", payload)
+                            elseif self:sendTo(pid, Protocol.MSG.TOURNAMENT_ASSIGN, payload) then
+                                a.told[pid], a.toldAt[pid] = stamp, now
+                            end
+                        end
                     end
                 end
             end
-        elseif self.assigned[id] and m.status ~= Model.STATUS.LIVE then
-            -- Aufruf zurueckgenommen (Walkover, Abbruch): Die Zuweisung gilt
-            -- nicht mehr, und die naechste wird neu gemessen.
+        elseif self.assigned[id] then
+            -- Aufruf vorbei oder zurueckgenommen (Ergebnis, Walkover,
+            -- Abbruch): Die Zuweisung gilt nicht mehr, und die naechste wird
+            -- neu gemessen. Ein LIVE-Match kommt hier nie an -- seine
+            -- Zuweisung ist die einzige Quelle der Wirtsadresse und bleibt,
+            -- bis das Ergebnis da ist (AP-3). Die alte Bedingung
+            -- `~= LIVE` stand genau deshalb falsch herum: Sie liess LIVE in
+            -- Ruhe, weil die erste Bedingung es nicht abdeckte -- und haette
+            -- beim Nachziehen der ersten still die Adresse aufgeraeumt.
             self.assigned[id] = nil
             self.lostSince[id] = nil
             self.queried[id] = nil

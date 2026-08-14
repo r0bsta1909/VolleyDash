@@ -3,6 +3,9 @@
 --
 --   love . --tournament-auto=host             der Turnierleiter
 --   love . --tournament-auto=client --client-id=2   ein Teilnehmer
+--   love . --tournament-auto=escaper --client-id=4  ein Teilnehmer, der einmal
+--                                       mitten im Match aussteigt (AP-3) und
+--                                       zurueckfinden muss -- sonst Exit 1
 --
 -- Der Selbsttest (`--tournament-selftest`) prueft Protokoll, Ports und
 -- Bracket in EINEM Prozess. Was er nicht anfasst, ist die Szene: Zuweisung
@@ -34,6 +37,8 @@ function M.install(App, role)
     local frames = 0
     local drawn, browser, joined = false, nil, false
     local lastLine = ""
+    -- AP-3 (C-T-20): der eine Ausstieg des `escaper` und seine Rueckkehr.
+    local escaped, escapedMatch, escapedAt, returned = false, nil, 0, false
 
     -- Vier Prozesse schreiben gleichzeitig; umgeleitet puffert LOEVE die
     -- Ausgabe und das Protokoll erscheint erst am Ende -- oder gar nicht, wenn
@@ -63,7 +68,7 @@ function M.install(App, role)
 
         -- Der Teilnehmer sucht sich sein Turnier selbst. Das ist der Weg des
         -- Abends: Bake -> Serverliste -> ENTER, ohne IP-Eingabe.
-        if role == "client" and not joined then
+        if role ~= "host" and not joined then
             if browser then
                 browser:update()
                 if frames % 120 == 0 then browser:probe() end
@@ -134,7 +139,29 @@ function M.install(App, role)
                 top.finishedAt = love.timer.getTime()
             end
 
+            -- AP-3: Endet das verlassene Match, ohne dass der Aussteiger
+            -- zurueckkam, ist die Rueckkehrmechanik kaputt -- genau der
+            -- Befund des zweiten LAN-Abends. Walkover zaehlt nicht als
+            -- Rueckkehr.
+            if escaped and not returned and escapedMatch then
+                local m = s.t.matches[escapedMatch]
+                if m and Model.TERMINAL[m.status] then
+                    print("[tauto] FEHLER: " .. tostring(escapedMatch)
+                        .. " endete ohne Rueckkehr (AP-3)")
+                    love.event.quit(1)
+                end
+                if love.timer.getTime() - escapedAt > 60 then
+                    print("[tauto] FEHLER: 60 s ohne Rueckkehr in "
+                        .. tostring(escapedMatch) .. " (AP-3)")
+                    love.event.quit(1)
+                end
+            end
+
             if s:isFinished() and love.timer.getTime() - top.finishedAt > 2 then
+                if escaped and not returned then
+                    print("[tauto] FEHLER: Turnier endete ohne Rueckkehr (AP-3)")
+                    love.event.quit(1)
+                end
                 print("[tauto] SIEGER: " .. tostring(s:winnerName()))
                 for _, pid in ipairs(s.t.participantOrder) do
                     local p = s.t.participants[pid]
@@ -146,6 +173,36 @@ function M.install(App, role)
             end
 
         elseif top.name == "net_game" then
+            -- AP-3 (C-T-20): Der `escaper` verlaesst GENAU EIN Match mitten im
+            -- Satz -- derselbe Weg wie ueber das Menue ("Match verlassen").
+            -- Als GAST muss ihn die erneute Zuweisung zurueckbringen
+            -- (Wiedereinstieg, `04_NETCODE` §12); als MATCH-WIRT greift E-06
+            -- und das neu angesetzte Match holt ihn wieder. Beides endet im
+            -- SELBEN `matchId` -- und genau das wird unten geprueft.
+            if role == "escaper" and not escaped and (top.simTick or 0) > 240 then
+                local tScene = Scene.below(top)
+                if tScene and tScene.runner then
+                    escaped = true
+                    escapedMatch = tScene.runner.matchId
+                    escapedAt = love.timer.getTime()
+                    say("AUSSTIEG aus " .. tostring(escapedMatch)
+                        .. " als " .. tostring(top.role) .. " (AP-3)")
+                    App.leaveMatch()
+                    return
+                end
+            end
+
+            if escaped and not returned and escapedMatch then
+                local tScene = Scene.below(top)
+                if tScene and tScene.runner
+                   and tScene.runner.matchId == escapedMatch then
+                    returned = true
+                    say(string.format(
+                        "RUECKKEHR ins selbe Match nach %.1f s (AP-3)",
+                        love.timer.getTime() - escapedAt))
+                end
+            end
+
             -- Ohne Hand am Rechner passiert im Match NICHTS: Der Aufschlag
             -- braucht eine Beruehrung, sonst haengt die Phase auf `serve`
             -- (`src/sim/physics.lua`). Also spielt hier eine vierte Quelle

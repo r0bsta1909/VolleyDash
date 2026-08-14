@@ -35,6 +35,7 @@
 
 local Session          = require("src.tournament.session")
 local Persistence      = require("src.tournament.persistence")
+local Discovery        = require("src.net.discovery")
 local Ruleset          = require("src.sim.ruleset")
 local Protocol         = require("src.net.protocol")
 local MatchRunner      = require("src.net.match_runner")
@@ -112,10 +113,44 @@ function TournamentScene.new(app, opts)
         onCreate   = function() self:createSession() end,
         onResume   = function(id) return self:resumeSession(id) end,
         onLeave    = function() app.leaveTournament() end,
+        -- AP-1 (CC-06): die gespeicherten Turniere und ihr Loeschweg. Beides
+        -- gibt es nur beim Leiter -- ein Teilnehmer hat keine Dateien.
+        savedList  = function() return self:savedTournaments() end,
+        onDelete   = function(id) return self:deleteTournament(id) end,
     })
 
     if #running == 0 then self:createSession() end
     return self
+end
+
+-- Die Liste wird je Bild gezeichnet, `Persistence:list()` liest und parst
+-- aber JEDE Datei. Deshalb ein Zwischenspeicher, der genau dann faellt, wenn
+-- sich der Bestand aendert -- anlegen, wiederaufnehmen, loeschen. Ein fremder
+-- Schreiber ist ausgeschlossen: Es gibt nur diesen Prozess.
+function TournamentScene:savedTournaments()
+    if not self.persistence then return {} end
+    if not self.savedCache then
+        local ok, list = pcall(function() return self.persistence:list() end)
+        self.savedCache = ok and list or {}
+    end
+    local current = self.session and self.session.t.id
+    for _, e in ipairs(self.savedCache) do
+        e.loaded = (e.id == current)
+    end
+    return self.savedCache
+end
+
+function TournamentScene:deleteTournament(id)
+    if not self.persistence then return false, "Kein Dateizugriff" end
+    if self.session and self.session.t.id == id then
+        -- Doppelter Boden zur Bedienung (`manageKey` bietet es nicht an):
+        -- Das geoeffnete Turnier schriebe sich nach dem naechsten Ereignis
+        -- selbst zurueck -- geloescht waere nur die Sicherung.
+        return false, "Dieses Turnier ist gerade geoeffnet"
+    end
+    local ok, err = self.persistence:delete(id)
+    if ok then self.savedCache = nil end
+    return ok, err
 end
 
 -- ---------------------------------------------------------------------------
@@ -152,6 +187,7 @@ function TournamentScene:createSession()
 
     self.session = session
     self.ui.ctx.session = session
+    self.savedCache = nil   -- eine neue Datei ist da
 
     -- Der Mensch am Rechner steht als Erster im Feld. Wer nur ausrichtet,
     -- streicht sich mit ENTF wieder heraus.
@@ -180,6 +216,7 @@ function TournamentScene:resumeSession(id)
     self.session = session
     self.ui.ctx.session = session
     self.selfPid = session:selfId()
+    self.savedCache = nil   -- das geladene Turnier traegt jetzt die Marke
 
     if source == "bak" then
         self.ui:say("Aus der Sicherungsdatei geladen -- das letzte Ereignis kann fehlen")
@@ -221,6 +258,15 @@ function TournamentScene:startHost()
 
     self.thost = thost
     thost:startBeacon({ hostId = app.clientId and app.clientId() or 0 })
+
+    -- AP-2 (CC-06): Die eigene Adresse steht am Bildschirm, wie in der
+    -- Match-Lobby seit M2. Kommt der Broadcast nicht durch (`04_NETCODE` §11
+    -- -- Firewall, Client-Isolation, zwei Subnetze), ist die Handeingabe der
+    -- Weg, und dafuer muss der Turnierleiter die Zahl VORLESEN koennen statt
+    -- sie zu suchen. `localAddress` waehlt nur die Route, kein Netzverkehr.
+    -- Sie kann "?" sein -- dann steht eben "?" da, das ist ehrlicher als
+    -- nichts. Nur beim WIRT: Beim Teilnehmer stuende dort nichts Sinnvolles.
+    self.ui.ctx.address = Discovery.localAddress()
 end
 
 function TournamentScene:startClient(opts)
@@ -294,7 +340,14 @@ end
 
 function TournamentScene:onAssign(payload)
     if self.runner and self.runner.matchId == payload.matchId then
-        return   -- schon aufgebaut; die zweite Zuweisung traegt nur die Adresse
+        -- Schon aufgebaut. Die Wiederholung ist trotzdem eine Frage, keine
+        -- Neuigkeit: Der Turnier-Wirt wiederholt, solange ihm die Zusage
+        -- fehlt -- und nach einem Wiedereintritt hat er die alte absichtlich
+        -- vergessen (AP-3, `forgetPromises`). Also erneut zusagen, sonst
+        -- fragt er bis zum Abpfiff alle zwei Sekunden.
+        self:accept(payload.matchId,
+            self.runner:isHost() and self.runner.port or 0)
+        return
     end
 
     -- Waehrend eines laufenden Matches wird keine neue Zuweisung angefasst.
