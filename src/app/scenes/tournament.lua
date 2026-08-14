@@ -405,6 +405,9 @@ function TournamentScene:enterMatch(slot)
         names   = names,
         slot    = slot,
         stats   = self.stats,
+        -- Sagt der Matchszene, dass sie zu einem Turnier gehoert: Endstand
+        -- stehen lassen, danach von allein zurueck, ESC beendet nichts.
+        isTournament = true,
         -- Die Turnierverbindung wandert mit: Waehrend des Matches bekommt
         -- diese Szene kein `update` mehr, und ein ENet-Wirt, den vier Minuten
         -- lang niemand bedient, hat danach keine Teilnehmer mehr.

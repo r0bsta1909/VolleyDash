@@ -89,12 +89,17 @@ function NetGame.new(app, opts)
         -- `toReport` nicht kennt" -- gemessen 2026-08-13.
         matchStats  = (opts.role == "host") and opts.stats or nil,
         onFinished  = opts.onFinished,
-        -- `tournament` steht hier bewusst NICHT mehr (ADR-024). Die
+        -- Ein TURNIERMATCH verhaelt sich am Ende anders als ein freies: Der
+        -- Endstand bleibt kurz stehen und die Szene geht danach von allein
+        -- zurueck ins Bracket, und ESC beendet nicht die Sitzung.
+        --
+        -- Die VERBINDUNG steht hier bewusst nicht mehr (ADR-024). Die
         -- Turnierszene laeuft seit `alwaysUpdate` selbst weiter und bedient
-        -- ihre Verbindung; sie hier noch einmal zu treiben hiesse, sie zweimal
-        -- je Bild zu bedienen -- doppelte PINGs und ein doppelt laufender
-        -- Automat.
-        isTournament = opts.tournament ~= nil,
+        -- sie; sie hier noch einmal zu treiben hiesse, sie zweimal je Bild zu
+        -- bedienen. Das Flag musste trotzdem bleiben -- beim ersten Ausbau war
+        -- es mit verschwunden, und damit blieben alle vier Prozesse auf dem
+        -- Endstand stehen (gemessen 2026-08-14).
+        isTournament = opts.isTournament == true,
     }, NetGame)
 
     -- Beide Rollen steuern ihren eigenen Blob mit derselben Belegung. Wer
