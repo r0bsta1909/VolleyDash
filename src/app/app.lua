@@ -238,6 +238,14 @@ function App.leaveMatch()
     Scene.popWhile(function(scene) return scene.name == "net_game" end)
 end
 
+-- Nur die Lobby verlassen, die Serverliste darunter bleibt. Gebraucht fuer
+-- den Protokollwechsel, wenn eine getippte Adresse einem TURNIER gehoert
+-- (AP-2, C-T-22): Die Lobbyszene geht zu, die Turnierszene kommt an ihre
+-- Stelle -- wie bei einem Turnierbeitritt ueber die Serverliste auch.
+function App.leaveLobby()
+    Scene.popWhile(function(scene) return scene.name == "lobby" end)
+end
+
 -- Die ganze Sitzung beenden: alle Netzszenen abraeumen, Sockets zu.
 function App.leaveNet()
     Scene.popWhile(function(scene) return NET_SCENES[scene.name] == true end)

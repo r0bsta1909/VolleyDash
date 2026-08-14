@@ -187,6 +187,17 @@ function Client:receive(data)
         self:fail(payload.text ~= "" and payload.text or "Der Host hat abgelehnt.")
         self.state = "failed"
 
+    elseif msgType == Protocol.MSG.TOURNAMENT_WELCOME then
+        -- Die Gegenstelle ist ein TURNIER-Wirt, keine Match-Lobby. Das
+        -- passiert genau auf einem Weg: Die Adresse wurde von Hand getippt
+        -- (`04_NETCODE` §11), und beim Tippen weiss niemand, was auf 21212
+        -- antwortet -- die Bake, die es sagen wuerde, kommt ja gerade nicht
+        -- durch. HELLO ist fuer beide Wirte dasselbe (F-T-08), also steht die
+        -- Antwort erst jetzt fest. Die Szene wechselt daraufhin das Protokoll
+        -- (AP-2, C-T-22); dieselbe `clientId` macht daraus druben einen
+        -- Wiedereintritt, keinen Doppelgaenger.
+        self.onEvent("tournament", payload.tournamentName)
+
     elseif msgType == Protocol.MSG.RULESET_FULL then
         self:acceptRuleset(payload.ruleset)
 

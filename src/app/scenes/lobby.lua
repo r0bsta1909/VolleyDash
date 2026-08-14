@@ -123,6 +123,7 @@ function LobbyScene:startClient(opts)
     end
     self.client = client
     self.address = opts.address
+    self.joinPort = opts.port or Protocol.PORT_ENET
 end
 
 -- Nach einem Abbruch bleibt die Meldung stehen und die Szene raeumt sich dann
@@ -135,6 +136,17 @@ function LobbyScene:onClientEvent(kind, a, b, c)
     if kind == "failed" then
         self.error = a
         self.errorUntil = love.timer.getTime() + LobbyScene.ERROR_LINGER
+    elseif kind == "tournament" then
+        -- Die getippte Adresse gehoert einem TURNIER (AP-2, C-T-22). Ohne
+        -- diesen Wechsel hinge man hier fest -- der Turnier-Wirt kennt keine
+        -- Lobby-Nachrichten -- und die am Beamer angeschriebene IP waere fuer
+        -- Turniere ein leeres Versprechen. Adresse und Port bleiben dieselben,
+        -- nur das Protokoll wechselt.
+        --
+        -- NICHT hier, sondern im naechsten `update`: Dieser Rueckruf kommt aus
+        -- der Ereignisschleife des Clients, und der Wechsel schliesst dessen
+        -- Socket -- derselbe Griff wie bei C-T-05.
+        self.becomeTournament = true
     elseif kind == "ruleset" then
         -- Das Regelwerk des Hosts gilt (ADR-005). Es ersetzt das eigene fuer
         -- die Dauer des Matches.
@@ -216,6 +228,18 @@ function LobbyScene:update(dt)
         self.client:update(dt)
         if self.client.state == "playing" and not self.started then
             self:enterMatch(self.client.slot)
+        end
+
+        -- Der Protokollwechsel zum Turnier (AP-2, C-T-22) -- einen Frame
+        -- nach der Nachricht, ausserhalb der Ereignisschleife des Clients.
+        -- Nur die Lobby geht zu; die Serverliste darunter bleibt stehen, wie
+        -- bei einem Turnierbeitritt ueber die Liste auch.
+        if self.becomeTournament then
+            local address, port = self.address, self.joinPort
+            self.becomeTournament = nil
+            self.app.leaveLobby()
+            self.app.joinTournament(address, port)
+            return
         end
     end
 
