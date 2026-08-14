@@ -37,3 +37,7 @@ net.log
 tournament.log
 netlog.csv
 .claude/settings.local.json
+# Lokale Session-Worktrees paralleler Claude-Sessions. Reines
+# Laufzeitartefakt der Maschine -- ein `git add -A` darf sie nie erwischen
+# (dieselbe Falle wie die Selbsttest-Protokolle, CLAUDE.md §11).
+.claude/worktrees/
